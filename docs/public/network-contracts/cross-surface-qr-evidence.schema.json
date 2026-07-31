@@ -1,0 +1,319 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/cross-surface-qr-evidence.schema.json",
+  "title": "QR Trust cross-surface QR evidence packet",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "bundle_id",
+    "generated_at",
+    "scenario_id",
+    "qr_artifact",
+    "final_decision",
+    "surface_evidence",
+    "reviewer",
+    "privacy"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "cross_surface_qr_evidence_packet"
+    },
+    "bundle_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "qr_artifact": {
+      "type": "object",
+      "required": [
+        "artifact_ref",
+        "payload_hash",
+        "usage_policy",
+        "destination_fingerprint"
+      ],
+      "properties": {
+        "artifact_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "payload_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "usage_policy": {
+          "enum": [
+            "one_time",
+            "reusable_public"
+          ]
+        },
+        "destination_fingerprint": {
+          "$ref": "#/$defs/domain_fingerprint"
+        }
+      },
+      "additionalProperties": false
+    },
+    "final_decision": {
+      "$ref": "#/$defs/decision"
+    },
+    "surface_evidence": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "prefixItems": [
+        {
+          "$ref": "#/$defs/contract_fixture_row"
+        },
+        {
+          "$ref": "#/$defs/worker_drill_row"
+        },
+        {
+          "$ref": "#/$defs/web_lab_row"
+        },
+        {
+          "$ref": "#/$defs/backend_scanner_decision_row"
+        },
+        {
+          "$ref": "#/$defs/ios_scanner_row"
+        }
+      ],
+      "items": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": [
+        "name",
+        "role",
+        "reviewed_at"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "raw_urls_redacted",
+        "secrets_included"
+      ],
+      "properties": {
+        "raw_urls_redacted": {
+          "const": true
+        },
+        "secrets_included": {
+          "const": false
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "decision": {
+      "type": "object",
+      "required": [
+        "decision_color",
+        "decision_state",
+        "reason_codes"
+      ],
+      "properties": {
+        "decision_color": {
+          "enum": [
+            "green",
+            "orange",
+            "red"
+          ]
+        },
+        "decision_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "domain_fingerprint": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "\\.\\.\\.",
+      "not": {
+        "pattern": "://|\\?|#|@|\\s"
+      }
+    },
+    "surface_row": {
+      "type": "object",
+      "required": [
+        "surface",
+        "artifact_ref",
+        "proof_ref",
+        "decision_color",
+        "decision_state",
+        "reason_codes",
+        "observed_at"
+      ],
+      "properties": {
+        "surface": {
+          "enum": [
+            "contract_fixture",
+            "worker_drill",
+            "web_lab",
+            "backend_scanner_decision",
+            "ios_scanner"
+          ]
+        },
+        "artifact_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proof_ref": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "\\.\\."
+          }
+        },
+        "decision_color": {
+          "enum": [
+            "green",
+            "orange",
+            "red"
+          ]
+        },
+        "decision_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "contract_fixture_row": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/surface_row"
+        },
+        {
+          "properties": {
+            "surface": {
+              "const": "contract_fixture"
+            },
+            "proof_ref": {
+              "pattern": "^docs/public/"
+            }
+          }
+        }
+      ]
+    },
+    "worker_drill_row": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/surface_row"
+        },
+        {
+          "properties": {
+            "surface": {
+              "const": "worker_drill"
+            },
+            "proof_ref": {
+              "pattern": "^docs/public/"
+            }
+          }
+        }
+      ]
+    },
+    "web_lab_row": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/surface_row"
+        },
+        {
+          "properties": {
+            "surface": {
+              "const": "web_lab"
+            },
+            "proof_ref": {
+              "pattern": "^docs/public/"
+            }
+          }
+        }
+      ]
+    },
+    "backend_scanner_decision_row": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/surface_row"
+        },
+        {
+          "properties": {
+            "surface": {
+              "const": "backend_scanner_decision"
+            },
+            "proof_ref": {
+              "pattern": "^docs/public/"
+            }
+          }
+        }
+      ]
+    },
+    "ios_scanner_row": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/surface_row"
+        },
+        {
+          "properties": {
+            "surface": {
+              "const": "ios_scanner"
+            },
+            "proof_ref": {
+              "pattern": "^docs/public/evidence/iphone/"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

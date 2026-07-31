@@ -1,0 +1,107 @@
+{
+  "artifact_type": "ios_provider_profile_evidence_packet",
+  "packet_id": "ios-provider-profile-evidence:qrtrust-demo:ios-reference:2026-05-22",
+  "generated_at": "2026-05-22T00:00:00Z",
+  "scanner_app": {
+    "name": "QR Trust",
+    "platform": "iOS",
+    "build_version": "ios-reference-0.1.0",
+    "os_version": "iOS 18 reference"
+  },
+  "provider_profile_fixture": {
+    "path": "docs/public/fixtures/ios/signed-provider-profile.demo.json",
+    "profile_id": "qrtrust-demo-local",
+    "profile_version": 1,
+    "profile_fingerprint": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  },
+  "evidence_rows": [
+    {
+      "fixture_id": "signed_profile_import_active",
+      "profile_state": "active",
+      "expected_status": "signed_provider_profile_verified",
+      "expected_user_signal": "green",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-import-active.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-import-active.txt",
+      "required_labels": [
+        "Provider profile imported",
+        "Signed provider profile verified",
+        "Demo issuer trust program"
+      ]
+    },
+    {
+      "fixture_id": "signed_profile_settings_active",
+      "profile_state": "active",
+      "expected_status": "protection_service_ready",
+      "expected_user_signal": "green",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-settings-active.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-settings-active.txt",
+      "required_labels": [
+        "Protection service",
+        "Ready",
+        "Demo issuer trust program"
+      ]
+    },
+    {
+      "fixture_id": "signed_profile_settings_stale",
+      "profile_state": "stale",
+      "expected_status": "provider_profile_stale",
+      "expected_user_signal": "orange",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-settings-stale.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-settings-stale.txt",
+      "required_labels": [
+        "Protection service",
+        "Needs refresh",
+        "profile is stale"
+      ]
+    },
+    {
+      "fixture_id": "signed_profile_settings_revoked",
+      "profile_state": "revoked",
+      "expected_status": "provider_profile_revoked",
+      "expected_user_signal": "red",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-settings-revoked.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-settings-revoked.txt",
+      "required_labels": [
+        "Protection service",
+        "Do not use",
+        "profile was revoked"
+      ]
+    },
+    {
+      "fixture_id": "unsigned_nonlocal_profile_rejected",
+      "profile_state": "rejected",
+      "expected_status": "unsigned_nonlocal_profile_rejected",
+      "expected_user_signal": "red",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-unsigned-nonlocal-rejected.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-unsigned-nonlocal-rejected.txt",
+      "required_labels": [
+        "Provider profile rejected",
+        "Unsigned profile",
+        "not allowed for non-local endpoints"
+      ]
+    },
+    {
+      "fixture_id": "unsigned_local_reviewer_profile_allowed",
+      "profile_state": "local_reviewer_exception",
+      "expected_status": "local_reviewer_profile_allowed",
+      "expected_user_signal": "orange",
+      "screenshot_ref": "docs/public/evidence/iphone/provider-profile-local-reviewer-exception.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-provider-profile-local-reviewer-exception.txt",
+      "required_labels": [
+        "Local reviewer profile",
+        "Unsigned local profile",
+        "review only"
+      ]
+    }
+  ],
+  "reviewer": {
+    "name": "QR Trust reviewer",
+    "role": "native provider-profile evidence reviewer",
+    "reviewed_at": "2026-05-22"
+  },
+  "privacy": {
+    "raw_endpoints_redacted": true,
+    "secrets_included": false,
+    "notes": "Provider-profile evidence uses screenshots and accessibility labels only; raw local endpoints and verifier API keys stay out of committed artifacts."
+  }
+}

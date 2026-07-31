@@ -1,0 +1,70 @@
+services:
+  postgres:
+    profiles:
+      - local-infra
+
+  redis:
+    profiles:
+      - local-infra
+
+  api:
+    depends_on: !reset []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DB_HOST: ${EXTERNAL_DB_HOST:-host.docker.internal}
+      DB_PORT: ${EXTERNAL_DB_PORT:-5432}
+      DB_USER: ${EXTERNAL_DB_USER:-publisher}
+      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-publisher}
+      DB_NAME: ${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      REDIS_HOSTNAME: ${EXTERNAL_REDIS_HOSTNAME:-host.docker.internal}
+      REDIS_PORT: ${EXTERNAL_REDIS_PORT:-6379}
+      REDIS_DB: ${EXTERNAL_REDIS_DB:-5}
+
+  api-verifier-b:
+    depends_on: !reset []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DB_HOST: ${EXTERNAL_DB_HOST:-host.docker.internal}
+      DB_PORT: ${EXTERNAL_DB_PORT:-5432}
+      DB_USER: ${EXTERNAL_DB_USER:-publisher}
+      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-publisher}
+      DB_NAME: ${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      REDIS_HOSTNAME: ${EXTERNAL_REDIS_HOSTNAME:-host.docker.internal}
+      REDIS_PORT: ${EXTERNAL_REDIS_PORT:-6379}
+      REDIS_DB: ${SECONDARY_VERIFIER_REDIS_DB:-6}
+
+  network-artifact-publication-worker:
+    depends_on: !reset []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+
+  network-verifier-cache-worker:
+    depends_on: !reset []
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+
+  network-outbox-worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+
+  network-governance-subscriber-worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+
+  network-runtime-subscriber-worker:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}

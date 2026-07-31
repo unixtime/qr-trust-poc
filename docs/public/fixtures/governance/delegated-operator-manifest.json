@@ -1,0 +1,34 @@
+{
+  "artifact_type": "delegated_operator_manifest",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+  "operator_name": "Merchant Web Demo Authority",
+  "operator_class": "merchant_platform",
+  "scope": [
+    "merchant_navigation_qr",
+    "public_reusable_qr",
+    "one_time_checkout_qr"
+  ],
+  "assurance_requirements": {
+    "domain_control_required": true,
+    "business_identity_proofing": "demo_verified_business",
+    "destination_policy_required": true,
+    "runtime_safety_policy_required": true
+  },
+  "enrolled_issuers": [
+    {
+      "issuer_id": "issuer:acme-demo",
+      "issuer_record_ref": "issuer-record.json",
+      "assurance_tier": "verified_business",
+      "status": "active"
+    }
+  ],
+  "publication": {
+    "published_at": "2026-05-15T00:00:00Z",
+    "valid_until": "2026-12-31T23:59:59Z",
+    "signed_by": "root:qrtrust-demo:2026",
+    "signature_status": "fixture_unsigned"
+  }
+}

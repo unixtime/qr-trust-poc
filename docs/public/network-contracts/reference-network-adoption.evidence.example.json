@@ -1,0 +1,114 @@
+{
+  "postgres_source_of_truth": [
+    {
+      "label": "Dedicated Postgres trust-state authority",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/postgres-source-of-truth",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "authority_publication": [
+    {
+      "label": "Authority publication service smoke",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/authority-publication",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "nats_propagation": [
+    {
+      "label": "NATS JetStream propagation contract",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/nats-propagation",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "verifier_cache_read_model": [
+    {
+      "label": "Verifier cache read-model worker smoke",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/verifier-cache-read-model",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "scanner_decision_runtime": [
+    {
+      "label": "Scanner decision HTTP runtime smoke",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/scanner-decision-runtime",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "scanner_fleet_evidence": [
+    {
+      "label": "Scanner fleet evidence packet",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/scanner-fleet-evidence",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "cross_surface_qr_evidence": [
+    {
+      "label": "Cross-surface QR evidence packet",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/cross-surface-qr-evidence",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "worker_operations_evidence": [
+    {
+      "label": "Worker operations evidence packet",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/worker-operations-evidence",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "signing_custody_audit_export": [
+    {
+      "label": "Publication-backed signing custody audit export",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/signing-custody-audit-export",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "signing_custody": [
+    {
+      "label": "Managed signing custody deployment policy",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/signing-custody",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "runtime_safety_provider": [
+    {
+      "label": "Runtime-safety provider deployment policy",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/runtime-safety-provider",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "operator_runbooks": [
+    {
+      "label": "Deployment readiness operator guide",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/operator-runbooks",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "backup_restore": [
+    {
+      "label": "Migration and restore policy",
+      "uri": "ops://qrtrust/adoption-stage/2026-05-21/backup-restore",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "external_governance_audit": [
+    {
+      "label": "External governance review placeholder",
+      "uri": "ops://qrtrust/governance-audit/2026-05-21",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ]
+}

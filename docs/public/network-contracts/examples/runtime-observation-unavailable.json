@@ -1,0 +1,44 @@
+{
+  "artifact_type": "runtime_safety_observation",
+  "schema_version": "0.1",
+  "observation_id": "runtime_observation_demo_unavailable_001",
+  "observed_at": "2026-05-18T00:00:00Z",
+  "expires_at": "2026-05-18T00:01:00Z",
+  "provider": {
+    "provider_id": "deterministic-redirect-inspector",
+    "provider_kind": "redirect_inspector",
+    "provider_version": "deterministic-0.1",
+    "response_status": "timeout",
+    "checked_at": "2026-05-18T00:00:00Z"
+  },
+  "destination": {
+    "destination_host": "acme.example",
+    "destination_url": "https://acme.example/pay",
+    "fingerprint": "acm...ple",
+    "final_url": "https://acme.example/pay",
+    "final_host": "acme.example",
+    "observed_redirect_hops": 0,
+    "https_status": "not_checked"
+  },
+  "verdict": "unavailable",
+  "risk_score": 30,
+  "reason_codes": [
+    "runtime_redirect_inspector_unavailable"
+  ],
+  "privacy": {
+    "payload_disclosure": "normalized_url",
+    "user_data_disclosure": "none",
+    "raw_provider_payload_retained": false
+  },
+  "decision_role": {
+    "source_of_truth": false,
+    "scanner_visible_impact": "may_downgrade_to_orange",
+    "operator_note": "Provider outage maps to orange/unavailable by default; it must not silently produce green."
+  },
+  "governance": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo",
+    "destination_policy_id": "policy:acme-demo:web-payments:v1"
+  }
+}

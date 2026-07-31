@@ -1,0 +1,246 @@
+{
+  "artifact_type": "operator_evidence_index",
+  "index_id": "operator-evidence-index:production-candidate:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "claim_mode": "production_candidate",
+  "controls": [
+    {
+      "control_id": "postgres_source_of_truth",
+      "layer": "source_of_truth",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Dedicated Postgres trust-state authority is operated as the durable source of truth.",
+      "evidence_refs": [
+        {
+          "label": "Dedicated Postgres trust-state authority",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/postgres-source-of-truth",
+          "owner": "QR Trust operator",
+          "review_role": "database_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "migration_ledger",
+      "layer": "source_of_truth",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Migration review, execution, and rollback ledger is retained outside the public repository.",
+      "evidence_refs": [
+        {
+          "label": "Migration ledger and rollback approval",
+          "uri": "ops://qrtrust/operator-evidence/2026-05-21/migration-ledger",
+          "owner": "QR Trust operator",
+          "review_role": "database_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "restore_automation",
+      "layer": "operator_readiness",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Backup and restore drill evidence is owned by the operator.",
+      "evidence_refs": [
+        {
+          "label": "Migration and restore policy",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/backup-restore",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "packaged_deployment_ownership",
+      "layer": "operator_readiness",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Release ownership, security review, operations review, and external governance handoff are operator-held.",
+      "evidence_refs": [
+        {
+          "label": "Packaged deployment approval",
+          "uri": "ops://qrtrust/operator-evidence/2026-05-21/packaged-deployment-approval",
+          "owner": "QR Trust operator",
+          "review_role": "release_owner",
+          "reviewed_at": "2026-05-21"
+        },
+        {
+          "label": "External governance review placeholder",
+          "uri": "ops://qrtrust/governance-audit/2026-05-21",
+          "owner": "QR Trust operator",
+          "review_role": "release_owner",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "nats_propagation",
+      "layer": "propagation",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "NATS JetStream propagation is operated as event transport, not trust authority.",
+      "evidence_refs": [
+        {
+          "label": "NATS JetStream propagation contract",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/nats-propagation",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "managed_key_material",
+      "layer": "custody",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Signing keys are managed by the operator without exposing private material in public artifacts.",
+      "evidence_refs": [
+        {
+          "label": "Managed key-material custody record",
+          "uri": "ops://qrtrust/operator-evidence/2026-05-21/managed-key-material",
+          "owner": "QR Trust operator",
+          "review_role": "custody_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "managed_signing_custody",
+      "layer": "custody",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Artifact signing is backed by managed custody and auditable signer references.",
+      "evidence_refs": [
+        {
+          "label": "Managed signing custody deployment policy",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/signing-custody",
+          "owner": "QR Trust operator",
+          "review_role": "custody_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "custody_audit_export",
+      "layer": "custody",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Publication-backed signing custody audit export is available without private key material.",
+      "evidence_refs": [
+        {
+          "label": "Publication-backed signing custody audit export",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/signing-custody-audit-export",
+          "owner": "QR Trust operator",
+          "review_role": "security_reviewer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "runtime_safety_provider",
+      "layer": "runtime",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Runtime-safety provider evidence is available for scan-time destination posture.",
+      "evidence_refs": [
+        {
+          "label": "Runtime-safety provider deployment policy",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/runtime-safety-provider",
+          "owner": "QR Trust operator",
+          "review_role": "runtime_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "scanner_decision_persistence",
+      "layer": "scanner",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Scanner-visible decisions and cross-surface evidence are persisted and reviewable.",
+      "evidence_refs": [
+        {
+          "label": "Scanner decision HTTP runtime smoke",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/scanner-decision-runtime",
+          "owner": "QR Trust operator",
+          "review_role": "runtime_operator",
+          "reviewed_at": "2026-05-21"
+        },
+        {
+          "label": "Scanner fleet evidence packet",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/scanner-fleet-evidence",
+          "owner": "QR Trust operator",
+          "review_role": "runtime_operator",
+          "reviewed_at": "2026-05-21"
+        },
+        {
+          "label": "Cross-surface QR evidence packet",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/cross-surface-qr-evidence",
+          "owner": "QR Trust operator",
+          "review_role": "runtime_operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "worker_operations_evidence",
+      "layer": "operator_readiness",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Worker operations and authority/cache publication evidence are operator-owned.",
+      "evidence_refs": [
+        {
+          "label": "Authority publication service smoke",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/authority-publication",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        },
+        {
+          "label": "Verifier cache read-model worker smoke",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/verifier-cache-read-model",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        },
+        {
+          "label": "Worker operations evidence packet",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/worker-operations-evidence",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "operator_runbooks",
+      "layer": "operator_readiness",
+      "status": "operator_backed",
+      "owner": "QR Trust operator",
+      "summary": "Operator handoff, outage, restore, and governance review runbooks are available.",
+      "evidence_refs": [
+        {
+          "label": "Deployment readiness operator guide",
+          "uri": "ops://qrtrust/adoption-stage/2026-05-21/operator-runbooks",
+          "owner": "QR Trust operator",
+          "review_role": "operations_reviewer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    }
+  ],
+  "guardrails": {
+    "public_repo_contains_no_secrets": true,
+    "evidence_refs_required_for_pass": true,
+    "production_requires_ops_refs": true,
+    "operator_controls_remain_external": true
+  },
+  "reviewer": {
+    "name": "QR Trust operator reviewer",
+    "role": "production-candidate operator",
+    "reviewed_at": "2026-05-21"
+  }
+}

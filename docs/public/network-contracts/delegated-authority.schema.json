@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/delegated-authority.schema.json",
+  "title": "QR Trust delegated authority manifest",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "root_program_id",
+    "delegated_authority_id",
+    "operator_name",
+    "operator_class",
+    "scope",
+    "assurance_requirements",
+    "enrolled_issuers",
+    "publication"
+  ],
+  "properties": {
+    "artifact_type": {
+      "enum": [
+        "delegated_authority_manifest",
+        "delegated_operator_manifest"
+      ]
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_notice": {
+      "type": "string"
+    },
+    "root_program_id": {
+      "type": "string",
+      "pattern": "^root:"
+    },
+    "delegated_authority_id": {
+      "type": "string",
+      "pattern": "^authority:"
+    },
+    "operator_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operator_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "trust_keys": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/trust_key"
+      }
+    },
+    "assurance_requirements": {
+      "type": "object",
+      "required": [
+        "domain_control_required",
+        "destination_policy_required",
+        "runtime_safety_policy_required"
+      ],
+      "properties": {
+        "domain_control_required": {
+          "type": "boolean"
+        },
+        "business_identity_proofing": {
+          "type": "string"
+        },
+        "destination_policy_required": {
+          "type": "boolean"
+        },
+        "runtime_safety_policy_required": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "enrolled_issuers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "issuer_id",
+          "issuer_record_ref",
+          "assurance_tier",
+          "status"
+        ],
+        "properties": {
+          "issuer_id": {
+            "type": "string",
+            "pattern": "^issuer:"
+          },
+          "issuer_record_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assurance_tier": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "revoked"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "trust_key": {
+      "type": "object",
+      "required": [
+        "key_id",
+        "signer_id",
+        "algorithm_id",
+        "public_key_material_ref",
+        "status"
+      ],
+      "properties": {
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "algorithm_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "public_key_material_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "publication": {
+      "type": "object",
+      "required": [
+        "published_at",
+        "valid_until",
+        "signed_by",
+        "signature_status"
+      ],
+      "properties": {
+        "published_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "valid_until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signed_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature_status": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

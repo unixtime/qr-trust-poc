@@ -1,0 +1,53 @@
+{
+  "artifact_type": "verifier_profile",
+  "profile_id": "profile:qrtrust-demo:ios-reference",
+  "profile_version": 1,
+  "profile_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "accepted_delegated_authority_ids": [
+    "authority:qrtrust-demo:merchant-web"
+  ],
+  "verifier_id": "verifier:qrtrust-demo:scanner-runtime",
+  "scanner_decision_endpoint": "https://qrtrust.local:8443/scanner/decisions",
+  "runtime_safety_policy_id": "runtime-policy:qrtrust-demo:deterministic-reference",
+  "cache_freshness_budget_seconds": 3600,
+  "decision_color_policy": {
+    "green_requires": [
+      "issuer_recognized",
+      "destination_bound",
+      "runtime_clear",
+      "cache_fresh"
+    ],
+    "orange_conditions": [
+      "plain_url_unrecognized",
+      "runtime_provider_unavailable",
+      "verified_issuer_destination_risky",
+      "profile_stale"
+    ],
+    "red_conditions": [
+      "destination_policy_mismatch",
+      "one_time_replay",
+      "verified_issuer_runtime_blocked",
+      "profile_revoked"
+    ]
+  },
+  "hold_to_open_policy": {
+    "enabled": true,
+    "duration_ms": 800,
+    "trigger_conditions": [
+      "decision_color_orange",
+      "decision_color_red",
+      "caption_domain_mismatch",
+      "risk_score_gte_30"
+    ]
+  },
+  "valid_from": "2026-05-20T00:00:00Z",
+  "valid_until": "2026-12-31T23:59:59Z",
+  "signing_key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+  "signature": "ed25519:reference-profile-signature",
+  "distribution": {
+    "channel": "signed_app_bundle",
+    "publisher": "QR Trust reference implementation",
+    "scanner_build_constraint": "ios-reference >= 0.1.0"
+  }
+}

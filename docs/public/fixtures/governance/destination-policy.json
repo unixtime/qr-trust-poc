@@ -1,0 +1,75 @@
+{
+  "artifact_type": "destination_policy",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+  "issuer_id": "issuer:acme-demo",
+  "destination_policy_id": "policy:acme-demo:web-payments:v1",
+  "approved_destinations": [
+    {
+      "destination_id": "dest:acme-demo:checkout",
+      "expected_final_url": "https://acme.example/pay",
+      "allowed_hosts": [
+        "acme.example"
+      ],
+      "allow_subdomains": false,
+      "path_prefixes": [
+        "/pay"
+      ],
+      "query_policy": "allow_any"
+    },
+    {
+      "destination_id": "dest:acme-demo:checkout-subdomain-demo",
+      "expected_final_url": "https://checkout.acme.example/pay",
+      "allowed_hosts": [
+        "acme.example"
+      ],
+      "allow_subdomains": true,
+      "path_prefixes": [
+        "/pay"
+      ],
+      "query_policy": "allow_any"
+    }
+  ],
+  "redirect_policy": {
+    "resolver_urls": [
+      "https://qr.acme.example/r/pay"
+    ],
+    "expected_final_destinations": [
+      "https://acme.example/pay"
+    ],
+    "allowed_redirect_hosts": [
+      "qr.acme.example",
+      "acme.example"
+    ],
+    "max_redirect_hops": 1,
+    "nested_shorteners_allowed": false,
+    "scanner_must_display_resolver_and_final_destination": true,
+    "fixture_redirect_markers": {
+      "approved": "https://qr.acme.example/r/pay?final=https%3A%2F%2Facme.example%2Fpay&hops=1",
+      "final_mismatch": "final=https%3A%2F%2Fevil.example%2Fpay",
+      "too_many_hops": "hops=3",
+      "nested_shortener": "nested=1"
+    }
+  },
+  "runtime_safety_policy": {
+    "provider": "fixture-runtime-safety-provider",
+    "verdict_ttl_seconds": 3600,
+    "stale_behavior": "downgrade_or_block",
+    "unavailable_behavior": "downgrade_to_caution",
+    "fixture_verdict_markers": {
+      "clean": "default when no marker is present",
+      "risky": "?runtime=risky or /risky",
+      "blocked": "?runtime=blocked or /blocked",
+      "unavailable": "?runtime=unavailable",
+      "stale": "?runtime=stale"
+    }
+  },
+  "publication": {
+    "published_at": "2026-05-15T00:00:00Z",
+    "valid_until": "2026-12-31T23:59:59Z",
+    "signed_by": "authority:qrtrust-demo:merchant-web",
+    "signature_status": "fixture_unsigned"
+  }
+}

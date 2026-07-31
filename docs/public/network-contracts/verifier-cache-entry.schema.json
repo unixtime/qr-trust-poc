@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/verifier-cache-entry.schema.json",
+  "title": "QR Trust verifier cache entry",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "cache_entry_id",
+    "effective_issuer_namespace",
+    "source_artifacts",
+    "certificate_ref",
+    "issuer_display_name",
+    "assurance_tier",
+    "destination_policy_id",
+    "scanner_trust_projection",
+    "freshness"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "verifier_cache_entry"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_notice": {
+      "type": "string"
+    },
+    "cache_entry_id": {
+      "type": "string",
+      "pattern": "^cache:"
+    },
+    "effective_issuer_namespace": {
+      "$ref": "#/$defs/issuer_namespace"
+    },
+    "source_artifacts": {
+      "type": "object",
+      "required": [
+        "root_manifest_ref",
+        "delegated_operator_manifest_ref",
+        "issuer_record_ref",
+        "destination_policy_ref",
+        "status_event_ref"
+      ],
+      "properties": {
+        "root_manifest_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delegated_operator_manifest_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issuer_record_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination_policy_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status_event_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "certificate_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issuer_display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assurance_tier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "destination_policy_id": {
+      "type": "string",
+      "pattern": "^policy:"
+    },
+    "scanner_trust_projection": {
+      "type": "object",
+      "required": [
+        "issuer_legitimacy",
+        "destination_binding",
+        "runtime_safety",
+        "scanner_decision_if_clean",
+        "scanner_decision_if_risky"
+      ],
+      "properties": {
+        "issuer_legitimacy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination_binding": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime_safety": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scanner_decision_if_clean": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scanner_decision_if_risky": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "freshness": {
+      "type": "object",
+      "required": [
+        "state_published_at",
+        "cache_generated_at",
+        "cache_expires_at",
+        "max_staleness_seconds",
+        "stale_behavior"
+      ],
+      "properties": {
+        "state_published_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cache_generated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cache_expires_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "max_staleness_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "stale_behavior": {
+          "enum": [
+            "allow",
+            "downgrade_to_caution",
+            "downgrade_or_block",
+            "block"
+          ]
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "issuer_namespace": {
+      "type": "object",
+      "required": [
+        "root_program_id",
+        "delegated_authority_id",
+        "issuer_id"
+      ],
+      "properties": {
+        "root_program_id": {
+          "type": "string",
+          "pattern": "^root:"
+        },
+        "delegated_authority_id": {
+          "type": "string",
+          "pattern": "^authority:"
+        },
+        "issuer_id": {
+          "type": "string",
+          "pattern": "^issuer:"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

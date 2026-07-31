@@ -1,0 +1,8 @@
+{
+  "payload" : "ewogICJlbmRwb2ludHMiOiBbImh0dHBzOi8vcXJ0cnVzdC5sb2NhbDo4NDQzIl0sCiAgImlkIjogInFydHJ1c3QtZGVtby1wcm92aWRlciIsCiAgIm5hbWUiOiAiUVIgVHJ1c3QgRGVtbyBQcm92aWRlciIsCiAgInBvbGljeSI6ICJJc3N1ZXIgbGVnaXRpbWFjeSwgZGVzdGluYXRpb24gYmluZGluZywgcnVudGltZSBzYWZldHksIGFuZCBzY2FubmVyIGRlY2lzaW9uIHN0YXRlIiwKICAicHJvZmlsZV9zdGF0ZSI6ICJhY3RpdmUiLAogICJzaWduYXR1cmVfc3RhdHVzIjogIlNpZ25lZCBmaXh0dXJlIGdlbmVyYXRlZCBmb3IgcmV2aWV3ZXIgaW1wb3J0IiwKICAic3VtbWFyeSI6ICJTaWduZWQgdmVyaWZpZXIgcHJvdmlkZXIgcHJvZmlsZSBmb3IgUVIgVHJ1c3QgcmV2aWV3ZXIgZGVtb3MuIiwKICAidHJ1c3RfcHJvZ3JhbSI6ICJEZW1vIGlzc3VlciB0cnVzdCBwcm9ncmFtIgp9",
+  "signature" : {
+    "algorithm" : "ed25519",
+    "key_id" : "qrtrust-demo-provider-2026",
+    "value" : "M1FqSkG0IR9INDcBHmBAtCvsLa40x3UefgHfquZgoFUKy570Tk2YlZhdToQoPVKZJZMBwMMKoP2mK3XSGmHnAA"
+  }
+}

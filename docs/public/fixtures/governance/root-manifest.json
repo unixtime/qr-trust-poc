@@ -1,0 +1,31 @@
+{
+  "artifact_type": "root_manifest",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "name": "QR Trust Demo Root Program",
+  "program_scope": "Local reference PoC for navigation QR trust decisions",
+  "accepted_algorithm_ids": [
+    "rsa-pss-sha256-v1"
+  ],
+  "policy_constraints": {
+    "allows_unenrolled_qr_as_unverified": true,
+    "requires_root_scoped_issuer_namespace": true,
+    "requires_destination_policy": true,
+    "requires_cache_freshness_metadata": true,
+    "requires_scanner_visible_decision_state": true
+  },
+  "delegated_authorities": [
+    {
+      "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+      "name": "Merchant Web Demo Authority",
+      "manifest_ref": "delegated-operator-manifest.json",
+      "status": "active"
+    }
+  ],
+  "publication": {
+    "published_at": "2026-05-15T00:00:00Z",
+    "valid_until": "2026-12-31T23:59:59Z",
+    "signature_status": "fixture_unsigned"
+  }
+}

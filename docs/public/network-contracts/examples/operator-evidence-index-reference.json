@@ -1,0 +1,199 @@
+{
+  "artifact_type": "operator_evidence_index",
+  "index_id": "operator-evidence-index:reference:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "claim_mode": "reference_drill",
+  "controls": [
+    {
+      "control_id": "postgres_source_of_truth",
+      "layer": "source_of_truth",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Dedicated Postgres schema is the reference source of truth for durable trust state.",
+      "evidence_refs": [
+        {
+          "label": "Reference Postgres schema",
+          "uri": "docs/public/network-contracts/reference-postgres-schema.sql",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "migration_ledger",
+      "layer": "source_of_truth",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Migration deployment policy and ledger gate define the review boundary.",
+      "evidence_refs": [
+        {
+          "label": "Migration deployment policy",
+          "uri": "docs/public/network-contracts/postgres-migration-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "restore_automation",
+      "layer": "operator_readiness",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Restore automation packet covers backup creation, scratch restore, rollback rehearsal, and failover handoff.",
+      "evidence_refs": [
+        {
+          "label": "Restore automation evidence packet",
+          "uri": "docs/public/network-contracts/examples/restore-automation-evidence-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "packaged_deployment_ownership",
+      "layer": "operator_readiness",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Packaged deployment approval packet covers artifact fingerprint, release approval, security review, operations review, and rollback acceptance.",
+      "evidence_refs": [
+        {
+          "label": "Packaged deployment approval evidence packet",
+          "uri": "docs/public/network-contracts/examples/packaged-deployment-approval-evidence-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "nats_propagation",
+      "layer": "propagation",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "NATS subjects carry propagation envelopes, not authoritative trust state.",
+      "evidence_refs": [
+        {
+          "label": "NATS subject contract",
+          "uri": "docs/public/network-contracts/nats-subjects.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "managed_key_material",
+      "layer": "custody",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Managed key-material boundary is modeled without committing vendor credentials.",
+      "evidence_refs": [
+        {
+          "label": "Managed signing custody deployment policy",
+          "uri": "docs/public/network-contracts/managed-signing-custody-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "managed_signing_custody",
+      "layer": "custody",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Managed custody contract keeps signing authority auditable without exporting secrets.",
+      "evidence_refs": [
+        {
+          "label": "Signing custody audit export contract",
+          "uri": "docs/public/network-contracts/signing-custody-audit-export.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "custody_audit_export",
+      "layer": "custody",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Custody audit export fixture is public-safe and publication-backed.",
+      "evidence_refs": [
+        {
+          "label": "Signing custody publication audit export",
+          "uri": "docs/public/network-contracts/examples/signing-custody-publication-audit-export-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "runtime_safety_provider",
+      "layer": "runtime",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Runtime safety provider deployment policy defines stale and unavailable behavior.",
+      "evidence_refs": [
+        {
+          "label": "Runtime safety provider deployment policy",
+          "uri": "docs/public/network-contracts/runtime-safety-provider-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "scanner_decision_persistence",
+      "layer": "scanner",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Scanner decision contract keeps issuer, binding, runtime, and final state separate.",
+      "evidence_refs": [
+        {
+          "label": "Scanner decision schema",
+          "uri": "docs/public/network-contracts/scanner-decision.schema.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "worker_operations_evidence",
+      "layer": "operator_readiness",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Worker operations packet covers artifact publication, event outbox, verifier cache, and scanner runtime.",
+      "evidence_refs": [
+        {
+          "label": "Worker operations evidence packet",
+          "uri": "docs/public/network-contracts/examples/worker-operations-evidence-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "control_id": "operator_runbooks",
+      "layer": "operator_readiness",
+      "status": "reference_backed",
+      "owner": "QR Trust operator",
+      "summary": "Operator guide defines the readiness handoff and external ownership boundary.",
+      "evidence_refs": [
+        {
+          "label": "Deployment readiness operator guide",
+          "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    }
+  ],
+  "guardrails": {
+    "public_repo_contains_no_secrets": true,
+    "evidence_refs_required_for_pass": true,
+    "production_requires_ops_refs": true,
+    "operator_controls_remain_external": true
+  },
+  "reviewer": {
+    "name": "QR Trust reference reviewer",
+    "role": "reference operator",
+    "reviewed_at": "2026-05-21"
+  }
+}

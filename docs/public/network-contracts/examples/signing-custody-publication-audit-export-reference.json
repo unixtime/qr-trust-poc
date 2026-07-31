@@ -1,0 +1,57 @@
+{
+  "artifact_type": "signing_custody_audit_export",
+  "schema_version": "2026-05-21",
+  "export_id": "signing-custody-publication-audit:reference:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00.000Z",
+  "scope": {
+    "root_program_id": "root:qrtrust-demo:2026"
+  },
+  "redaction_status": "public_safe",
+  "entries": [
+    {
+      "audit_event_id": "audit:signing-custody:11111111-1111-4111-8111-111111111111:published",
+      "artifact_id": "art_root_queue_demo_v1",
+      "artifact_type": "root_manifest",
+      "artifact_version": 1,
+      "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "root_program_id": "root:qrtrust-demo:2026",
+      "signer_id": "signer:root:qrtrust-demo:2026:publication-worker",
+      "key_id": "key:root:qrtrust-demo:2026:ed25519:managed",
+      "algorithm_id": "ed25519",
+      "custody_provider_ref": "managed://qrtrust-reference/publication-worker",
+      "provider_audit_id": "managed-audit:11111111-1111-4111-8111-111111111111",
+      "automation_identity": "worker:signing-custody-publication-audit-smoke",
+      "requested_at": "2026-05-21T00:00:00.000Z",
+      "publication_result": "published"
+    },
+    {
+      "audit_event_id": "audit:signing-custody:22222222-2222-4222-8222-222222222222:failed",
+      "artifact_id": "art_bad_publication",
+      "artifact_type": "root_manifest",
+      "artifact_version": 1,
+      "artifact_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "root_program_id": "root:qrtrust-demo:2026",
+      "signer_id": "signer:root:qrtrust-demo:2026:publication-worker",
+      "key_id": "key:root:qrtrust-demo:2026:ed25519:managed",
+      "algorithm_id": "ed25519",
+      "custody_provider_ref": "managed://qrtrust-reference/publication-worker",
+      "provider_audit_id": "managed-audit:22222222-2222-4222-8222-222222222222",
+      "automation_identity": "worker:signing-custody-publication-audit-smoke",
+      "requested_at": "2026-05-21T00:01:00.000Z",
+      "publication_result": "failed",
+      "reason_codes": [
+        "publication_failed_fixture_publication_failed"
+      ]
+    }
+  ],
+  "summary": {
+    "entry_count": 2,
+    "published": 1,
+    "rejected": 0,
+    "failed": 1,
+    "pending": 0,
+    "provider_refs": [
+      "managed://qrtrust-reference/publication-worker"
+    ]
+  }
+}

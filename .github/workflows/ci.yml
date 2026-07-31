@@ -1,0 +1,221 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  release-audit:
+    name: Release Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install audit tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils ripgrep file
+
+      - name: Run public release audit
+        run: make release-audit
+
+  release-readiness-report:
+    name: Release Readiness Report
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: network/package-lock.json
+
+      - name: Install audit tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils ripgrep file
+
+      - name: Install network dependencies
+        working-directory: network
+        run: npm ci
+
+      - name: Check release readiness report
+        run: make check-release-readiness-report
+
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Audit frontend production dependencies (zero tolerance)
+        working-directory: frontend
+        run: npm audit --omit=dev
+
+      - name: Audit frontend full tree (no high or critical)
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Audit network full tree (no high or critical)
+        working-directory: network
+        run: npm audit --audit-level=high
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Build documentation and verify Mermaid rendering
+        run: make docs-build
+
+      - name: Run backend tests
+        working-directory: backend
+        run: PYTHONPATH=.. ./.venv/bin/pytest
+
+  frontend-build:
+    name: Frontend Lint And Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  compose-workbench-smoke:
+    name: Compose Workbench Smoke
+    runs-on: ubuntu-latest
+    env:
+      VERIFIER_ADMIN_TOKENS: '["local-lab-admin"]'
+      VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED: "true"
+      VERIFIER_SMOKE_ADMIN_TOKEN: local-lab-admin
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start compose stack
+        run: docker compose up -d --build --wait
+
+      - name: Run compose workbench smoke
+        run: make smoke-compose
+
+      - name: Capture compose logs on failure
+        if: failure()
+        run: docker compose logs --no-color > /tmp/qrcode-poc-compose.log
+
+      - name: Upload compose logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-workbench-smoke-logs
+          path: /tmp/qrcode-poc-compose.log
+
+      - name: Stop compose stack
+        if: always()
+        run: docker compose down -v
+
+  route-navigation-smoke:
+    name: Route Navigation Smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Install Playwright browser
+        working-directory: backend
+        run: ./.venv/bin/python -m playwright install --with-deps chromium
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Start React dev server
+        working-directory: frontend
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/qrcode-poc-vite.log 2>&1 &
+          echo "$!" > /tmp/qrcode-poc-vite.pid
+
+      - name: Wait for React dev server
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/qrcode-poc-vite.log
+          exit 1
+
+      - name: Run route navigation smoke
+        run: make check-route-navigation
+
+      - name: Upload Vite log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: route-navigation-vite-log
+          path: /tmp/qrcode-poc-vite.log

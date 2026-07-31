@@ -1,0 +1,83 @@
+services:
+  nats:
+    image: nats:2-alpine
+    restart: unless-stopped
+    command:
+      - "-c"
+      - "/etc/nats/qrtrust-local.conf"
+    ports:
+      - "${NATS_PUBLISH_HOST:-127.0.0.1}:${NATS_PUBLISH_PORT:-4222}:4222"
+      - "${NATS_MONITOR_PUBLISH_HOST:-127.0.0.1}:${NATS_MONITOR_PUBLISH_PORT:-8222}:8222"
+    volumes:
+      - nats_data:/data/jetstream
+      - ./network/nats/qrtrust-local.conf:/etc/nats/qrtrust-local.conf:ro
+
+  network-outbox-worker:
+    build:
+      context: ./network
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - nats
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: ${QRTRUST_NETWORK_DATABASE_URL:-postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db}
+      QRTRUST_NETWORK_NATS_URL: ${QRTRUST_NETWORK_NATS_URL:-nats://nats:4222}
+      QRTRUST_NETWORK_NATS_USER: ${QRTRUST_OUTBOX_NATS_USER:-qrtrust_outbox_worker}
+      QRTRUST_NETWORK_NATS_PASSWORD: ${QRTRUST_OUTBOX_NATS_PASSWORD:-qrtrust_outbox_worker_dev}
+      QRTRUST_OUTBOX_WORKER_ID: ${QRTRUST_OUTBOX_WORKER_ID:-qrtrust-compose-outbox-worker}
+      QRTRUST_OUTBOX_BATCH_SIZE: ${QRTRUST_OUTBOX_BATCH_SIZE:-100}
+      QRTRUST_OUTBOX_CLAIM_TTL_MS: ${QRTRUST_OUTBOX_CLAIM_TTL_MS:-60000}
+      QRTRUST_OUTBOX_POLL_INTERVAL_MS: ${QRTRUST_OUTBOX_POLL_INTERVAL_MS:-1000}
+      QRTRUST_OUTBOX_IDLE_POLL_INTERVAL_MS: ${QRTRUST_OUTBOX_IDLE_POLL_INTERVAL_MS:-5000}
+      QRTRUST_OUTBOX_IDLE_ITERATION_LIMIT: ${QRTRUST_OUTBOX_IDLE_ITERATION_LIMIT:-unbounded}
+      QRTRUST_OUTBOX_FAILED_ROW_LIMIT: ${QRTRUST_OUTBOX_FAILED_ROW_LIMIT:-10}
+      QRTRUST_OUTBOX_MAX_RETRY_ATTEMPTS: ${QRTRUST_OUTBOX_MAX_RETRY_ATTEMPTS:-3}
+
+  network-governance-subscriber-worker:
+    build:
+      context: ./network
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: npm run governance-subscriber:worker
+    depends_on:
+      - nats
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: ${QRTRUST_NETWORK_DATABASE_URL:-postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db}
+      QRTRUST_NETWORK_NATS_URL: ${QRTRUST_NETWORK_NATS_URL:-nats://nats:4222}
+      QRTRUST_NETWORK_NATS_USER: ${QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_USER:-qrtrust_governance_subscriber}
+      QRTRUST_NETWORK_NATS_PASSWORD: ${QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_PASSWORD:-qrtrust_governance_subscriber_dev}
+      QRTRUST_ACCEPTED_ROOT_PROGRAM_IDS: ${QRTRUST_ACCEPTED_ROOT_PROGRAM_IDS:-root:qrtrust-demo:2026}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_ID: ${QRTRUST_GOVERNANCE_SUBSCRIBER_ID:-subscriber:reference-governance}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_WORKER_ID: ${QRTRUST_GOVERNANCE_SUBSCRIBER_WORKER_ID:-qrtrust-compose-governance-subscriber-worker}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_DURABLE: ${QRTRUST_GOVERNANCE_SUBSCRIBER_DURABLE:-qrtrust_governance_subscriber_worker}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_VERIFIER_ID: ${QRTRUST_GOVERNANCE_SUBSCRIBER_VERIFIER_ID:-verifier:reference-network}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_MAX_MESSAGES: ${QRTRUST_GOVERNANCE_SUBSCRIBER_MAX_MESSAGES:-unbounded}
+      QRTRUST_GOVERNANCE_SUBSCRIBER_EXPIRES_MS: ${QRTRUST_GOVERNANCE_SUBSCRIBER_EXPIRES_MS:-2000}
+
+  network-runtime-subscriber-worker:
+    build:
+      context: ./network
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: npm run runtime:subscriber
+    depends_on:
+      - nats
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: ${QRTRUST_NETWORK_DATABASE_URL:-postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db}
+      QRTRUST_NETWORK_NATS_URL: ${QRTRUST_NETWORK_NATS_URL:-nats://nats:4222}
+      QRTRUST_NETWORK_NATS_USER: ${QRTRUST_RUNTIME_SUBSCRIBER_NATS_USER:-qrtrust_runtime_subscriber}
+      QRTRUST_NETWORK_NATS_PASSWORD: ${QRTRUST_RUNTIME_SUBSCRIBER_NATS_PASSWORD:-qrtrust_runtime_subscriber_dev}
+      QRTRUST_RUNTIME_SUBSCRIBER_ID: ${QRTRUST_RUNTIME_SUBSCRIBER_ID:-subscriber:runtime-observations}
+      QRTRUST_RUNTIME_SUBSCRIBER_WORKER_ID: ${QRTRUST_RUNTIME_SUBSCRIBER_WORKER_ID:-qrtrust-compose-runtime-subscriber-worker}
+      QRTRUST_RUNTIME_SUBSCRIBER_DURABLE: ${QRTRUST_RUNTIME_SUBSCRIBER_DURABLE:-qrtrust_runtime_subscriber_worker}
+      QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES: ${QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES:-unbounded}
+      QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS: ${QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS:-2000}
+
+volumes:
+  nats_data:

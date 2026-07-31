@@ -1,0 +1,97 @@
+{
+  "artifact_type": "restore_automation_evidence_packet",
+  "packet_id": "restore-automation-evidence:qrtrust-demo:reference:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "claim_mode": "reference_drill",
+  "backup_artifact": {
+    "artifact_id": "qrtrust-postgres-reference-backup-2026-05-21",
+    "storage_ref": "docs/public/network-contracts/reference-postgres-schema.sql",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "created_at": "2026-05-21T00:00:00Z",
+    "retention_policy": "Reference drill fixture retained with public contract docs.",
+    "encryption_mode": "Reference fixture without private deployment data."
+  },
+  "recovery_objective": {
+    "rpo_minutes": 15,
+    "rto_minutes": 60,
+    "owner": "QR Trust reference operator",
+    "escalation_ref": "docs/public/network-contracts/deployment-readiness-operator-guide.md#restore-automation"
+  },
+  "drills": [
+    {
+      "drill_id": "scheduled_backup_created",
+      "objective": "Produce a reviewable backup artifact from the authoritative Postgres trust-state store.",
+      "command_ref": "network/package.json#deployment-readiness-smoke",
+      "started_at": "2026-05-21T00:00:00Z",
+      "completed_at": "2026-05-21T00:05:00Z",
+      "status": "passed",
+      "evidence_refs": [
+        {
+          "label": "Reference Postgres schema fixture",
+          "uri": "docs/public/network-contracts/reference-postgres-schema.sql",
+          "owner": "QR Trust reference operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "drill_id": "scratch_restore_completed",
+      "objective": "Restore into an isolated scratch target and validate schema-level trust-state tables.",
+      "command_ref": "network/package.json#deployment-readiness-bundle-smoke",
+      "started_at": "2026-05-21T00:10:00Z",
+      "completed_at": "2026-05-21T00:25:00Z",
+      "status": "passed",
+      "evidence_refs": [
+        {
+          "label": "Deployment readiness operator guide",
+          "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+          "owner": "QR Trust reference operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "drill_id": "migration_rollback_rehearsed",
+      "objective": "Rehearse rollback boundaries so failed migrations do not rewrite published trust state.",
+      "command_ref": "network/package.json#postgres-migrations-plan-smoke",
+      "started_at": "2026-05-21T00:30:00Z",
+      "completed_at": "2026-05-21T00:45:00Z",
+      "status": "passed",
+      "evidence_refs": [
+        {
+          "label": "Postgres migration deployment policy",
+          "uri": "docs/public/network-contracts/postgres-migration-deployment-policy.md",
+          "owner": "QR Trust reference operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "drill_id": "operator_failover_handoff",
+      "objective": "Show that another operator can find the artifact, restore boundary, and escalation path.",
+      "command_ref": "network/package.json#deployment-readiness-bundle-smoke",
+      "started_at": "2026-05-21T00:50:00Z",
+      "completed_at": "2026-05-21T01:05:00Z",
+      "status": "passed",
+      "evidence_refs": [
+        {
+          "label": "Deployment readiness bundle contract",
+          "uri": "docs/public/network-contracts/deployment-readiness-bundle.schema.json",
+          "owner": "QR Trust reference operator",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    }
+  ],
+  "guardrails": {
+    "postgres_authoritative": true,
+    "restore_targets_scratch_only": true,
+    "no_secret_material": true,
+    "destructive_restore_requires_operator_approval": true
+  },
+  "reviewer": {
+    "name": "QR Trust reference reviewer",
+    "role": "restore automation evidence reviewer",
+    "reviewed_at": "2026-05-21"
+  }
+}

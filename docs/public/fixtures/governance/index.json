@@ -1,0 +1,47 @@
+{
+  "artifact_type": "governance_fixture_index",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+  "issuer_id": "issuer:acme-demo",
+  "destination_policy_id": "policy:acme-demo:web-payments:v1",
+  "revocation_event_id": "status:acme-demo:active:2026-05-15",
+  "trust_key_status_event_id": "status:key:authority:revoked:2026-05-15",
+  "verifier_cache_entry_id": "cache:acme-demo:2026-05-15",
+  "effective_issuer_namespace": [
+    "root:qrtrust-demo:2026",
+    "authority:qrtrust-demo:merchant-web",
+    "issuer:acme-demo"
+  ],
+  "artifacts": [
+    {
+      "kind": "root_manifest",
+      "path": "root-manifest.json"
+    },
+    {
+      "kind": "delegated_operator_manifest",
+      "path": "delegated-operator-manifest.json"
+    },
+    {
+      "kind": "issuer_record",
+      "path": "issuer-record.json"
+    },
+    {
+      "kind": "destination_policy",
+      "path": "destination-policy.json"
+    },
+    {
+      "kind": "revocation_status_event",
+      "path": "revocation-status-event.json"
+    },
+    {
+      "kind": "trust_key_status_event",
+      "path": "trust-key-status-event.json"
+    },
+    {
+      "kind": "verifier_cache_entry",
+      "path": "verifier-cache-entry.json"
+    }
+  ]
+}

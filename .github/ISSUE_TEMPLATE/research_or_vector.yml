@@ -1,0 +1,50 @@
+name: Research note or test vector
+description: Propose a verifier scenario, teaching case, or documentation correction.
+title: "[Research/Test Vector]: "
+labels: ["research", "test-vector"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep claims bounded. This project is a reference PoC, not a production standard or legal filing workspace.
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What scenario, vector, or explanation should be added or corrected?
+    validations:
+      required: true
+  - type: dropdown
+    id: verifier_stage
+    attributes:
+      label: Related verifier stage
+      options:
+        - accepted
+        - replay_guard
+        - payload_revalidation
+        - time_window
+        - certificate_status
+        - signature_verification
+        - schema_validation
+        - scanner UX / trust state
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence Or Rationale
+      description: Link public sources or describe the deterministic behavior expected from the PoC.
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Affected Docs Or Code
+      description: If known, list relevant files or sections.
+      placeholder: |
+        - docs/public/TEST_VECTORS.md
+        - docs/public/VERIFIER_PROFILE.md
+        - backend/app/services/narrowed_verifier_poc.py
+    validations:
+      required: false

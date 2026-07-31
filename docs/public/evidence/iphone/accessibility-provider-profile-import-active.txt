@@ -1,0 +1,7 @@
+fixture_id: signed_profile_import_active
+profile_state: active
+expected_status: signed_provider_profile_verified
+expected_user_signal: green
+title: Provider profile imported
+message: Reviewer reference: signed provider profile verified for Demo issuer trust program.
+required_labels: Provider profile imported, Signed provider profile verified, Demo issuer trust program

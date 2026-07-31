@@ -1,0 +1,220 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.example/contracts/packaged-deployment-approval-evidence.schema.json",
+  "title": "QR Trust Packaged Deployment Approval Evidence Packet",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "packet_id",
+    "generated_at",
+    "claim_mode",
+    "deployment_artifact",
+    "environment",
+    "gates",
+    "approvals",
+    "rollback_plan",
+    "guardrails",
+    "reviewer"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "packaged_deployment_approval_evidence_packet"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim_mode": {
+      "enum": ["reference_drill", "production_candidate"]
+    },
+    "deployment_artifact": {
+      "type": "object",
+      "required": ["artifact_id", "version", "artifact_ref", "sha256", "created_at"],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "required": ["environment_id", "stage", "owner", "boundary_ref"],
+      "properties": {
+        "environment_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "enum": ["reference_lab", "staging_candidate", "production_candidate"]
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "boundary_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "gates": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["gate_id", "status", "evidence_ref", "checked_at", "summary"],
+        "properties": {
+          "gate_id": {
+            "enum": [
+              "artifact_fingerprinted",
+              "contract_smoke_passed",
+              "operator_approval_recorded",
+              "rollback_plan_accepted"
+            ]
+          },
+          "status": {
+            "enum": ["passed", "failed", "blocked"]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "approvals": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["role", "approver", "decision", "approval_ref", "approved_at", "scope"],
+        "properties": {
+          "role": {
+            "enum": ["release_owner", "security_reviewer", "operations_reviewer"]
+          },
+          "approver": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "enum": ["approved", "rejected", "deferred"]
+          },
+          "approval_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "approved_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "rollback_plan": {
+      "type": "object",
+      "required": ["plan_ref", "rehearsal_ref", "owner", "accepted_at"],
+      "properties": {
+        "plan_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "rehearsal_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accepted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "guardrails": {
+      "type": "object",
+      "required": [
+        "public_repo_contains_no_secrets",
+        "operator_controls_remain_external",
+        "rollback_plan_required",
+        "production_approval_requires_ops_refs"
+      ],
+      "properties": {
+        "public_repo_contains_no_secrets": {
+          "const": true
+        },
+        "operator_controls_remain_external": {
+          "const": true
+        },
+        "rollback_plan_required": {
+          "const": true
+        },
+        "production_approval_requires_ops_refs": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": ["name", "role", "reviewed_at"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

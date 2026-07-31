@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="2240" viewBox="0 0 1500 2240" role="img" aria-labelledby="title desc">
+  <title id="title">Governance and validation flow for QR trust</title>
+  <desc id="desc">Three-part QR trust figure showing governance and delegation from a root trust program into delegated authorities and issuer enrollment, publication of signed policy and status artifacts, and synchronization plus validation where cached trust state and the signed QR artifact jointly inform the verifier decision path.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f5f1e8; }
+      .panel { fill: #fffdf9; stroke: #1d1d1b; stroke-width: 2; }
+      .soft { fill: #f7f2ea; stroke: #1d1d1b; stroke-width: 1.5; }
+      .accent { fill: #eef3f8; stroke: #365b7a; stroke-width: 2; }
+      .tag { fill: #ececeb; stroke: none; }
+      .title { font: 700 34px Georgia, "Times New Roman", serif; fill: #181714; }
+      .section { font: 700 19px Arial, Helvetica, sans-serif; fill: #181714; }
+      .h { font: 700 18px Arial, Helvetica, sans-serif; fill: #181714; }
+      .body { font: 15px Arial, Helvetica, sans-serif; fill: #23211d; }
+      .small { font: 13px Arial, Helvetica, sans-serif; fill: #3c3933; }
+      .tagtext { font: 600 13px Arial, Helvetica, sans-serif; fill: #4d4a43; }
+      .line { stroke: #1d1d1b; stroke-width: 2.5; fill: none; }
+      .rule { stroke: #455160; stroke-width: 2; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d1d1b"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1500" height="2240"/>
+
+  <text class="title" x="70" y="72">Governance and Validation Flow for QR Trust</text>
+
+  <text class="section" x="70" y="136">Governance / delegation</text>
+  <line class="rule" x1="70" y1="155" x2="1430" y2="155"/>
+
+  <rect class="panel" x="525" y="215" width="450" height="150" rx="22"/>
+  <text class="h" x="560" y="268">Root trust program</text>
+  <text class="body" x="560" y="305">- root keys</text>
+  <text class="body" x="560" y="337">- accreditation rules</text>
+  <text class="body" x="560" y="369">- delegation policy</text>
+
+  <rect class="accent" x="115" y="440" width="315" height="138" rx="18"/>
+  <rect class="soft" x="145" y="422" width="180" height="34" rx="8"/>
+  <text class="tagtext" x="177" y="444">Delegated authority</text>
+  <text class="h" x="150" y="502">Payment operator</text>
+
+  <rect class="accent" x="592" y="440" width="350" height="138" rx="18"/>
+  <rect class="soft" x="675" y="422" width="180" height="34" rx="8"/>
+  <text class="tagtext" x="707" y="444">Delegated authority</text>
+  <text class="h" x="627" y="502">Government / public-service operator</text>
+
+  <rect class="accent" x="1105" y="440" width="315" height="138" rx="18"/>
+  <rect class="soft" x="1138" y="422" width="180" height="34" rx="8"/>
+  <text class="tagtext" x="1170" y="444">Delegated authority</text>
+  <text class="h" x="1140" y="502">Merchant / enterprise operator</text>
+
+  <rect class="tag" x="245" y="388" width="90" height="30" rx="8"/>
+  <text class="tagtext" x="264" y="408">delegates</text>
+  <rect class="tag" x="732" y="388" width="90" height="30" rx="8"/>
+  <text class="tagtext" x="751" y="408">delegates</text>
+  <rect class="tag" x="1215" y="388" width="90" height="30" rx="8"/>
+  <text class="tagtext" x="1234" y="408">delegates</text>
+
+  <path class="line" d="M750 365 L750 405 L272 405 L272 440" marker-end="url(#arrow)"/>
+  <path class="line" d="M750 365 L750 440 L767 440" marker-end="url(#arrow)"/>
+  <path class="line" d="M750 365 L750 405 L1262 405 L1262 440" marker-end="url(#arrow)"/>
+
+  <rect class="tag" x="620" y="650" width="260" height="36" rx="8"/>
+  <text class="tagtext" x="652" y="674">issuer enrollment and governance</text>
+
+  <path class="line" d="M272 578 L272 625 L610 625 L610 686" marker-end="url(#arrow)"/>
+  <path class="line" d="M767 578 L767 686" marker-end="url(#arrow)"/>
+  <path class="line" d="M1262 578 L1262 625 L920 625 L920 686" marker-end="url(#arrow)"/>
+
+  <rect class="soft" x="585" y="720" width="365" height="190" rx="18"/>
+  <text class="h" x="620" y="775">Enrolled issuer node</text>
+  <text class="body" x="620" y="815">- issuer identifier</text>
+  <text class="body" x="620" y="850">- assurance tier</text>
+  <text class="body" x="620" y="885">- key refs</text>
+  <text class="body" x="620" y="920">- approved domains / resolvers / app</text>
+
+  <rect class="tag" x="715" y="945" width="100" height="30" rx="8"/>
+  <text class="tagtext" x="744" y="965">issues</text>
+  <path class="line" d="M767 910 L767 975 L767 1010" marker-end="url(#arrow)"/>
+
+  <rect class="soft" x="575" y="1010" width="385" height="165" rx="18"/>
+  <text class="h" x="610" y="1068">Signed QR artifact</text>
+  <text class="body" x="610" y="1110">- issuer reference</text>
+  <text class="body" x="610" y="1145">- destination / resolver claims</text>
+
+  <text class="section" x="70" y="1260">Shared state publication</text>
+  <line class="rule" x1="70" y1="1279" x2="1430" y2="1279"/>
+
+  <rect class="accent" x="130" y="1340" width="215" height="68" rx="12"/>
+  <text class="h" x="165" y="1383">Root trust program</text>
+
+  <rect class="accent" x="130" y="1440" width="215" height="68" rx="12"/>
+  <text class="h" x="165" y="1483">Delegated operators</text>
+
+  <rect class="tag" x="380" y="1359" width="86" height="30" rx="8"/>
+  <text class="tagtext" x="400" y="1379">publishes</text>
+  <rect class="tag" x="380" y="1459" width="86" height="30" rx="8"/>
+  <text class="tagtext" x="400" y="1479">publishes</text>
+
+  <rect class="panel" x="500" y="1325" width="495" height="198" rx="18"/>
+  <text class="h" x="535" y="1370">Signed policy and status artifacts</text>
+  <text class="body" x="535" y="1410">- delegation manifests</text>
+  <text class="body" x="535" y="1445">- issuer manifests</text>
+  <text class="body" x="535" y="1480">- destination policy updates</text>
+  <text class="body" x="535" y="1515">- revocation / suspension events</text>
+  <text class="body" x="535" y="1550">- freshness metadata</text>
+
+  <path class="line" d="M345 1374 L500 1374" marker-end="url(#arrow)"/>
+  <path class="line" d="M345 1474 L500 1474" marker-end="url(#arrow)"/>
+
+  <text class="small" x="1080" y="1355">How one entity's knowledge reaches another:</text>
+  <text class="small" x="1080" y="1376">signed policy, status, and freshness artifacts.</text>
+
+  <text class="section" x="70" y="1625">State synchronization and validation</text>
+  <line class="rule" x1="70" y1="1644" x2="1430" y2="1644"/>
+
+  <rect class="accent" x="130" y="1705" width="315" height="68" rx="12"/>
+  <text class="h" x="165" y="1748">Signed policy and status artifacts</text>
+
+  <rect class="tag" x="480" y="1724" width="92" height="30" rx="8"/>
+  <text class="tagtext" x="500" y="1744">sync / cache</text>
+
+  <rect class="panel" x="610" y="1688" width="380" height="184" rx="18"/>
+  <text class="h" x="645" y="1732">Scanner / verifier cache</text>
+  <text class="body" x="645" y="1770">- root / operator state</text>
+  <text class="body" x="645" y="1804">- issuer state</text>
+  <text class="body" x="645" y="1838">- destination policy state</text>
+  <text class="body" x="645" y="1872">- revocation / freshness state</text>
+
+  <path class="line" d="M445 1739 L610 1739" marker-end="url(#arrow)"/>
+
+  <rect class="tag" x="730" y="1898" width="138" height="30" rx="8"/>
+  <text class="tagtext" x="747" y="1918">provides current state</text>
+
+  <rect class="accent" x="130" y="1968" width="220" height="68" rx="12"/>
+  <text class="h" x="165" y="2011">Signed QR artifact</text>
+
+  <rect class="panel" x="610" y="1946" width="535" height="218" rx="18"/>
+  <text class="h" x="645" y="1990">Verifier decision path</text>
+  <text class="body" x="645" y="2030">1. validate root → authority → issuer chain</text>
+  <text class="body" x="645" y="2064">2. validate issuer status / tier</text>
+  <text class="body" x="645" y="2098">3. validate current destination / resolver policy</text>
+  <text class="body" x="645" y="2132">4. check runtime safety freshness or query</text>
+  <text class="body" x="645" y="2166">5. apply local policy and emit trust state</text>
+
+  <path class="line" d="M800 1872 L800 1928 L800 1946" marker-end="url(#arrow)"/>
+  <path class="line" d="M350 2002 L610 2002" marker-end="url(#arrow)"/>
+</svg>

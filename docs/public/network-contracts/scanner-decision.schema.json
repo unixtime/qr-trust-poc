@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/scanner-decision.schema.json",
+  "title": "QR Trust scanner-visible decision",
+  "type": "object",
+  "required": [
+    "decision_id",
+    "decided_at",
+    "decision_color",
+    "decision_state",
+    "reason_codes",
+    "destination",
+    "trust_path",
+    "hold_to_open",
+    "cache_freshness"
+  ],
+  "properties": {
+    "decision_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "decided_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "decision_color": {
+      "enum": [
+        "green",
+        "orange",
+        "red"
+      ]
+    },
+    "decision_state": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "risk_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "destination": {
+      "type": "object",
+      "required": [
+        "display_host",
+        "fingerprint",
+        "url"
+      ],
+      "properties": {
+        "display_host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string"
+        },
+        "resolver_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "final_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "trust_path": {
+      "type": "object",
+      "required": [
+        "issuer_legitimacy",
+        "destination_binding",
+        "runtime_safety",
+        "scanner_decision"
+      ],
+      "properties": {
+        "issuer_legitimacy": {
+          "$ref": "#/$defs/trust_step"
+        },
+        "destination_binding": {
+          "$ref": "#/$defs/trust_step"
+        },
+        "runtime_safety": {
+          "$ref": "#/$defs/trust_step"
+        },
+        "scanner_decision": {
+          "$ref": "#/$defs/trust_step"
+        }
+      },
+      "additionalProperties": true
+    },
+    "hold_to_open": {
+      "type": "object",
+      "required": [
+        "required",
+        "duration_ms",
+        "reason_codes"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "cache_freshness": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "fresh",
+            "stale",
+            "expired",
+            "unavailable",
+            "not_applicable"
+          ]
+        },
+        "cache_generated_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "cache_expires_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "governance": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "trust_step": {
+      "type": "object",
+      "required": [
+        "status",
+        "label",
+        "message"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

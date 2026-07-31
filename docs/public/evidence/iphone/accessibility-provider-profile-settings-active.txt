@@ -1,0 +1,7 @@
+fixture_id: signed_profile_settings_active
+profile_state: active
+expected_status: protection_service_ready
+expected_user_signal: green
+title: Protection service
+message: Ready. Demo issuer trust program is reachable.
+required_labels: Protection service, Ready, Demo issuer trust program

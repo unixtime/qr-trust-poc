@@ -1,0 +1,7 @@
+fixture_id: unsigned_nonlocal_profile_rejected
+profile_state: rejected
+expected_status: unsigned_nonlocal_profile_rejected
+expected_user_signal: red
+title: Provider profile rejected
+message: Reviewer reference: unsigned profile is rejected for non-local endpoints.
+required_labels: Provider profile rejected, Unsigned profile, not allowed for non-local endpoints

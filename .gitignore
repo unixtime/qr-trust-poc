@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+.build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+DerivedData/
+*.xcuserstate
+xcuserdata/
+ios/VerifierLabApp/VerifierLabApp.xcodeproj/project.xcworkspace/
+ios/VerifierLabApp/VerifierLabApp.xcodeproj/xcshareddata/
+
+# Local archive
+archive/
+private/
+local/
+ios/VerifierLabApp/LocalProvider.xcconfig
+
+# Environment variables
+.env
+backend/.env
+*.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.playwright-cli/
+site/
+
+# Docker
+docker-compose.override.yml
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Alembic
+# Don't ignore alembic.ini or migrations folder, but ignore temp files
+*.pyc
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Redis
+dump.rdb

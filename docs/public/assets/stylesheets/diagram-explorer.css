@@ -1,0 +1,365 @@
+:root {
+  --qr-ink: #172033;
+  --qr-muted: #596579;
+  --qr-line: #d8e0eb;
+  --qr-panel: #ffffff;
+  --qr-panel-subtle: #f6f8fb;
+  --qr-accent: #2563eb;
+  --qr-accent-dark: #1d4ed8;
+  --qr-focus: #60a5fa;
+}
+
+.qr-diagram-card {
+  margin: 1.5rem 0 2.25rem;
+  overflow: hidden;
+  border: 1px solid var(--qr-line);
+  border-radius: 12px;
+  background: var(--qr-panel);
+  box-shadow: 0 12px 32px rgb(23 32 51 / 8%);
+}
+
+.qr-diagram-card__toolbar,
+.qr-diagram-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.qr-diagram-card__toolbar {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--qr-line);
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+}
+
+.qr-diagram-card__label-group {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.qr-diagram-card__eyebrow,
+.qr-diagram-dialog__eyebrow {
+  color: var(--qr-accent-dark);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.qr-diagram-card__title {
+  overflow: hidden;
+  color: var(--qr-ink);
+  font-size: 0.92rem;
+  font-weight: 680;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-diagram-open,
+.qr-diagram-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  border: 1px solid #c8d2e1;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--qr-ink);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.qr-diagram-open {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  border-color: var(--qr-accent);
+  background: var(--qr-accent);
+  color: #fff;
+}
+
+.qr-diagram-open:hover {
+  border-color: var(--qr-accent-dark);
+  background: var(--qr-accent-dark);
+}
+
+.qr-diagram-open svg,
+.qr-diagram-control svg {
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.qr-diagram-card > .mermaid {
+  box-sizing: border-box;
+  max-width: 100%;
+  margin: 0;
+  padding: 1.5rem;
+  overflow-x: auto;
+  background-color: #fbfcfe;
+  background-image:
+    linear-gradient(rgb(216 224 235 / 35%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(216 224 235 / 35%) 1px, transparent 1px);
+  background-size: 24px 24px;
+  cursor: zoom-in;
+  scrollbar-color: #b8c4d4 transparent;
+}
+
+.qr-diagram-card > .mermaid > svg {
+  display: block;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.qr-diagram-card--wide > .mermaid > svg {
+  min-width: 64rem;
+}
+
+.qr-diagram-card > .mermaid:focus-visible,
+.qr-diagram-open:focus-visible,
+.qr-diagram-control:focus-visible,
+.qr-diagram-stage:focus-visible {
+  outline: 3px solid var(--qr-focus);
+  outline-offset: -3px;
+}
+
+.qr-diagram-card__footer {
+  padding: 0.65rem 1rem;
+  border-top: 1px solid var(--qr-line);
+  color: var(--qr-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.qr-diagram-card__hint::before {
+  content: "";
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-right: 0.42rem;
+  border-radius: 50%;
+  background: var(--qr-accent);
+  vertical-align: 0.08rem;
+}
+
+.qr-diagram-card__hint--wide::before {
+  background: #059669;
+}
+
+.qr-diagram-dialog {
+  width: min(96vw, 110rem);
+  max-width: none;
+  height: 92vh;
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  background: #0c1322;
+  box-shadow: 0 32px 90px rgb(0 0 0 / 48%);
+  color: #e7edf6;
+}
+
+.qr-diagram-dialog::backdrop {
+  background: rgb(4 9 20 / 82%);
+  backdrop-filter: blur(3px);
+}
+
+.qr-diagram-dialog__shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100%;
+}
+
+.qr-diagram-dialog__header {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-height: 4.6rem;
+  padding: 0.85rem 1.1rem 0.85rem 1.35rem;
+  border-bottom: 1px solid #2a3549;
+  background: #121b2c;
+}
+
+.qr-diagram-dialog__heading {
+  display: grid;
+  min-width: 0;
+  gap: 0.25rem;
+}
+
+.qr-diagram-dialog__eyebrow {
+  color: #7db0ff;
+}
+
+.qr-diagram-dialog__title {
+  overflow: hidden;
+  margin: 0;
+  color: #f8fafc;
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+  font-weight: 680;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qr-diagram-dialog__controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.qr-diagram-control {
+  min-width: 2.35rem;
+  padding: 0.5rem 0.65rem;
+  border-color: #3b4a61;
+  background: #1b2639;
+  color: #e7edf6;
+}
+
+.qr-diagram-control:hover {
+  border-color: #6f82a0;
+  background: #24324a;
+}
+
+.qr-diagram-control:not(.qr-diagram-control--fit, .qr-diagram-control--close) {
+  width: 2.35rem;
+  padding-inline: 0;
+  font-size: 0;
+}
+
+.qr-diagram-control--close {
+  margin-left: 0.25rem;
+  border-color: #51617a;
+}
+
+.qr-diagram-dialog__zoom {
+  min-width: 3.5rem;
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.qr-diagram-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background-color: #edf2f7;
+  background-image:
+    linear-gradient(rgb(148 163 184 / 16%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(148 163 184 / 16%) 1px, transparent 1px);
+  background-size: 28px 28px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.qr-diagram-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.qr-diagram-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  will-change: transform;
+  transform-origin: center;
+}
+
+.qr-diagram-canvas > svg {
+  display: block;
+  max-width: none !important;
+  max-height: none !important;
+  filter: drop-shadow(0 12px 18px rgb(15 23 42 / 12%));
+}
+
+.qr-diagram-dialog__footer {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 2.65rem;
+  padding: 0.5rem 1.25rem;
+  border-top: 1px solid #2a3549;
+  background: #121b2c;
+  color: #9eacc0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.qr-diagram-dialog__instruction::before {
+  content: "";
+  display: inline-block;
+  width: 0.32rem;
+  height: 0.32rem;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: #60a5fa;
+  vertical-align: 0.08rem;
+}
+
+@media (max-width: 720px) {
+  .qr-diagram-card__toolbar {
+    align-items: flex-start;
+  }
+
+  .qr-diagram-card__title,
+  .qr-diagram-card__hint--wide,
+  .qr-diagram-control--fit span {
+    display: none;
+  }
+
+  .qr-diagram-card > .mermaid {
+    padding: 1rem;
+  }
+
+  .qr-diagram-dialog {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .qr-diagram-dialog__header {
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .qr-diagram-dialog__heading {
+    max-width: 12rem;
+  }
+
+  .qr-diagram-control--fit,
+  .qr-diagram-control--close {
+    width: 2.35rem;
+    padding-inline: 0;
+    font-size: 0;
+  }
+
+  .qr-diagram-dialog__footer {
+    gap: 0.7rem;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-diagram-open,
+  .qr-diagram-control {
+    transition: none;
+  }
+}

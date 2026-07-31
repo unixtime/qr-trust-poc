@@ -1,0 +1,103 @@
+{
+  "artifact_type": "cross_surface_qr_evidence_packet",
+  "bundle_id": "cross-surface-qr-evidence:qrtrust-demo:redirect-final-mismatch:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "scenario_id": "redirect-final-mismatch",
+  "qr_artifact": {
+    "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+    "payload_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "usage_policy": "reusable_public",
+    "destination_fingerprint": "qr....ple.example"
+  },
+  "final_decision": {
+    "decision_color": "red",
+    "decision_state": "resolver_final_target_mismatch",
+    "reason_codes": [
+      "issuer_recognized",
+      "resolver_host_approved",
+      "redirect_final_destination_mismatch"
+    ]
+  },
+  "surface_evidence": [
+    {
+      "surface": "contract_fixture",
+      "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+      "proof_ref": "docs/public/network-contracts/examples/scanner-decision-red-runtime-blocked.json",
+      "decision_color": "red",
+      "decision_state": "resolver_final_target_mismatch",
+      "reason_codes": [
+        "issuer_recognized",
+        "resolver_host_approved",
+        "redirect_final_destination_mismatch"
+      ],
+      "observed_at": "2026-05-21T00:01:00Z",
+      "notes": "Contract fixture establishes the expected terminal color and reason codes."
+    },
+    {
+      "surface": "worker_drill",
+      "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+      "proof_ref": "docs/public/network-contracts/scan-time-validation-sequence.md",
+      "decision_color": "red",
+      "decision_state": "resolver_final_target_mismatch",
+      "reason_codes": [
+        "issuer_recognized",
+        "resolver_host_approved",
+        "redirect_final_destination_mismatch"
+      ],
+      "observed_at": "2026-05-21T00:02:00Z",
+      "notes": "Worker drill shows destination binding remains active after resolver expansion."
+    },
+    {
+      "surface": "web_lab",
+      "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+      "proof_ref": "docs/public/evidence/browser/redirect-final-mismatch-lab.png",
+      "decision_color": "red",
+      "decision_state": "resolver_final_target_mismatch",
+      "reason_codes": [
+        "issuer_recognized",
+        "resolver_host_approved",
+        "redirect_final_destination_mismatch"
+      ],
+      "observed_at": "2026-05-21T00:03:00Z",
+      "notes": "Web lab exposes the same red scanner-visible outcome for reviewers."
+    },
+    {
+      "surface": "backend_scanner_decision",
+      "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+      "proof_ref": "docs/public/evidence/api/scanner-decision-redirect-final-mismatch.json",
+      "decision_color": "red",
+      "decision_state": "resolver_final_target_mismatch",
+      "reason_codes": [
+        "issuer_recognized",
+        "resolver_host_approved",
+        "redirect_final_destination_mismatch"
+      ],
+      "observed_at": "2026-05-21T00:04:00Z",
+      "notes": "Backend scanner-decision response is the source of truth for the user-facing result."
+    },
+    {
+      "surface": "ios_scanner",
+      "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
+      "proof_ref": "docs/public/evidence/iphone/resolver-final-target-mismatch.png",
+      "decision_color": "red",
+      "decision_state": "resolver_final_target_mismatch",
+      "reason_codes": [
+        "issuer_recognized",
+        "resolver_host_approved",
+        "redirect_final_destination_mismatch"
+      ],
+      "observed_at": "2026-05-21T00:05:00Z",
+      "notes": "iOS scanner presents the same terminal color without exposing the raw redirect chain."
+    }
+  ],
+  "reviewer": {
+    "name": "QR Trust reviewer",
+    "role": "cross-surface evidence reviewer",
+    "reviewed_at": "2026-05-21"
+  },
+  "privacy": {
+    "raw_urls_redacted": true,
+    "secrets_included": false,
+    "notes": "Public packet keeps compact destination fingerprints and evidence paths only."
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "decision_id": "decision_demo_orange_unavailable_001",
+  "decided_at": "2026-05-17T00:00:00Z",
+  "decision_color": "orange",
+  "decision_state": "check_unavailable_destination_visible",
+  "reason_codes": [
+    "protection_service_unreachable",
+    "destination_visible_unverified"
+  ],
+  "risk_score": 30,
+  "destination": {
+    "display_host": "acme.example",
+    "fingerprint": "acm...ple",
+    "url": "https://acme.example/pay"
+  },
+  "trust_path": {
+    "issuer_legitimacy": {
+      "status": "not_checked",
+      "label": "Issuer not checked",
+      "message": "The verifier could not be reached, so issuer enrollment was not confirmed."
+    },
+    "destination_binding": {
+      "status": "unverified",
+      "label": "Destination unverified",
+      "message": "A destination was read from the QR, but it was not checked against issuer policy."
+    },
+    "runtime_safety": {
+      "status": "not_evaluated",
+      "label": "Runtime not evaluated",
+      "message": "Current destination safety was not evaluated because the protection service was unreachable."
+    },
+    "scanner_decision": {
+      "status": "orange",
+      "label": "Use caution",
+      "message": "The destination is visible but unverified. Continue only if you trust where the QR came from."
+    }
+  },
+  "hold_to_open": {
+    "required": true,
+    "duration_ms": 800,
+    "reason_codes": [
+      "destination_visible_unverified"
+    ]
+  },
+  "cache_freshness": {
+    "status": "unavailable"
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "artifact_type": "worker_operations_evidence_packet",
+  "packet_id": "worker-operations-evidence:qrtrust-demo:reference:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00Z",
+  "claim_mode": "reference_drill",
+  "components": [
+    {
+      "component_id": "artifact_publication_worker",
+      "runtime": "Effect TypeScript worker over Postgres artifact publication queue",
+      "authority_boundary": "postgres_source_of_truth",
+      "input_refs": [
+        "qr_trust.artifact_publication_work_items"
+      ],
+      "output_refs": [
+        "qr_trust.published_artifacts",
+        "qr_trust.event_outbox"
+      ],
+      "runbook_ref": "docs/public/network-contracts/artifact-publication-runbook.md",
+      "smoke_script": "npm run artifact-publication:queue-worker-smoke",
+      "metrics_ref": "docs/public/network-contracts/artifact-publication-runbook.md#operator-evidence",
+      "recovery_ref": "docs/public/network-contracts/artifact-publication-runbook.md#recovery",
+      "operational_status": "reference_ready"
+    },
+    {
+      "component_id": "event_outbox_worker",
+      "runtime": "Effect TypeScript worker over Postgres event outbox and NATS JetStream",
+      "authority_boundary": "nats_propagation_only",
+      "input_refs": [
+        "qr_trust.event_outbox"
+      ],
+      "output_refs": [
+        "qrtrust.governance.* NATS subjects"
+      ],
+      "runbook_ref": "docs/public/network-contracts/nats-subjects.md",
+      "smoke_script": "npm run event-outbox:worker-smoke",
+      "metrics_ref": "docs/public/network-contracts/nats-subjects.md#operator-evidence",
+      "recovery_ref": "docs/public/network-contracts/nats-subjects.md#replay",
+      "operational_status": "reference_ready"
+    },
+    {
+      "component_id": "verifier_cache_read_model_worker",
+      "runtime": "Effect TypeScript worker materializing verifier cache from governance artifacts",
+      "authority_boundary": "derived_read_model",
+      "input_refs": [
+        "qr_trust.verifier_cache_work_items",
+        "qrtrust.governance.* NATS subjects"
+      ],
+      "output_refs": [
+        "qr_trust.verifier_cache_entries",
+        "qr_trust.scanner_decisions"
+      ],
+      "runbook_ref": "docs/public/network-contracts/scan-time-validation-sequence.md",
+      "smoke_script": "npm run verifier-cache:read-model-worker-smoke",
+      "metrics_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#operator-evidence",
+      "recovery_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#recovery",
+      "operational_status": "reference_ready"
+    },
+    {
+      "component_id": "scanner_decision_runtime",
+      "runtime": "HTTP scanner-decision service backed by verifier cache and runtime observations",
+      "authority_boundary": "scanner_decision_runtime",
+      "input_refs": [
+        "qr_trust.verifier_cache_entries",
+        "qr_trust.runtime_observations"
+      ],
+      "output_refs": [
+        "qr_trust.scanner_decisions",
+        "scanner-visible green/orange/red response"
+      ],
+      "runbook_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md",
+      "smoke_script": "npm run scanner-decision:http-runtime-smoke",
+      "metrics_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#operator-evidence",
+      "recovery_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#fail-closed",
+      "operational_status": "reference_ready"
+    }
+  ],
+  "replay_recovery_drills": [
+    {
+      "drill_id": "artifact-publication-retry-after-blocked-policy",
+      "component_id": "artifact_publication_worker",
+      "trigger": "A destination-policy work item fails domain-proof publication gate validation.",
+      "expected_recovery": "The worker records the blocked result, leaves source governance state unchanged, and can retry after the issuer publishes valid proof.",
+      "evidence_ref": "docs/public/network-contracts/artifact-publication-runbook.md#blocked-policy-retry"
+    },
+    {
+      "drill_id": "event-outbox-replay-after-nats-outage",
+      "component_id": "event_outbox_worker",
+      "trigger": "NATS is unavailable after an authoritative Postgres outbox row is committed.",
+      "expected_recovery": "The worker preserves the pending outbox row and republishes the same envelope reference after broker recovery without treating NATS as source of truth.",
+      "evidence_ref": "docs/public/network-contracts/nats-subjects.md#replay-drill"
+    },
+    {
+      "drill_id": "verifier-cache-rebuild-from-artifacts",
+      "component_id": "verifier_cache_read_model_worker",
+      "trigger": "A verifier cache projection is stale or deleted.",
+      "expected_recovery": "The read-model worker rebuilds the derived cache entry from accepted governance artifacts and preserves source artifact hashes.",
+      "evidence_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#cache-rebuild-drill"
+    },
+    {
+      "drill_id": "scanner-runtime-fail-closed-on-cache-miss",
+      "component_id": "scanner_decision_runtime",
+      "trigger": "The scanner-decision runtime receives a signed QR whose verifier-cache entry is missing or stale.",
+      "expected_recovery": "The runtime emits an orange or red scanner-visible decision and never upgrades the QR to green from QR syntax alone.",
+      "evidence_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#cache-miss-drill"
+    }
+  ],
+  "monitoring": {
+    "captured_at": "2026-05-21T00:00:00Z",
+    "stale_work_items_threshold_seconds": 300,
+    "max_publish_lag_seconds": 60,
+    "metrics_refs": [
+      "docs/public/network-contracts/artifact-publication-runbook.md#operator-evidence",
+      "docs/public/network-contracts/nats-subjects.md#operator-evidence",
+      "docs/public/network-contracts/scan-time-validation-sequence.md#operator-evidence",
+      "docs/public/network-contracts/scanner-decision-http-runtime.md#operator-evidence"
+    ],
+    "signals": [
+      {
+        "signal_id": "artifact_publication_lag",
+        "component_id": "artifact_publication_worker",
+        "threshold": "alert when oldest unprocessed publication work item is older than 300 seconds",
+        "metric_ref": "docs/public/network-contracts/artifact-publication-runbook.md#artifact-publication-lag",
+        "alert_ref": "docs/public/network-contracts/artifact-publication-runbook.md#artifact-publication-lag-alert",
+        "replay_or_recovery_ref": "docs/public/network-contracts/artifact-publication-runbook.md#blocked-policy-retry",
+        "owner": "authority publication operator"
+      },
+      {
+        "signal_id": "event_outbox_publish_lag",
+        "component_id": "event_outbox_worker",
+        "threshold": "alert when committed event outbox rows remain unpublished for more than 60 seconds",
+        "metric_ref": "docs/public/network-contracts/nats-subjects.md#event-outbox-publish-lag",
+        "alert_ref": "docs/public/network-contracts/nats-subjects.md#event-outbox-publish-lag-alert",
+        "replay_or_recovery_ref": "docs/public/network-contracts/nats-subjects.md#replay-drill",
+        "owner": "propagation operator"
+      },
+      {
+        "signal_id": "verifier_cache_staleness",
+        "component_id": "verifier_cache_read_model_worker",
+        "threshold": "alert when verifier cache entries exceed the accepted freshness window",
+        "metric_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#verifier-cache-staleness",
+        "alert_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#verifier-cache-staleness-alert",
+        "replay_or_recovery_ref": "docs/public/network-contracts/scan-time-validation-sequence.md#cache-rebuild-drill",
+        "owner": "verifier cache operator"
+      },
+      {
+        "signal_id": "scanner_decision_error_rate",
+        "component_id": "scanner_decision_runtime",
+        "threshold": "alert when scanner decision runtime errors exceed the operator threshold",
+        "metric_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#scanner-decision-error-rate",
+        "alert_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#scanner-decision-error-rate-alert",
+        "replay_or_recovery_ref": "docs/public/network-contracts/scanner-decision-http-runtime.md#cache-miss-drill",
+        "owner": "scanner runtime operator"
+      }
+    ]
+  },
+  "guardrails": {
+    "postgres_authoritative": true,
+    "nats_propagation_only": true,
+    "verifier_cache_derived_only": true,
+    "no_secret_material": true
+  },
+  "reviewer": {
+    "name": "QR Trust reference reviewer",
+    "role": "worker operations evidence reviewer",
+    "reviewed_at": "2026-05-21"
+  }
+}

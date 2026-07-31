@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.example/contracts/operator-evidence-index.schema.json",
+  "title": "QR Trust Operator Evidence Index",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "index_id",
+    "generated_at",
+    "claim_mode",
+    "controls",
+    "guardrails",
+    "reviewer"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "operator_evidence_index"
+    },
+    "index_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim_mode": {
+      "enum": ["reference_drill", "production_candidate"]
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["control_id", "layer", "status", "owner", "summary", "evidence_refs"],
+        "properties": {
+          "control_id": {
+            "enum": [
+              "postgres_source_of_truth",
+              "migration_ledger",
+              "restore_automation",
+              "packaged_deployment_ownership",
+              "nats_propagation",
+              "managed_key_material",
+              "managed_signing_custody",
+              "custody_audit_export",
+              "runtime_safety_provider",
+              "scanner_decision_persistence",
+              "worker_operations_evidence",
+              "operator_runbooks"
+            ]
+          },
+          "layer": {
+            "enum": [
+              "source_of_truth",
+              "propagation",
+              "custody",
+              "runtime",
+              "scanner",
+              "operator_readiness"
+            ]
+          },
+          "status": {
+            "enum": ["reference_backed", "operator_backed", "blocked"]
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["label", "uri", "owner", "reviewed_at"],
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uri": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "owner": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "review_role": {
+                  "enum": [
+                    "database_operator",
+                    "release_owner",
+                    "security_reviewer",
+                    "operations_reviewer",
+                    "custody_operator",
+                    "runtime_operator"
+                  ]
+                },
+                "reviewed_at": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "guardrails": {
+      "type": "object",
+      "required": [
+        "public_repo_contains_no_secrets",
+        "evidence_refs_required_for_pass",
+        "production_requires_ops_refs",
+        "operator_controls_remain_external"
+      ],
+      "properties": {
+        "public_repo_contains_no_secrets": {
+          "const": true
+        },
+        "evidence_refs_required_for_pass": {
+          "const": true
+        },
+        "production_requires_ops_refs": {
+          "const": true
+        },
+        "operator_controls_remain_external": {
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "reviewer": {
+      "type": "object",
+      "required": ["name", "role", "reviewed_at"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "claim_mode": {
+            "const": "production_candidate"
+          }
+        },
+        "required": ["claim_mode"]
+      },
+      "then": {
+        "properties": {
+          "controls": {
+            "items": {
+              "properties": {
+                "status": {
+                  "const": "operator_backed"
+                },
+                "evidence_refs": {
+                  "items": {
+                    "required": ["label", "uri", "owner", "review_role", "reviewed_at"],
+                    "properties": {
+                      "uri": {
+                        "pattern": "^ops://qrtrust/"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

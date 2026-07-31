@@ -1,0 +1,12 @@
+fixture_id: orange_plain_url_unrecognized
+decision_state: plain_url_unrecognized
+decision_color: orange
+status: orange
+title: Use caution
+message: This QR is a normal link without a recognized trust signal. Only continue if you trust where it came from.
+destination: http://en.m.wikipedia.org
+host: en.m.wikipedia.org
+usage_policy: not provided
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-23T15:25:44.354Z

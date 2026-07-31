@@ -1,0 +1,62 @@
+{
+  "decision_id": "decision_demo_red_runtime_blocked_001",
+  "decided_at": "2026-05-18T00:00:00Z",
+  "decision_color": "red",
+  "decision_state": "verified_issuer_runtime_blocked",
+  "reason_codes": [
+    "issuer_recognized",
+    "destination_bound",
+    "runtime_destination_blocked",
+    "cache_fresh"
+  ],
+  "risk_score": 70,
+  "destination": {
+    "display_host": "acme.example",
+    "fingerprint": "acm...ple",
+    "url": "https://acme.example/pay?runtime=blocked",
+    "final_url": "https://acme.example/pay?runtime=blocked"
+  },
+  "trust_path": {
+    "issuer_legitimacy": {
+      "status": "recognized",
+      "label": "Issuer recognized",
+      "message": "Issuer record resolved in verifier trust state."
+    },
+    "destination_binding": {
+      "status": "bound",
+      "label": "Destination bound",
+      "message": "Destination matches issuer policy."
+    },
+    "runtime_safety": {
+      "status": "blocked",
+      "label": "Runtime blocked",
+      "message": "Runtime provider reports that this destination should not be opened right now.",
+      "reason_codes": [
+        "runtime_destination_blocked"
+      ]
+    },
+    "scanner_decision": {
+      "status": "red",
+      "label": "Do not open",
+      "message": "The issuer and destination are verified, but present-time safety policy blocks opening."
+    }
+  },
+  "hold_to_open": {
+    "required": true,
+    "duration_ms": 800,
+    "reason_codes": [
+      "runtime_destination_blocked"
+    ]
+  },
+  "cache_freshness": {
+    "status": "fresh",
+    "cache_generated_at": "2026-05-17T00:00:00Z",
+    "cache_expires_at": "2026-12-31T23:59:59Z"
+  },
+  "governance": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo",
+    "destination_policy_id": "policy:acme-demo:web-payments:v1"
+  }
+}

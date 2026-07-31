@@ -1,0 +1,6139 @@
+{
+  "ablation_summary": {
+    "artifact_integrity": {
+      "changed_output_cases": [
+        "C13a",
+        "C13b",
+        "C14",
+        "C21a",
+        "C21b",
+        "C22",
+        "C24a",
+        "C24b"
+      ],
+      "changed_output_count": 8,
+      "reduced_attention_cases": [
+        "C13a",
+        "C13b",
+        "C14",
+        "C21a",
+        "C21b",
+        "C22",
+        "C24a",
+        "C24b"
+      ],
+      "reduced_attention_count": 8
+    },
+    "destination_policy": {
+      "changed_output_cases": [
+        "C4",
+        "C18"
+      ],
+      "changed_output_count": 2,
+      "reduced_attention_cases": [
+        "C4",
+        "C18"
+      ],
+      "reduced_attention_count": 2
+    },
+    "freshness": {
+      "changed_output_cases": [
+        "C10a",
+        "C10b",
+        "C17"
+      ],
+      "changed_output_count": 3,
+      "reduced_attention_cases": [
+        "C10a",
+        "C10b",
+        "C17"
+      ],
+      "reduced_attention_count": 3
+    },
+    "issuer_chain": {
+      "changed_output_cases": [
+        "C1",
+        "C2",
+        "C9",
+        "C15b",
+        "C16a",
+        "C16b",
+        "C25a",
+        "C25b"
+      ],
+      "changed_output_count": 8,
+      "reduced_attention_cases": [
+        "C1",
+        "C2",
+        "C9",
+        "C15b",
+        "C16a",
+        "C25a",
+        "C25b"
+      ],
+      "reduced_attention_count": 7
+    },
+    "redirect_flow": {
+      "changed_output_cases": [
+        "C12",
+        "C19a",
+        "C19b"
+      ],
+      "changed_output_count": 3,
+      "reduced_attention_cases": [
+        "C12",
+        "C19a"
+      ],
+      "reduced_attention_count": 2
+    },
+    "runtime_safety": {
+      "changed_output_cases": [
+        "C7",
+        "C8",
+        "C11a",
+        "C11b",
+        "C15a",
+        "C15c",
+        "C23a",
+        "C23b"
+      ],
+      "changed_output_count": 8,
+      "reduced_attention_cases": [
+        "C7",
+        "C8",
+        "C11a",
+        "C11b",
+        "C15a",
+        "C15c",
+        "C23a",
+        "C23b"
+      ],
+      "reduced_attention_count": 8
+    }
+  },
+  "baseline_construction": {
+    "decode-only": "`unreadable` if the QR is undecodable, else `unverified`; never claims positive trust.",
+    "https-only": "`verified-issuer` iff the decoded URL scheme is `https`, else `unverified`.",
+    "reputation-only": "mirrors the runtime-safety verdict alone: `blocked` on a blocking verdict, `verified-issuer-destination-risky` on a risky verdict, `unverified` when the provider is unavailable, and `verified-issuer` otherwise \u2014 including when no runtime check ran, which is why it can claim positive trust on cases the other baselines cannot.",
+    "signature-only": "`verified-issuer` for any valid signature; `blocked` for an invalid managed trust claim; else `unverified`."
+  },
+  "baseline_summary": {
+    "decode-only": {
+      "attention_cases": 35,
+      "attention_undercut_cases": [
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15a",
+        "C15c",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "attention_undercut_count": 32,
+      "attention_undercut_rate": 0.9143,
+      "state_mismatch_cases": [
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15a",
+        "C15c",
+        "C16a",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24b",
+        "C25a"
+      ],
+      "state_mismatch_count": 31,
+      "state_mismatch_rate": 0.8378,
+      "unsafe_positive_cases": [],
+      "unsafe_positive_count": 0,
+      "unsafe_positive_rate": 0.0
+    },
+    "https-only": {
+      "attention_cases": 35,
+      "attention_undercut_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15a",
+        "C15b",
+        "C15c",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "attention_undercut_count": 34,
+      "attention_undercut_rate": 0.9714,
+      "state_mismatch_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C11a",
+        "C12",
+        "C13a",
+        "C15a",
+        "C15b",
+        "C15c",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C20",
+        "C21a",
+        "C23a",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "state_mismatch_count": 26,
+      "state_mismatch_rate": 0.7027,
+      "unsafe_positive_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15a",
+        "C15b",
+        "C15c",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "unsafe_positive_count": 34,
+      "unsafe_positive_rate": 0.9714
+    },
+    "reputation-only": {
+      "attention_cases": 35,
+      "attention_undercut_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15b",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "attention_undercut_count": 29,
+      "attention_undercut_rate": 0.8286,
+      "state_mismatch_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C9",
+        "C10a",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C15b",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C20",
+        "C21a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "state_mismatch_count": 23,
+      "state_mismatch_rate": 0.6216,
+      "unsafe_positive_cases": [
+        "C1",
+        "C2",
+        "C4",
+        "C6",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15b",
+        "C16a",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "unsafe_positive_count": 27,
+      "unsafe_positive_rate": 0.7714
+    },
+    "signature-only": {
+      "attention_cases": 35,
+      "attention_undercut_cases": [
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15a",
+        "C15c",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "attention_undercut_count": 30,
+      "attention_undercut_rate": 0.8571,
+      "state_mismatch_cases": [
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C11a",
+        "C12",
+        "C13a",
+        "C15a",
+        "C15c",
+        "C16b",
+        "C17",
+        "C18",
+        "C19a",
+        "C20",
+        "C21a",
+        "C23a",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "state_mismatch_count": 23,
+      "state_mismatch_rate": 0.6216,
+      "unsafe_positive_cases": [
+        "C2",
+        "C4",
+        "C6",
+        "C7",
+        "C8",
+        "C9",
+        "C10a",
+        "C10b",
+        "C11a",
+        "C11b",
+        "C12",
+        "C13a",
+        "C13b",
+        "C14",
+        "C15c",
+        "C17",
+        "C18",
+        "C19a",
+        "C19b",
+        "C20",
+        "C21a",
+        "C21b",
+        "C22",
+        "C23a",
+        "C23b",
+        "C24a",
+        "C24b",
+        "C25a",
+        "C25b"
+      ],
+      "unsafe_positive_count": 29,
+      "unsafe_positive_rate": 0.8286
+    }
+  },
+  "cases": [
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unreadable",
+          "reason_codes": [
+            "qr-undecodable"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C0",
+      "decoded_payload_sha256": "sha256:cc6a155534ef90d196bed7ad48be1fd1f533bca2932b7589caa2d0534a8a22aa",
+      "description": "Physically damaged QR symbol that cannot be decoded into a payload.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unreadable",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "unreadable",
+        "rule": "D0"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unreadable",
+        "reason_codes": [
+          "qr-undecodable"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "warn",
+        "destination_policy": "not-applicable",
+        "freshness": "not-applicable",
+        "issuer_chain": "no-issuer",
+        "redirect_flow": "not-applicable",
+        "runtime_safety": "not-checked"
+      },
+      "semantic_match": true,
+      "title": "Unreadable QR artifact",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": {
+        "analyzer": "qrsafe-image",
+        "artifact_integrity": "pass",
+        "container_type": "image",
+        "extracted_artifact_count": 1,
+        "fixture_path": "fixtures/qr-clean-url.png",
+        "payload_sha256": [
+          "sha256:ce217c561452711235d6f4007df8ca1a2c39ebd169a44130668ddeffe55f25f4"
+        ],
+        "rejected_part_count": 0,
+        "risk_score": 0,
+        "tamper_indicators": []
+      },
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "signature-absent"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C1",
+      "decoded_payload_sha256": "sha256:ce217c561452711235d6f4007df8ca1a2c39ebd169a44130668ddeffe55f25f4",
+      "description": "Unsigned QR to benign URL.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unverified",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "unverified",
+        "rule": "D1"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unverified",
+        "reason_codes": [
+          "no-issuer-path"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "not-applicable",
+        "freshness": "not-applicable",
+        "issuer_chain": "no-issuer",
+        "redirect_flow": "not-applicable",
+        "runtime_safety": "not-checked"
+      },
+      "semantic_match": true,
+      "title": "Unsigned benign URL",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "signed-unaccepted-issuer",
+          "reason_codes": [
+            "signed-by-unaccepted-issuer"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "signed-unaccepted-issuer",
+          "reason_codes": [
+            "signed-by-unaccepted-issuer"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "signed-unaccepted-issuer",
+          "reason_codes": [
+            "signed-by-unaccepted-issuer"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "signed-unaccepted-issuer",
+          "reason_codes": [
+            "signed-by-unaccepted-issuer"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "signed-unaccepted-issuer",
+          "reason_codes": [
+            "signed-by-unaccepted-issuer"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C2",
+      "decoded_payload_sha256": "sha256:b91d338d9220faf9fa9c9fafcb72ffd2f7cb1b40f87b333d4b355c0cb2d5b260",
+      "description": "Signed QR from an issuer outside the verifier's accepted roots.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "warning",
+        "primary_state": "signed-unaccepted-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "signed-unaccepted-issuer",
+        "rule": "D2"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "warning",
+        "primary_state": "signed-unaccepted-issuer",
+        "reason_codes": [
+          "signed-by-unaccepted-issuer"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "not-applicable",
+        "freshness": "not-applicable",
+        "issuer_chain": "unaccepted-issuer",
+        "redirect_flow": "not-applicable",
+        "runtime_safety": "not-checked"
+      },
+      "semantic_match": true,
+      "title": "Signed but unaccepted issuer",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C3",
+      "decoded_payload_sha256": "sha256:292a579d4678984e87a2107a62422e07a7d18a223fd60bc784e4aff7ee636540",
+      "description": "Enrolled issuer with approved destination and clear runtime evidence.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "positive",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "positive",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Approved issuer and destination",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C4",
+      "decoded_payload_sha256": "sha256:03c51a0fd452665750dddc023a1449058c8fcb65e73560584d64705188464038",
+      "description": "Enrolled issuer with a destination outside the current policy.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D6"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "destination-policy-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "fail",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Approved issuer, destination changed",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C5",
+      "decoded_payload_sha256": "sha256:44af429bfef4f24c639ba9063f7353f0e4729fbf01fb8124fbfb6102376fbcfe",
+      "description": "Approved resolver with approved final destination.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "positive",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "positive",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Approved resolver flow",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C6",
+      "decoded_payload_sha256": "sha256:0e46f89d42c9d6a1aaa56ecffef9d575370c8a23c27db94fe0edcf5537b27839",
+      "description": "Approved resolver reaches an unexpected final host.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D6"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "destination-policy-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "fail",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "fail",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Resolver final-host mismatch",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C7",
+      "decoded_payload_sha256": "sha256:0346b007969276f20d4535def64366f577d4c80a46bae704a4446de20f06495e",
+      "description": "Valid issuer and destination with malicious runtime verdict.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D8"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "runtime-safety-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "block"
+      },
+      "semantic_match": true,
+      "title": "Verified issuer, runtime blocked",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "warning",
+          "attention_undercut": false,
+          "primary_state": "verified-issuer-destination-risky",
+          "reason_codes": [
+            "runtime-safety-warning"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C8",
+      "decoded_payload_sha256": "sha256:be973df0e1817d1e96a9a42cbcba996e093d896cf25e5db7940dab7f2969f751",
+      "description": "Valid issuer and destination with suspicious runtime verdict.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer-destination-risky",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "verified-issuer-destination-risky",
+        "rule": "D5"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer-destination-risky",
+        "reason_codes": [
+          "runtime-safety-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "warn"
+      },
+      "semantic_match": true,
+      "title": "Verified issuer, runtime risky",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "issuer-revoked"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "issuer-revoked"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "issuer-revoked"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "issuer-revoked"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "issuer-revoked"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C9",
+      "decoded_payload_sha256": "sha256:054d12ef73dbe156c1939fd8447c0d3a28122ba79e43ae45f6e44bd645c2000e",
+      "description": "Managed issuer is revoked by current trust state.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D3"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "issuer-revoked"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "revoked-issuer",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Revoked issuer",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C10a",
+      "decoded_payload_sha256": "sha256:4d430a6808ff29d53c10457f3d72b44cfec5acf1290d18e7d0b0eea077524b5b",
+      "description": "Expired issuer record where online freshness is mandatory.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D9"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "freshness-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "block",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Expired issuer record in strict-online profile",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "stale-offline-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "freshness-warning"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "stale-offline-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "freshness-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "issuer_chain": {
+          "annotations": [
+            "stale-offline-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "freshness-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "stale-offline-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "freshness-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "stale-offline-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "freshness-warning"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C10b",
+      "decoded_payload_sha256": "sha256:5238500a19a7550fc953863a1c941786b88603180d7a2f59e80c68465b12e412",
+      "description": "Expired issuer record under bounded offline policy and inside local grace window.",
+      "expected": {
+        "annotations": [
+          "stale-offline-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "stale-offline-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "stale-offline-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "freshness-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "warn",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Stale cache allowed with bounded warning",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-stale"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-stale"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-stale"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-stale"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-stale"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C11a",
+      "decoded_payload_sha256": "sha256:7df387a22e34507f9fc4d39ee402da3ca476221883b14af9dc58962175d51ad6",
+      "description": "The runtime-safety verdict itself has expired; verdict expiry is owned by the runtime-safety residual (the governance cache stays fresh), and the strict-online profile blocks stale runtime evidence.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D14"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "runtime-safety-stale"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "stale"
+      },
+      "semantic_match": true,
+      "title": "Expired runtime verdict where live safety is required",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "reputation-unavailable"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C11b",
+      "decoded_payload_sha256": "sha256:650c0e6e0f9bf70a07313587814b013179e68181892d6776f37cfc0257695d82",
+      "description": "Runtime safety visibility is limited but mandatory trust layers pass.",
+      "expected": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "runtime-safety-unavailable"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "unavailable"
+      },
+      "semantic_match": true,
+      "title": "Runtime provider unavailable under bounded offline profile",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C12",
+      "decoded_payload_sha256": "sha256:ad3b6914ed469eedb7e6e3826cff27e5fed63ca9c690ba45cf05274db738832d",
+      "description": "Redirect chain violates resolver policy by nesting shorteners.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D7"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "redirect-flow-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "fail",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Nested shortener not allowed",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": {
+        "analyzer": "qrsafe-pdf",
+        "artifact_integrity": "warn",
+        "container_type": "pdf",
+        "extracted_artifact_count": 1,
+        "fixture_path": "fixtures/invoice-overlay.pdf",
+        "payload_sha256": [
+          "sha256:9af5516299894f3ecf8ca4b67f96d81c11ac988d251c71c6899d6627755a0546"
+        ],
+        "rejected_part_count": 0,
+        "risk_score": 25,
+        "tamper_indicators": [
+          "colored_overlay_frame"
+        ]
+      },
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C13a",
+      "decoded_payload_sha256": "sha256:9af5516299894f3ecf8ca4b67f96d81c11ac988d251c71c6899d6627755a0546",
+      "description": "Pasted QR overlay in a signed invoice payment region.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D10"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "artifact-integrity-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "block",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Action-critical pasted overlay",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C13b",
+      "decoded_payload_sha256": "sha256:a80f4dfc4be36318231e5f3d0d3df9bfd6faea2f3340449a7da94c4296db0cba",
+      "description": "Pasted-looking QR outside action-critical region with valid trust path.",
+      "expected": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "artifact-integrity-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "warn",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Non-action-critical pasted-looking overlay",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": {
+        "analyzer": "qrsafe-image",
+        "artifact_integrity": "warn",
+        "container_type": "image",
+        "extracted_artifact_count": 1,
+        "fixture_path": "fixtures/qr-low-quiet-zone.png",
+        "payload_sha256": [
+          "sha256:84a8be72dc760d7e4d0d05adce38562c8af540bc4a32bee3f1b8fa8b6f47a669"
+        ],
+        "rejected_part_count": 0,
+        "risk_score": 15,
+        "tamper_indicators": [
+          "low_quiet_zone"
+        ]
+      },
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C14",
+      "decoded_payload_sha256": "sha256:84a8be72dc760d7e4d0d05adce38562c8af540bc4a32bee3f1b8fa8b6f47a669",
+      "description": "Valid trust path with a PNG artifact-quality warning from missing quiet zone.",
+      "expected": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "artifact-integrity-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "warn",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Low quiet-zone artifact warning",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "signature-absent"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C15a",
+      "decoded_payload_sha256": "sha256:7f6efc011637c9a8a4fed854858ce8778e9c6a1029f0a2ad6412ff38a9999388",
+      "description": "No issuer path, but runtime provider flags the destination as malicious.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D8"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "runtime-safety-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "not-applicable",
+        "freshness": "pass",
+        "issuer_chain": "no-issuer",
+        "redirect_flow": "not-applicable",
+        "runtime_safety": "block"
+      },
+      "semantic_match": true,
+      "title": "HTTPS phishing URL with runtime block",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "no-issuer-path"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "signature-absent"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C15b",
+      "decoded_payload_sha256": "sha256:685a6ddb2c93e51ec7500f4c1e4e5cdfa5c983b1d0c4ada647b957b62f055efa",
+      "description": "No issuer path and no runtime evidence.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unverified",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "unverified",
+        "rule": "D1"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "neutral",
+        "primary_state": "unverified",
+        "reason_codes": [
+          "no-issuer-path"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "not-applicable",
+        "freshness": "not-applicable",
+        "issuer_chain": "no-issuer",
+        "redirect_flow": "not-applicable",
+        "runtime_safety": "not-checked"
+      },
+      "semantic_match": true,
+      "title": "HTTPS phishing URL without runtime verdict",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C15c",
+      "decoded_payload_sha256": "sha256:3850c290d054be9004e72e69a8aab6550a2390b1f7b1d905ce9befc837934cdf",
+      "description": "Verified issuer path exists, but runtime provider flags destination as malicious.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D8"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "runtime-safety-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "block"
+      },
+      "semantic_match": true,
+      "title": "Verified issuer with runtime phishing block",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "invalid-managed-trust-claim"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "invalid-managed-trust-claim"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "invalid-managed-trust-claim"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "invalid-managed-trust-claim"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "invalid-managed-trust-claim"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "signature-invalid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C16a",
+      "decoded_payload_sha256": "sha256:8b1666fe39b6f786bc517fb17382c08e4fc64bd88b13583208ca87602f8ec83d",
+      "description": "Managed trust claim is malformed or signed by a key not authorized for its object type.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D3"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "invalid-managed-trust-claim"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "invalid-managed-claim",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Invalid managed-trust claim in production trusted mode",
+      "verifier_profile": "production-trusted"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "invalid-trust-claim-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "invalid-managed-trust-claim",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "invalid-trust-claim-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "invalid-managed-trust-claim",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "invalid-trust-claim-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "invalid-managed-trust-claim",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "invalid-trust-claim-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "invalid-managed-trust-claim",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "invalid-trust-claim-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "invalid-managed-trust-claim",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "signature-invalid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        }
+      },
+      "case_id": "C16b",
+      "decoded_payload_sha256": "sha256:eb9af086b264823cb4636552c9912265ef0e7adf35b02f7a7fdc6564c15a6463",
+      "description": "Reference-testing profile retains invalid managed-trust evidence without emitting production trust.",
+      "expected": {
+        "annotations": [
+          "invalid-trust-claim-warning",
+          "policy-profile-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "invalid-trust-claim-warning",
+          "policy-profile-warning"
+        ],
+        "match": true,
+        "primary_state": "unverified",
+        "rule": "D3"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "invalid-trust-claim-warning",
+          "policy-profile-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": [
+          "invalid-managed-trust-claim",
+          "reference-testing-profile"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "invalid-managed-claim",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Invalid managed-trust claim in reference-testing profile",
+      "verifier_profile": "reference-testing"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "freshness-block"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C17",
+      "decoded_payload_sha256": "sha256:e21f5502cc6baf3952983a3b1f4b6ce56d06ba72d7726e4bb59b2e1b721d57d5",
+      "description": "Signed governance object sequence is lower than the freshest accepted sequence.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D9"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "freshness-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "block",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Stale sequence replay",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C18",
+      "decoded_payload_sha256": "sha256:c18b42d08cddb1526420b805e01ae66667088a6f0429c0ed2153fde86be38a7c",
+      "description": "Destination canonicalization resolves to an unauthorized host.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D6"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "destination-policy-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "fail",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "IDN or punycode lookalike outside policy",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C19a",
+      "decoded_payload_sha256": "sha256:82e6f21b79be4154804f8187af07efde7df88aaea2415e2886b925cd3e5d36b6",
+      "description": "Redirect chain varies by user agent or context where stability is mandatory.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D7"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "redirect-flow-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "fail",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Redirect variation in strict trusted mode",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "redirect-variation-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "redirect-variation-warning",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "redirect-variation-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "redirect-variation-warning",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "redirect-variation-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "redirect-variation-warning",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "redirect-variation-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "redirect-variation-warning",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "redirect-variation-warning",
+            "policy-profile-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "redirect-variation-warning",
+            "reference-testing-profile"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C19b",
+      "decoded_payload_sha256": "sha256:38cfa57ae7613187e738e76ab72faeb3bbe5f2d1adda1ccf866b634259524d96",
+      "description": "Redirect variation is retained as evidence under a non-production profile.",
+      "expected": {
+        "annotations": [
+          "redirect-variation-warning",
+          "policy-profile-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "policy-profile-warning",
+          "redirect-variation-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "redirect-variation-warning",
+          "policy-profile-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "redirect-variation-warning",
+          "reference-testing-profile"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "warn",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Redirect variation in reference-testing profile",
+      "verifier_profile": "reference-testing"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "redirect-flow-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "destination-policy-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C20",
+      "decoded_payload_sha256": "sha256:17bc12b34c994c0e28045bb763f0a51562831f11a7ea4c78c05a2e93d096fdb4",
+      "description": "Approved host contains an open redirect that leads outside policy.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D6"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "destination-policy-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "fail",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "fail",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Open redirect to unauthorized final host",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-block"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C21a",
+      "decoded_payload_sha256": "sha256:b0f3673f84f6f556b2a3f00edf82664b6b2fdc320d2b94ef8cd302b8e977b241",
+      "description": "Invoice payment region contains two conflicting QR symbols.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D10"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "artifact-integrity-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "block",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Conflicting QR symbols in payment region",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": {
+        "analyzer": "qrsafe-image",
+        "artifact_integrity": "warn",
+        "container_type": "image",
+        "extracted_artifact_count": 1,
+        "fixture_path": "fixtures/qr-multiple-conflicting.png",
+        "payload_sha256": [
+          "sha256:a1e8a2879eea19a194b934b90c91ad0b9d24b799fcf11f707f90cdda9ef5954a",
+          "sha256:72999fb47612e62a6afa04df78b8ace48e8deeda34a3d6b28d3bb117f16d43cc"
+        ],
+        "rejected_part_count": 0,
+        "risk_score": 80,
+        "tamper_indicators": [
+          "conflicting_qr_payloads",
+          "multiple_qr_symbols"
+        ]
+      },
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C21b",
+      "decoded_payload_sha256": "sha256:a1e8a2879eea19a194b934b90c91ad0b9d24b799fcf11f707f90cdda9ef5954a",
+      "description": "Non-payment document contains extra QR outside action-critical region.",
+      "expected": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "artifact-integrity-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "warn",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Extra QR outside action-critical region",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "artifact-integrity-warning"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": {
+        "analyzer": "qrsafe-email",
+        "artifact_integrity": "warn",
+        "container_type": "email",
+        "extracted_artifact_count": 1,
+        "fixture_path": "fixtures/email-qr-attachment.eml",
+        "payload_sha256": [
+          "sha256:f3f272174cae869c7081904f896aaaf5e7fd727e5cd3963b754df5b8a7b09fde"
+        ],
+        "rejected_part_count": 0,
+        "risk_score": 15,
+        "tamper_indicators": [
+          "low_quiet_zone"
+        ]
+      },
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C22",
+      "decoded_payload_sha256": "sha256:f3f272174cae869c7081904f896aaaf5e7fd727e5cd3963b754df5b8a7b09fde",
+      "description": "QR is carried as an email attachment, while payload and trust path remain valid.",
+      "expected": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "artifact-integrity-warning"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "warn",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Email attachment artifact warning",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "block",
+          "attention_undercut": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "runtime-safety-block"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C23a",
+      "decoded_payload_sha256": "sha256:9a04c34fcfcbb4bae7cab287317ecee9e0be8a4dba0a666d7f23ee1ff02c3eda",
+      "description": "One runtime provider returns clean while another returns malicious under strict-online policy.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D8"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "runtime-safety-block"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "block"
+      },
+      "semantic_match": true,
+      "title": "Runtime provider disagreement with malicious verdict",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "limited-runtime-safety-visibility"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "runtime-safety-unavailable"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "reputation-unavailable"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C23b",
+      "decoded_payload_sha256": "sha256:5b0c8a19ce5b4e2c867b4bb32a93ba7bb0adaab290b1f6e947df7695574d2b67",
+      "description": "One runtime provider returns clean while another is unavailable or stale under bounded offline policy.",
+      "expected": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "match": true,
+        "primary_state": "verified-issuer",
+        "rule": "D4"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "limited-runtime-safety-visibility"
+        ],
+        "attention_level": "warning",
+        "primary_state": "verified-issuer",
+        "reason_codes": [
+          "runtime-safety-unavailable"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "unavailable"
+      },
+      "semantic_match": true,
+      "title": "Runtime provider disagreement with unavailable provider",
+      "verifier_profile": "bounded-offline"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "artifact-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C24a",
+      "decoded_payload_sha256": "sha256:fb145d0667b86b2cee29a5479724fa9260ae49d22ca0d383688c7bd061e9d098",
+      "description": "Artifact-integrity check fails on a document whose policy does not mark the artifact residual mandatory; D11 removes positive trust and preserves the failure as evidence.",
+      "expected": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "match": true,
+        "primary_state": "unverified",
+        "rule": "D11"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "artifact-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": [
+          "artifact-integrity-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "fail",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Artifact integrity failure with optional artifact residual",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "artifact-integrity-failed"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C24b",
+      "decoded_payload_sha256": "sha256:a95a0e31fc50d7d0a4e3d1c38ebf28438230f2600e5a5a97a4774e7375c03b81",
+      "description": "The same artifact-integrity failure on an action-critical document whose policy marks the artifact residual mandatory; D11 escalates the policy-gated failure to a block.",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D11"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "artifact-integrity-failed"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "fail",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "pass",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Artifact integrity failure under mandatory artifact policy",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [],
+          "attention_level": "block",
+          "changed_output": false,
+          "primary_state": "blocked",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C25a",
+      "decoded_payload_sha256": "sha256:e01c29b27fd329c58ec39d0df1e60fb1ef85e181986ff28654e173d4574f8694",
+      "description": "Two accepted roots return contradictory verdicts for the same issuer; the strict online profile refuses to arbitrate and blocks (D13).",
+      "expected": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [],
+        "match": true,
+        "primary_state": "blocked",
+        "rule": "D13"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [],
+        "attention_level": "block",
+        "primary_state": "blocked",
+        "reason_codes": [
+          "cross-root-contradiction"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "cross-root-contradiction",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Cross-root contradiction under strict online policy",
+      "verifier_profile": "strict-online"
+    },
+    {
+      "ablations": {
+        "artifact_integrity": {
+          "annotations": [
+            "incomplete-verification-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "destination_policy": {
+          "annotations": [
+            "incomplete-verification-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "freshness": {
+          "annotations": [
+            "incomplete-verification-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "issuer_chain": {
+          "annotations": [],
+          "attention_level": "positive",
+          "changed_output": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [],
+          "reduced_attention": true
+        },
+        "redirect_flow": {
+          "annotations": [
+            "incomplete-verification-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        },
+        "runtime_safety": {
+          "annotations": [
+            "incomplete-verification-warning"
+          ],
+          "attention_level": "warning",
+          "changed_output": false,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "cross-root-contradiction"
+          ],
+          "reduced_attention": false
+        }
+      },
+      "artifact_analysis": null,
+      "baselines": {
+        "decode-only": {
+          "annotations": [],
+          "attention_level": "neutral",
+          "attention_undercut": true,
+          "primary_state": "unverified",
+          "reason_codes": [
+            "payload-decoded"
+          ],
+          "state_mismatch": false,
+          "unsafe_positive": false
+        },
+        "https-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "https-url-present"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "reputation-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "reputation-clear"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        },
+        "signature-only": {
+          "annotations": [],
+          "attention_level": "positive",
+          "attention_undercut": true,
+          "primary_state": "verified-issuer",
+          "reason_codes": [
+            "signature-valid"
+          ],
+          "state_mismatch": true,
+          "unsafe_positive": true
+        }
+      },
+      "case_id": "C25b",
+      "decoded_payload_sha256": "sha256:e01c29b27fd329c58ec39d0df1e60fb1ef85e181986ff28654e173d4574f8694",
+      "description": "The same contradictory cross-root verdicts under a bounded offline profile; the contradiction downgrades to an explicitly labeled caution and never resolves into trust (D13).",
+      "expected": {
+        "annotations": [
+          "incomplete-verification-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": []
+      },
+      "formal_table": {
+        "annotations": [
+          "incomplete-verification-warning"
+        ],
+        "match": true,
+        "primary_state": "unverified",
+        "rule": "D13"
+      },
+      "residual_match": true,
+      "residual_verifier": {
+        "annotations": [
+          "incomplete-verification-warning"
+        ],
+        "attention_level": "warning",
+        "primary_state": "unverified",
+        "reason_codes": [
+          "cross-root-contradiction"
+        ]
+      },
+      "residuals": {
+        "artifact_integrity": "pass",
+        "destination_policy": "pass",
+        "freshness": "pass",
+        "issuer_chain": "cross-root-contradiction",
+        "redirect_flow": "pass",
+        "runtime_safety": "pass"
+      },
+      "semantic_match": true,
+      "title": "Cross-root contradiction under bounded offline policy",
+      "verifier_profile": "bounded-offline"
+    }
+  ],
+  "corpus": {
+    "case_count": 37,
+    "schema_version": "trust-residuals-corpus.v1",
+    "source_path": "docs/public/evaluation/trust_residuals_corpus.v1.json"
+  },
+  "generated_at": "2026-07-31T08:30:40.225955+00:00",
+  "schema_version": "trust-residuals-evaluation-results.v1",
+  "summary": {
+    "formal_table_conformance": {
+      "corpus_case_count": 37,
+      "corpus_match_count": 37,
+      "corpus_mismatch_count": 0,
+      "encoding_module": "scripts/trust_residuals_formal_table.py",
+      "sweep_comparison_count": 2212160,
+      "sweep_mandatory_configuration_count": 64,
+      "sweep_mismatch_count": 0,
+      "sweep_mismatches": [],
+      "sweep_profile_count": 5,
+      "sweep_vector_count": 6912
+    },
+    "latency_methodology": {
+      "machine": "arm64",
+      "os": "Darwin 25.5.0",
+      "per_case_statistic": "median of timed iterations",
+      "runtime": "CPython 3.12.2",
+      "summary_population": "per-case medians across all corpus cases",
+      "timed_iterations_per_case": 200,
+      "timed_span": "decide(R, P) only; residual vectors precomputed",
+      "timer": "time.perf_counter_ns around each individual call",
+      "warmup_iterations_per_case": 20
+    },
+    "offline_runner_latency_ns": {
+      "max": 1354,
+      "median": 708,
+      "p95": 1250
+    },
+    "residual_match_count": 37,
+    "residual_mismatch_count": 0,
+    "residual_verifier_attention_undercut_count": 0,
+    "residual_verifier_unsafe_positive_count": 0,
+    "semantic_correct_count": 37,
+    "semantic_mismatch_count": 0,
+    "total_cases": 37
+  }
+}

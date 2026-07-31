@@ -1,0 +1,7 @@
+fixture_id: signed_profile_settings_stale
+profile_state: stale
+expected_status: provider_profile_stale
+expected_user_signal: orange
+title: Protection service
+message: Needs refresh because the provider profile is stale.
+required_labels: Protection service, Needs refresh, profile is stale
