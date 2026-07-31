@@ -150,7 +150,7 @@ jobs:
 
       - name: Upload compose logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: compose-workbench-smoke-logs
           path: /tmp/qrcode-poc-compose.log
@@ -215,7 +215,7 @@ jobs:
 
       - name: Upload Vite log on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: route-navigation-vite-log
           path: /tmp/qrcode-poc-vite.log
