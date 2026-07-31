@@ -1,0 +1,62 @@
+{
+  "decision_id": "decision_demo_orange_runtime_risky_001",
+  "decided_at": "2026-05-18T00:00:00Z",
+  "decision_color": "orange",
+  "decision_state": "verified_issuer_destination_risky",
+  "reason_codes": [
+    "issuer_recognized",
+    "destination_bound",
+    "runtime_destination_risky",
+    "cache_fresh"
+  ],
+  "risk_score": 45,
+  "destination": {
+    "display_host": "acme.example",
+    "fingerprint": "acm...ple",
+    "url": "https://acme.example/pay?runtime=risky",
+    "final_url": "https://acme.example/pay?runtime=risky"
+  },
+  "trust_path": {
+    "issuer_legitimacy": {
+      "status": "recognized",
+      "label": "Issuer recognized",
+      "message": "Issuer record resolved in verifier trust state."
+    },
+    "destination_binding": {
+      "status": "bound",
+      "label": "Destination bound",
+      "message": "Destination matches issuer policy."
+    },
+    "runtime_safety": {
+      "status": "risky",
+      "label": "Runtime risk",
+      "message": "Runtime provider reports elevated destination risk at scan time.",
+      "reason_codes": [
+        "runtime_destination_risky"
+      ]
+    },
+    "scanner_decision": {
+      "status": "orange",
+      "label": "Use caution",
+      "message": "Verified issuer, but destination risk was detected at scan time."
+    }
+  },
+  "hold_to_open": {
+    "required": true,
+    "duration_ms": 800,
+    "reason_codes": [
+      "runtime_destination_risky"
+    ]
+  },
+  "cache_freshness": {
+    "status": "fresh",
+    "cache_generated_at": "2026-05-17T00:00:00Z",
+    "cache_expires_at": "2026-12-31T23:59:59Z"
+  },
+  "governance": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo",
+    "destination_policy_id": "policy:acme-demo:web-payments:v1"
+  }
+}

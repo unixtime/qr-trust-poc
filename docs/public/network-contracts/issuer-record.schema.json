@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/issuer-record.schema.json",
+  "title": "QR Trust issuer record",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "issuer_namespace",
+    "issuer_display_name",
+    "issuer_class",
+    "assurance_tier",
+    "certificate_refs",
+    "destination_policies",
+    "inspection_scope",
+    "status",
+    "publication"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "issuer_record"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_notice": {
+      "type": "string"
+    },
+    "issuer_namespace": {
+      "$ref": "#/$defs/issuer_namespace"
+    },
+    "issuer_display_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issuer_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "assurance_tier": {
+      "type": "string",
+      "minLength": 1
+    },
+    "certificate_refs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "destination_policies": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "destination_policy_id",
+          "policy_ref",
+          "status"
+        ],
+        "properties": {
+          "destination_policy_id": {
+            "type": "string",
+            "pattern": "^policy:"
+          },
+          "policy_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "revoked"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "inspection_scope": {
+      "type": "object",
+      "required": [
+        "passive_public_checks",
+        "authenticated_or_invasive_testing"
+      ],
+      "properties": {
+        "passive_public_checks": {
+          "type": "boolean"
+        },
+        "runtime_reputation_checks": {
+          "type": "string"
+        },
+        "authenticated_or_invasive_testing": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "issuer_status",
+        "certificate_status",
+        "status_event_ref"
+      ],
+      "properties": {
+        "issuer_status": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked"
+          ]
+        },
+        "certificate_status": {
+          "enum": [
+            "active",
+            "suspended",
+            "revoked",
+            "expired"
+          ]
+        },
+        "status_event_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    },
+    "publication": {
+      "$ref": "#/$defs/publication"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "issuer_namespace": {
+      "type": "object",
+      "required": [
+        "root_program_id",
+        "delegated_authority_id",
+        "issuer_id"
+      ],
+      "properties": {
+        "root_program_id": {
+          "type": "string",
+          "pattern": "^root:"
+        },
+        "delegated_authority_id": {
+          "type": "string",
+          "pattern": "^authority:"
+        },
+        "issuer_id": {
+          "type": "string",
+          "pattern": "^issuer:"
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication": {
+      "type": "object",
+      "required": [
+        "published_at",
+        "valid_until",
+        "signed_by",
+        "signature_status"
+      ],
+      "properties": {
+        "published_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "valid_until": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "signed_by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature_status": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
+

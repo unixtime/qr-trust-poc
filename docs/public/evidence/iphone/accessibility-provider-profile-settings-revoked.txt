@@ -1,0 +1,7 @@
+fixture_id: signed_profile_settings_revoked
+profile_state: revoked
+expected_status: provider_profile_revoked
+expected_user_signal: red
+title: Protection service
+message: Do not use this provider because the profile was revoked.
+required_labels: Protection service, Do not use, profile was revoked

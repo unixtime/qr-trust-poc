@@ -1,0 +1,7 @@
+fixture_id: unsigned_local_reviewer_profile_allowed
+profile_state: local_reviewer_exception
+expected_status: local_reviewer_profile_allowed
+expected_user_signal: orange
+title: Local reviewer profile
+message: Unsigned local profile is allowed for review only.
+required_labels: Local reviewer profile, Unsigned local profile, review only

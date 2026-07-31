@@ -1,0 +1,45 @@
+{
+  "artifact_type": "runtime_safety_observation",
+  "schema_version": "0.1",
+  "observation_id": "runtime_observation_demo_stale_001",
+  "observed_at": "2026-05-17T00:00:00Z",
+  "expires_at": "2026-05-17T00:05:00Z",
+  "provider": {
+    "provider_id": "runtime-safety-composite",
+    "provider_kind": "composite_runtime_safety",
+    "provider_version": "deterministic-0.1",
+    "response_status": "usable",
+    "checked_at": "2026-05-17T00:00:00Z"
+  },
+  "destination": {
+    "destination_host": "acme.example",
+    "destination_url": "https://acme.example/pay",
+    "fingerprint": "acm...ple",
+    "final_url": "https://acme.example/pay",
+    "final_host": "acme.example",
+    "observed_redirect_hops": 0,
+    "https_status": "valid"
+  },
+  "verdict": "clear",
+  "risk_score": 0,
+  "reason_codes": [
+    "runtime_redirect_clear",
+    "runtime_reputation_clear"
+  ],
+  "privacy": {
+    "payload_disclosure": "host_only",
+    "user_data_disclosure": "none",
+    "raw_provider_payload_retained": false
+  },
+  "decision_role": {
+    "source_of_truth": false,
+    "scanner_visible_impact": "must_not_support_green_after_expiry",
+    "operator_note": "A clear verdict whose expires_at has passed is stale runtime-safety evidence: strict online profiles must block, bounded offline profiles may show an explicitly labeled caution, and no profile may treat it as live clearance."
+  },
+  "governance": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo",
+    "destination_policy_id": "policy:acme-demo:web-payments:v1"
+  }
+}

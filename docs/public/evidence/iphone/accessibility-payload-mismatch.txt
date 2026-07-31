@@ -1,0 +1,12 @@
+fixture_id: red_destination_mismatch
+decision_state: destination_policy_mismatch
+decision_color: red
+status: red
+title: High-risk QR
+message: Verified issuer, but runtime safety blocked this destination.
+destination: https://acme.example/pay?runtime=blocked
+host: acme.example
+usage_policy: reusable_public
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-23T13:32:21.634Z

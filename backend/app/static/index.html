@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Verifier Landing</title>
+    <style>
+      :root {
+        --paper: #f4efe6;
+        --ink: #16211d;
+        --muted: #5d655f;
+        --panel: rgba(255, 251, 244, 0.9);
+        --line: rgba(22, 33, 29, 0.12);
+        --accent: #0d5a4f;
+        --accent-strong: #0a4138;
+        --warning: #b36a1f;
+        --danger: #973333;
+        --ok: #1c7248;
+        --shadow: 0 24px 80px rgba(22, 33, 29, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(13, 90, 79, 0.12), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(179, 106, 31, 0.12), transparent 30%),
+          linear-gradient(135deg, #eee6d8 0%, #f8f4ed 45%, #ece3d4 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      main {
+        max-width: 1380px;
+        margin: 0 auto;
+        padding: 28px 20px 40px;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 24px;
+        padding: 28px;
+        overflow: hidden;
+      }
+
+      .eyebrow,
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.74rem;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        color: var(--accent-strong);
+        background: rgba(13, 90, 79, 0.08);
+      }
+
+      h1 {
+        margin: 18px 0 14px;
+        font-size: clamp(2.4rem, 5vw, 4.5rem);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+        max-width: 12ch;
+      }
+
+      p,
+      li,
+      a,
+      button,
+      code {
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: 18px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 6px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 14px 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(22, 33, 29, 0.15);
+        color: var(--ink);
+        text-decoration: none;
+        font-size: 0.96rem;
+        transition: transform 160ms ease, background 160ms ease;
+      }
+
+      .button:hover {
+        transform: translateY(-1px);
+      }
+
+      .button.primary {
+        background: var(--accent);
+        border-color: transparent;
+        color: #f7f3ed;
+      }
+
+      .button.secondary {
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .hero-notes {
+        display: grid;
+        gap: 16px;
+      }
+
+      .note {
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .note strong,
+      .panel h2,
+      .scenario-card strong {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.84rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .warning-note strong {
+        color: var(--warning);
+      }
+
+      .content {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 24px;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .panel h2 {
+        margin-top: 0;
+      }
+
+      .steps {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding-left: 18px;
+      }
+
+      .origin-box {
+        margin-top: 16px;
+        padding: 16px 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.64);
+      }
+
+      code {
+        font-size: 0.92rem;
+      }
+
+      .scenario-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .scenario-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .tag {
+        margin-top: 10px;
+      }
+
+      .tag.pass {
+        background: rgba(28, 114, 72, 0.1);
+        color: var(--ok);
+      }
+
+      .tag.warn {
+        background: rgba(179, 106, 31, 0.11);
+        color: var(--warning);
+      }
+
+      .tag.fail {
+        background: rgba(151, 51, 51, 0.1);
+        color: var(--danger);
+      }
+
+      .small {
+        font-size: 0.92rem;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .content,
+        .scenario-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 680px) {
+        main {
+          padding: 18px 14px 32px;
+        }
+
+        .hero,
+        .panel {
+          padding: 18px;
+        }
+
+        h1 {
+          font-size: 2.6rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">QR Verifier PoC</div>
+          <h1>Open the lab first. Do not use the native camera as the verifier.</h1>
+          <p>
+            The generated QR contains the signed payload itself. If you scan that QR
+            with the iPhone Camera app, the phone opens the payload URL directly and
+            bypasses verifier checks. The intended test path is the browser lab at
+            <code>/verifier/lab</code>.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="/verifier/lab">Open verifier lab</a>
+            <a class="button secondary" href="/docs">Open API docs</a>
+          </div>
+          <div class="origin-box">
+            <strong>Current origin</strong>
+            <code id="origin-display">loading...</code>
+            <p class="small" style="margin-top: 10px;">
+              On your phone, use this same origin and append <code>/verifier/lab</code>.
+            </p>
+          </div>
+        </div>
+        <div class="hero-notes">
+          <div class="note warning-note">
+            <strong>Why your screenshot failed</strong>
+            <p>
+              Safari was trying to open <code>acme.example</code>, which is the QR payload
+              in the demo scenario. That domain is intentionally a placeholder, so native
+              scanning shows “server can’t be found.”
+            </p>
+          </div>
+          <div class="note">
+            <strong>Correct phone flow</strong>
+            <p>
+              1. Open this server in Safari. 2. Open the verifier lab. 3. Generate a QR.
+              4. Either use <em>Verify current QR without scanning</em>, upload the QR
+              image, or scan the QR with the lab camera from a second screen.
+            </p>
+          </div>
+          <div class="note">
+            <strong>What desktop camera scan means</strong>
+            <p>
+              A laptop camera cannot scan the QR that is being displayed on the same
+              laptop screen. Show the QR on your phone or another monitor, or use
+              image upload or direct verify instead.
+            </p>
+          </div>
+          <div class="note warning-note">
+            <strong>Safari camera limitation on LAN HTTP</strong>
+            <p>
+              If you open the lab over plain <code>http://192.168...</code>, Safari may not
+              expose <code>getUserMedia</code>. In that case the lab should tell you to use
+              image upload or direct verify instead. For true camera scanning in Safari,
+              serve the lab over HTTPS.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="content">
+        <section class="panel">
+          <h2>Phone Test Steps</h2>
+          <ol class="steps">
+            <li>Open <code id="lab-url-inline">/verifier/lab</code> on the phone.</li>
+            <li>Enter the admin token if the lab asks for it and issue a verifier API key.</li>
+            <li>Select a scenario and click <em>Generate demo QR</em>.</li>
+            <li>For the fastest test, click <em>Verify current QR without scanning</em>.</li>
+            <li>To test QR decoding, upload the QR image or scan it from a second device.</li>
+            <li>Repeat the same verification to confirm replay blocking.</li>
+          </ol>
+        </section>
+
+        <section class="panel">
+          <h2>Expected Scenarios</h2>
+          <div class="scenario-grid">
+            <div class="scenario-card">
+              <strong>Valid first scan</strong>
+              <p>First verification should be accepted. Running the same verification again should block as replay.</p>
+              <span class="tag pass">accepted, then replay_guard</span>
+            </div>
+            <div class="scenario-card">
+              <strong>Expired credential</strong>
+              <p>The verifier should reject the code before nonce consumption because the time window is already closed.</p>
+              <span class="tag warn">time_window</span>
+            </div>
+            <div class="scenario-card">
+              <strong>Revoked certificate</strong>
+              <p>The verifier should reject the envelope before replay reservation because certificate status is not valid.</p>
+              <span class="tag fail">certificate_status</span>
+            </div>
+            <div class="scenario-card">
+              <strong>Subdomain allowed</strong>
+              <p>A payload under a verified parent host should pass when subdomain matching is enabled.</p>
+              <span class="tag pass">accepted</span>
+            </div>
+            <div class="scenario-card">
+              <strong>Subdomain blocked</strong>
+              <p>The same payload should fail when the verifier is configured to require exact host matching.</p>
+              <span class="tag warn">payload_revalidation</span>
+            </div>
+            <div class="scenario-card">
+              <strong>Payload mismatch</strong>
+              <p>A payload outside the issuer’s current verified domain set should fail even when the signature is valid.</p>
+              <span class="tag fail">payload_revalidation</span>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const origin = window.location.origin;
+      document.getElementById("origin-display").textContent = origin;
+      document.getElementById("lab-url-inline").textContent = `${origin}/verifier/lab`;
+    </script>
+  </body>
+</html>

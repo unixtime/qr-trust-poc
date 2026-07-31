@@ -1,0 +1,13 @@
+fixture_id: orange_stale_verifier_profile
+decision_state: profile_stale
+decision_color: orange
+status: orange
+verifier_profile_state: stale
+title: Could not fully verify
+message: The verifier profile is stale. Refresh protection before relying on this QR.
+destination: https://acme.example/pay
+host: acme.example
+usage_policy: reusable_public
+risk_score: 45
+reason_codes: verifier_profile_stale
+checked_at: 2026-05-24T07:11:51.812Z

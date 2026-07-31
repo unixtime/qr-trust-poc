@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/revocation-status-event.schema.json",
+  "title": "QR Trust revocation or status event",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "status_event_id",
+    "root_program_id",
+    "delegated_authority_id",
+    "target",
+    "status",
+    "reason",
+    "effective_at",
+    "signed_by",
+    "signature_status",
+    "signature_algorithm_id",
+    "signature_input",
+    "signature"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "revocation_status_event"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_notice": {
+      "type": "string"
+    },
+    "status_event_id": {
+      "type": "string",
+      "pattern": "^status:"
+    },
+    "root_program_id": {
+      "type": "string",
+      "pattern": "^root:"
+    },
+    "delegated_authority_id": {
+      "type": "string",
+      "pattern": "^authority:"
+    },
+    "target": {
+      "type": "object",
+      "required": [
+        "target_type"
+      ],
+      "properties": {
+        "target_type": {
+          "enum": [
+            "issuer_record",
+            "certificate",
+            "destination_policy",
+            "delegated_authority",
+            "trust_key"
+          ]
+        },
+        "issuer_id": {
+          "type": "string",
+          "pattern": "^issuer:"
+        },
+        "certificate_ref": {
+          "type": "string"
+        },
+        "destination_policy_id": {
+          "type": "string",
+          "pattern": "^policy:"
+        },
+        "key_id": {
+          "type": "string",
+          "pattern": "^key:"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "enum": [
+        "active",
+        "suspended",
+        "revoked",
+        "expired"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signed_by": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_status": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_algorithm_id": {
+      "const": "ed25519"
+    },
+    "signature_input": {
+      "const": "canonical-json-excluding-signature"
+    },
+    "signature": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false
+}

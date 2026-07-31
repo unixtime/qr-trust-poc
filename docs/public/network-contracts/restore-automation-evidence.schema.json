@@ -1,0 +1,256 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.example/contracts/restore-automation-evidence.schema.json",
+  "title": "Restore Automation Evidence Packet",
+  "description": "Reviewable evidence that QR trust network backup and restore automation has been drilled without exposing private deployment material.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "packet_id",
+    "generated_at",
+    "claim_mode",
+    "backup_artifact",
+    "recovery_objective",
+    "drills",
+    "guardrails",
+    "reviewer"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "restore_automation_evidence_packet"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim_mode": {
+      "type": "string",
+      "enum": [
+        "reference_drill",
+        "production_candidate"
+      ]
+    },
+    "backup_artifact": {
+      "$ref": "#/$defs/backup_artifact"
+    },
+    "recovery_objective": {
+      "$ref": "#/$defs/recovery_objective"
+    },
+    "drills": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "$ref": "#/$defs/drill"
+      }
+    },
+    "guardrails": {
+      "$ref": "#/$defs/guardrails"
+    },
+    "reviewer": {
+      "$ref": "#/$defs/reviewer"
+    }
+  },
+  "$defs": {
+    "backup_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "storage_ref",
+        "sha256",
+        "created_at",
+        "retention_policy",
+        "encryption_mode"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "storage_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "retention_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "encryption_mode": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "recovery_objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rpo_minutes",
+        "rto_minutes",
+        "owner",
+        "escalation_ref"
+      ],
+      "properties": {
+        "rpo_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "rto_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "escalation_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "drill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drill_id",
+        "objective",
+        "command_ref",
+        "started_at",
+        "completed_at",
+        "status",
+        "evidence_refs"
+      ],
+      "properties": {
+        "drill_id": {
+          "type": "string",
+          "enum": [
+            "scheduled_backup_created",
+            "scratch_restore_completed",
+            "migration_rollback_rehearsed",
+            "operator_failover_handoff"
+          ]
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "blocked"
+          ]
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        }
+      }
+    },
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "uri",
+        "owner",
+        "reviewed_at"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "postgres_authoritative",
+        "restore_targets_scratch_only",
+        "no_secret_material",
+        "destructive_restore_requires_operator_approval"
+      ],
+      "properties": {
+        "postgres_authoritative": {
+          "const": true
+        },
+        "restore_targets_scratch_only": {
+          "const": true
+        },
+        "no_secret_material": {
+          "const": true
+        },
+        "destructive_restore_requires_operator_approval": {
+          "const": true
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "role",
+        "reviewed_at"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    }
+  }
+}

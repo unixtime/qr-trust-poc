@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.example/contracts/worker-operations-evidence.schema.json",
+  "title": "Worker Operations Evidence Packet",
+  "description": "Reviewable evidence that reference QR trust workers are supervised, monitored, and recoverable without becoming authoritative trust state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "packet_id",
+    "generated_at",
+    "claim_mode",
+    "components",
+    "replay_recovery_drills",
+    "monitoring",
+    "guardrails",
+    "reviewer"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "worker_operations_evidence_packet"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim_mode": {
+      "type": "string",
+      "enum": [
+        "reference_drill",
+        "production_candidate"
+      ]
+    },
+    "components": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "$ref": "#/$defs/component"
+      }
+    },
+    "replay_recovery_drills": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "$ref": "#/$defs/replay_recovery_drill"
+      }
+    },
+    "monitoring": {
+      "$ref": "#/$defs/monitoring"
+    },
+    "guardrails": {
+      "$ref": "#/$defs/guardrails"
+    },
+    "reviewer": {
+      "$ref": "#/$defs/reviewer"
+    }
+  },
+  "$defs": {
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component_id",
+        "runtime",
+        "authority_boundary",
+        "input_refs",
+        "output_refs",
+        "runbook_ref",
+        "smoke_script",
+        "metrics_ref",
+        "recovery_ref",
+        "operational_status"
+      ],
+      "properties": {
+        "component_id": {
+          "type": "string",
+          "enum": [
+            "artifact_publication_worker",
+            "event_outbox_worker",
+            "verifier_cache_read_model_worker",
+            "scanner_decision_runtime"
+          ]
+        },
+        "runtime": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority_boundary": {
+          "type": "string",
+          "enum": [
+            "postgres_source_of_truth",
+            "nats_propagation_only",
+            "derived_read_model",
+            "scanner_decision_runtime"
+          ]
+        },
+        "input_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "output_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "runbook_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "smoke_script": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metrics_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recovery_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "operational_status": {
+          "type": "string",
+          "enum": [
+            "reference_ready",
+            "production_ready",
+            "blocked"
+          ]
+        }
+      }
+    },
+    "replay_recovery_drill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drill_id",
+        "component_id",
+        "trigger",
+        "expected_recovery",
+        "evidence_ref"
+      ],
+      "properties": {
+        "drill_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "component_id": {
+          "type": "string",
+          "enum": [
+            "artifact_publication_worker",
+            "event_outbox_worker",
+            "verifier_cache_read_model_worker",
+            "scanner_decision_runtime"
+          ]
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_recovery": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "monitoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captured_at",
+        "stale_work_items_threshold_seconds",
+        "max_publish_lag_seconds",
+        "metrics_refs",
+        "signals"
+      ],
+      "properties": {
+        "captured_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "stale_work_items_threshold_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_publish_lag_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "metrics_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "signals": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "$ref": "#/$defs/monitoring_signal"
+          }
+        }
+      }
+    },
+    "monitoring_signal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "signal_id",
+        "component_id",
+        "threshold",
+        "metric_ref",
+        "alert_ref",
+        "replay_or_recovery_ref",
+        "owner"
+      ],
+      "properties": {
+        "signal_id": {
+          "type": "string",
+          "enum": [
+            "artifact_publication_lag",
+            "event_outbox_publish_lag",
+            "verifier_cache_staleness",
+            "scanner_decision_error_rate"
+          ]
+        },
+        "component_id": {
+          "type": "string",
+          "enum": [
+            "artifact_publication_worker",
+            "event_outbox_worker",
+            "verifier_cache_read_model_worker",
+            "scanner_decision_runtime"
+          ]
+        },
+        "threshold": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metric_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "alert_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "replay_or_recovery_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "guardrails": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "postgres_authoritative",
+        "nats_propagation_only",
+        "verifier_cache_derived_only",
+        "no_secret_material"
+      ],
+      "properties": {
+        "postgres_authoritative": {
+          "const": true
+        },
+        "nats_propagation_only": {
+          "const": true
+        },
+        "verifier_cache_derived_only": {
+          "const": true
+        },
+        "no_secret_material": {
+          "const": true
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "role",
+        "reviewed_at"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      }
+    }
+  }
+}

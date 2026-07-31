@@ -1,0 +1,12 @@
+fixture_id: orange_verifier_unavailable_visible_destination
+decision_state: verifier_unavailable_visible_destination
+decision_color: orange
+status: orange
+title: Could not check this QR
+message: The QR could not be checked right now. Try again in a moment. A destination was found in the QR, but it was not verified. Open only if you trust where it came from.
+destination: https://acme.example/pay
+host: acme.example
+usage_policy: not provided
+risk_score: 30
+reason_codes: provider_unreachable
+checked_at: 2026-05-23T15:46:22.779Z

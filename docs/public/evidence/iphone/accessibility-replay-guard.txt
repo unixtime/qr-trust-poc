@@ -1,0 +1,12 @@
+fixture_id: red_one_time_replay
+decision_state: one_time_replay
+decision_color: red
+status: red
+title: One-time QR used
+message: This one-time QR may already have been used. Ask for a fresh QR before continuing.
+destination: https://checkout.acme.example/pay
+host: checkout.acme.example
+usage_policy: one_time
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-23T13:33:41.917Z

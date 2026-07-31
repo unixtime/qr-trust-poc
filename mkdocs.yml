@@ -1,0 +1,81 @@
+site_name: QR Trust PoC
+site_description: Reference documentation for navigation QR trust decisions
+docs_dir: docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: readthedocs
+
+hooks:
+  - backend/scripts/mkdocs_source_pages.py
+
+plugins:
+  - search
+  - mermaid2:
+      # Pin the browser renderer so a documentation review is reproducible.
+      # The plugin emits a versioned unpkg URL only on pages with diagrams.
+      version: "11.16.0"
+      arguments:
+        securityLevel: strict
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - fenced_code
+  - tables
+  - toc:
+      permalink: true
+
+extra_css:
+  - public/assets/stylesheets/diagram-explorer.css
+
+extra_javascript:
+  - public/assets/javascripts/diagram-explorer.js
+
+validation:
+  nav:
+    omitted_files: ignore
+    not_found: warn
+    absolute_links: info
+  links:
+    # Repo-relative links to source, policies, and CITATION.cff legitimately
+    # leave docs_dir. The release exporter validates those links against the
+    # complete public tree; MkDocs can only validate targets under docs/.
+    not_found: info
+    anchors: warn
+    absolute_links: relative_to_docs
+    unrecognized_links: info
+
+nav:
+  - Home: README.md
+  - Project:
+      - Overview: public/PROJECT_OVERVIEW.md
+      - Run guide: public/RUN_GUIDE.md
+      - Citing this work: public/CITING.md
+      - Open-source direction: public/OPEN_SOURCE_DIRECTION.md
+  - Decision model:
+      - Trust model: public/TRUST_MODEL.md
+      - Trust-model graph: public/TRUST_MODEL_GRAPH.md
+      - Trust layers: public/TRUST_LAYERS.md
+      - Trust tiers: public/TRUST_TIERS.md
+      - Verifier profile: public/VERIFIER_PROFILE.md
+      - Scanner decision matrix: public/SCANNER_DECISION_MATRIX.md
+      - Scanner UX states: public/SCANNER_UX_STATES.md
+      - Security requirements: public/QR_TRUST_SECURITY_REQUIREMENTS.md
+  - Evaluation:
+      - Evaluation guide: public/evaluation/README.md
+      - Evaluation results: public/evaluation/trust_residuals_results.v1.md
+      - Test vectors: public/TEST_VECTORS.md
+      - Browser and device matrix: public/BROWSER_TEST_MATRIX.md
+      - Evidence manifest: public/evidence/README.md
+  - Architecture:
+      - Network architecture: public/NETWORK_ARCHITECTURE_PLAN.md
+      - Network contracts: public/network-contracts/README.md
+      - iOS app design: public/IOS_END_USER_APP_DESIGN.md
+      - iOS enterprise readiness: public/IOS_ENTERPRISE_READINESS.md
+  - Operations:
+      - Public release checklist: public/PUBLIC_RELEASE_CHECKLIST.md
+      - Release-candidate status: public/RELEASE_CANDIDATE_STATUS.md
+

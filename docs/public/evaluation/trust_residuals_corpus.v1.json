@@ -1,0 +1,1455 @@
+{
+  "schema_version": "trust-residuals-corpus.v1",
+  "paper_claim": "Residual verification avoids positive or neutral scanner outcomes when a controlled trust residual requires downgrade, warning, or block.",
+  "profiles": [
+    "strict-online",
+    "bounded-offline",
+    "production-trusted",
+    "reference-testing"
+  ],
+  "residual_families": [
+    "issuer_chain",
+    "destination_policy",
+    "redirect_flow",
+    "runtime_safety",
+    "freshness",
+    "artifact_integrity"
+  ],
+  "cases": [
+    {
+      "case_id": "C0",
+      "title": "Unreadable QR artifact",
+      "description": "Physically damaged QR symbol that cannot be decoded into a payload.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c0",
+        "format": "synthetic-damaged-symbol-fixture"
+      },
+      "decoded_payload": "about:unreadable",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "none"
+      },
+      "evidence": {
+        "qr_decodable": false,
+        "managed_trust_claim": "absent",
+        "signature": "absent",
+        "issuer": "none",
+        "destination_policy": "not_applicable",
+        "redirect_flow": "not_applicable",
+        "runtime_safety": "not_checked",
+        "freshness": "not_applicable",
+        "artifact_integrity": "warn"
+      },
+      "expected": {
+        "primary_state": "unreadable",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "no-issuer",
+          "destination_policy": "not-applicable",
+          "redirect_flow": "not-applicable",
+          "runtime_safety": "not-checked",
+          "freshness": "not-applicable",
+          "artifact_integrity": "warn"
+        }
+      }
+    },
+    {
+      "case_id": "C1",
+      "title": "Unsigned benign URL",
+      "description": "Unsigned QR to benign URL.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c1",
+        "format": "png-artifact-fixture",
+        "fixture_path": "fixtures/qr-clean-url.png",
+        "expected_analyzer_integrity": "pass",
+        "expected_analyzer_indicators": [],
+        "use_analyzer_for_evidence": true
+      },
+      "decoded_payload": "https://example.org/menu",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "none"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "absent",
+        "signature": "absent",
+        "issuer": "none",
+        "destination_policy": "not_applicable",
+        "redirect_flow": "not_applicable",
+        "runtime_safety": "not_checked",
+        "freshness": "not_applicable",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "unverified",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "no-issuer",
+          "destination_policy": "not-applicable",
+          "redirect_flow": "not-applicable",
+          "runtime_safety": "not-checked",
+          "freshness": "not-applicable",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C2",
+      "title": "Signed but unaccepted issuer",
+      "description": "Signed QR from an issuer outside the verifier's accepted roots.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c2",
+        "format": "synthetic-signed-claim-fixture"
+      },
+      "decoded_payload": "https://self-signed.example/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-claim-only"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "unaccepted",
+        "destination_policy": "not_applicable",
+        "redirect_flow": "not_applicable",
+        "runtime_safety": "not_checked",
+        "freshness": "not_applicable",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "signed-unaccepted-issuer",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "unaccepted-issuer",
+          "destination_policy": "not-applicable",
+          "redirect_flow": "not-applicable",
+          "runtime_safety": "not-checked",
+          "freshness": "not-applicable",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C3",
+      "title": "Approved issuer and destination",
+      "description": "Enrolled issuer with approved destination and clear runtime evidence.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c3",
+        "format": "synthetic-managed-trust-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/index.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C4",
+      "title": "Approved issuer, destination changed",
+      "description": "Enrolled issuer with a destination outside the current policy.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c4",
+        "format": "synthetic-managed-trust-fixture"
+      },
+      "decoded_payload": "https://evil.example/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/destination-policy.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "mismatch",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "fail",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C5",
+      "title": "Approved resolver flow",
+      "description": "Approved resolver with approved final destination.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c5",
+        "format": "synthetic-resolver-fixture"
+      },
+      "decoded_payload": "https://qr.acme.example/r/pay?hops=1&final=https%3A%2F%2Facme.example%2Fpay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/destination-policy.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C6",
+      "title": "Resolver final-host mismatch",
+      "description": "Approved resolver reaches an unexpected final host.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c6",
+        "format": "synthetic-resolver-fixture"
+      },
+      "decoded_payload": "https://qr.acme.example/r/pay?hops=1&final=https%3A%2F%2Fevil.example%2Fpay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/destination-policy.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "mismatch",
+        "redirect_flow": "fail",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "fail",
+          "redirect_flow": "fail",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C7",
+      "title": "Verified issuer, runtime blocked",
+      "description": "Valid issuer and destination with malicious runtime verdict.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c7",
+        "format": "synthetic-runtime-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?runtime=blocked",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/index.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "blocked",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "block",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C8",
+      "title": "Verified issuer, runtime risky",
+      "description": "Valid issuer and destination with suspicious runtime verdict.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c8",
+        "format": "synthetic-runtime-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?runtime=risky",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/index.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "risky",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer-destination-risky",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "warn",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C9",
+      "title": "Revoked issuer",
+      "description": "Managed issuer is revoked by current trust state.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c9",
+        "format": "synthetic-status-fixture"
+      },
+      "decoded_payload": "https://revoked.acme.example/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/revocation-status-event.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "revoked",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "revoked-issuer",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C10a",
+      "title": "Expired issuer record in strict-online profile",
+      "description": "Expired issuer record where online freshness is mandatory.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c10a",
+        "format": "synthetic-freshness-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?cache=expired",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/issuer-record.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "expired_block",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "block",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C10b",
+      "title": "Stale cache allowed with bounded warning",
+      "description": "Expired issuer record under bounded offline policy and inside local grace window.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c10b",
+        "format": "synthetic-freshness-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?cache=stale",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/issuer-record.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "stale_warn",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["stale-offline-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "warn",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C11a",
+      "title": "Expired runtime verdict where live safety is required",
+      "description": "The runtime-safety verdict itself has expired; verdict expiry is owned by the runtime-safety residual (the governance cache stays fresh), and the strict-online profile blocks stale runtime evidence.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c11a",
+        "format": "synthetic-runtime-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?runtime=expired",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/network-contracts/examples/runtime-observation-stale.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "stale",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "stale",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C11b",
+      "title": "Runtime provider unavailable under bounded offline profile",
+      "description": "Runtime safety visibility is limited but mandatory trust layers pass.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c11b",
+        "format": "synthetic-runtime-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?runtime=unavailable",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/network-contracts/examples/runtime-observation-unavailable.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "unavailable",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["limited-runtime-safety-visibility"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "unavailable",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C12",
+      "title": "Nested shortener not allowed",
+      "description": "Redirect chain violates resolver policy by nesting shorteners.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c12",
+        "format": "synthetic-resolver-fixture"
+      },
+      "decoded_payload": "https://qr.acme.example/r/pay?next=https%3A%2F%2Fshort.example%2Fa",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/SHORT_URL_REDIRECT_POLICY.md"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "fail",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "fail",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C13a",
+      "title": "Action-critical pasted overlay",
+      "description": "Pasted QR overlay in a signed invoice payment region.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c13a",
+        "format": "synthetic-pdf-artifact-fixture",
+        "fixture_path": "fixtures/invoice-overlay.pdf",
+        "expected_analyzer_integrity": "warn",
+        "expected_analyzer_indicators": ["colored_overlay_frame"]
+      },
+      "decoded_payload": "https://acme.example/pay?invoice=overlay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-invoice-artifact-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "block"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "block"
+        }
+      }
+    },
+    {
+      "case_id": "C13b",
+      "title": "Non-action-critical pasted-looking overlay",
+      "description": "Pasted-looking QR outside action-critical region with valid trust path.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c13b",
+        "format": "synthetic-pdf-artifact-fixture"
+      },
+      "decoded_payload": "https://acme.example/info?source=flyer",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-document-artifact-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "warn"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["artifact-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "warn"
+        }
+      }
+    },
+    {
+      "case_id": "C14",
+      "title": "Low quiet-zone artifact warning",
+      "description": "Valid trust path with a PNG artifact-quality warning from missing quiet zone.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c14",
+        "format": "png-artifact-fixture",
+        "fixture_path": "fixtures/qr-low-quiet-zone.png",
+        "expected_analyzer_integrity": "warn",
+        "expected_analyzer_indicators": ["low_quiet_zone"],
+        "use_analyzer_for_evidence": true
+      },
+      "decoded_payload": "https://acme.example/pay?quality=degraded",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "artifact-quality-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "warn"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["artifact-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "warn"
+        }
+      }
+    },
+    {
+      "case_id": "C15a",
+      "title": "HTTPS phishing URL with runtime block",
+      "description": "No issuer path, but runtime provider flags the destination as malicious.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c15a",
+        "format": "synthetic-url-fixture"
+      },
+      "decoded_payload": "https://login-bank.example.attacker.test/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "none"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "absent",
+        "signature": "absent",
+        "issuer": "none",
+        "destination_policy": "not_applicable",
+        "redirect_flow": "not_applicable",
+        "runtime_safety": "blocked",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "no-issuer",
+          "destination_policy": "not-applicable",
+          "redirect_flow": "not-applicable",
+          "runtime_safety": "block",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C15b",
+      "title": "HTTPS phishing URL without runtime verdict",
+      "description": "No issuer path and no runtime evidence.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c15b",
+        "format": "synthetic-url-fixture"
+      },
+      "decoded_payload": "https://login-bank.example.attacker.test/pay?runtime=none",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "none"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "absent",
+        "signature": "absent",
+        "issuer": "none",
+        "destination_policy": "not_applicable",
+        "redirect_flow": "not_applicable",
+        "runtime_safety": "not_checked",
+        "freshness": "not_applicable",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "unverified",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "no-issuer",
+          "destination_policy": "not-applicable",
+          "redirect_flow": "not-applicable",
+          "runtime_safety": "not-checked",
+          "freshness": "not-applicable",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C15c",
+      "title": "Verified issuer with runtime phishing block",
+      "description": "Verified issuer path exists, but runtime provider flags destination as malicious.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c15c",
+        "format": "synthetic-runtime-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?runtime=malicious",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/index.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "blocked",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "block",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C16a",
+      "title": "Invalid managed-trust claim in production trusted mode",
+      "description": "Managed trust claim is malformed or signed by a key not authorized for its object type.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c16a",
+        "format": "synthetic-invalid-managed-claim-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?claim=invalid",
+      "policy_bundle": {
+        "profile": "production-trusted",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "invalid-managed-claim"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "invalid",
+        "signature": "invalid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "invalid-managed-claim",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C16b",
+      "title": "Invalid managed-trust claim in reference-testing profile",
+      "description": "Reference-testing profile retains invalid managed-trust evidence without emitting production trust.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c16b",
+        "format": "synthetic-invalid-managed-claim-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?claim=invalid-reference",
+      "policy_bundle": {
+        "profile": "reference-testing",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "invalid-managed-claim"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "invalid",
+        "signature": "invalid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "unverified",
+        "annotations": ["invalid-trust-claim-warning", "policy-profile-warning"],
+        "residuals": {
+          "issuer_chain": "invalid-managed-claim",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C17",
+      "title": "Stale sequence replay",
+      "description": "Signed governance object sequence is lower than the freshest accepted sequence.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c17",
+        "format": "synthetic-governance-object-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?sequence=stale",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "stale-sequence-governance-object"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "replay_block",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "block",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C18",
+      "title": "IDN or punycode lookalike outside policy",
+      "description": "Destination canonicalization resolves to an unauthorized host.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c18",
+        "format": "synthetic-idn-fixture"
+      },
+      "decoded_payload": "https://xn--acm-9la.example/pay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/fixtures/governance/destination-policy.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "mismatch",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "fail",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C19a",
+      "title": "Redirect variation in strict trusted mode",
+      "description": "Redirect chain varies by user agent or context where stability is mandatory.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c19a",
+        "format": "synthetic-resolver-variation-fixture"
+      },
+      "decoded_payload": "https://qr.acme.example/r/pay?variant=strict",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/SHORT_URL_REDIRECT_POLICY.md"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "fail",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "fail",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C19b",
+      "title": "Redirect variation in reference-testing profile",
+      "description": "Redirect variation is retained as evidence under a non-production profile.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c19b",
+        "format": "synthetic-resolver-variation-fixture"
+      },
+      "decoded_payload": "https://qr.acme.example/r/pay?variant=reference",
+      "policy_bundle": {
+        "profile": "reference-testing",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/SHORT_URL_REDIRECT_POLICY.md"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "warn",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["redirect-variation-warning", "policy-profile-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "warn",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C20",
+      "title": "Open redirect to unauthorized final host",
+      "description": "Approved host contains an open redirect that leads outside policy.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c20",
+        "format": "synthetic-open-redirect-fixture"
+      },
+      "decoded_payload": "https://acme.example/redirect?to=https%3A%2F%2Fevil.example%2Fpay",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/SHORT_URL_REDIRECT_POLICY.md"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "mismatch",
+        "redirect_flow": "fail",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "fail",
+          "redirect_flow": "fail",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C21a",
+      "title": "Conflicting QR symbols in payment region",
+      "description": "Invoice payment region contains two conflicting QR symbols.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c21a",
+        "format": "synthetic-pdf-artifact-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?invoice=conflict",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-invoice-artifact-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "block"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "block"
+        }
+      }
+    },
+    {
+      "case_id": "C21b",
+      "title": "Extra QR outside action-critical region",
+      "description": "Non-payment document contains extra QR outside action-critical region.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c21b",
+        "format": "png-artifact-fixture",
+        "fixture_path": "fixtures/qr-multiple-conflicting.png",
+        "expected_analyzer_integrity": "warn",
+        "expected_analyzer_indicators": [
+          "multiple_qr_symbols",
+          "conflicting_qr_payloads"
+        ],
+        "use_analyzer_for_evidence": true
+      },
+      "decoded_payload": "https://acme.example/info?extra=true",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-document-artifact-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "warn"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["artifact-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "warn"
+        }
+      }
+    },
+    {
+      "case_id": "C22",
+      "title": "Email attachment artifact warning",
+      "description": "QR is carried as an email attachment, while payload and trust path remain valid.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c22",
+        "format": "synthetic-email-artifact-fixture",
+        "fixture_path": "fixtures/email-qr-attachment.eml",
+        "expected_analyzer_integrity": "warn",
+        "expected_analyzer_indicators": ["low_quiet_zone"],
+        "use_analyzer_for_evidence": true
+      },
+      "decoded_payload": "https://acme.example/pay?artifact=altered",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "artifact-quality-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "warn"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["artifact-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "warn"
+        }
+      }
+    },
+    {
+      "case_id": "C23a",
+      "title": "Runtime provider disagreement with malicious verdict",
+      "description": "One runtime provider returns clean while another returns malicious under strict-online policy.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c23a",
+        "format": "synthetic-runtime-provider-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?providers=disagree-block",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/network-contracts/examples/runtime-observation-blocked.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "provider_disagreement_block",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "block",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C23b",
+      "title": "Runtime provider disagreement with unavailable provider",
+      "description": "One runtime provider returns clean while another is unavailable or stale under bounded offline policy.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c23b",
+        "format": "synthetic-runtime-provider-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?providers=disagree-unavailable",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "docs/public/network-contracts/examples/runtime-observation-unavailable.json"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "provider_disagreement_unavailable",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "verified-issuer",
+        "annotations": ["limited-runtime-safety-visibility"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "unavailable",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C24a",
+      "title": "Artifact integrity failure with optional artifact residual",
+      "description": "Artifact-integrity check fails on a document whose policy does not mark the artifact residual mandatory; D11 removes positive trust and preserves the failure as evidence.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c24a",
+        "format": "synthetic-pdf-artifact-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?artifact=fail-optional",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-document-artifact-policy"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "fail"
+      },
+      "expected": {
+        "primary_state": "unverified",
+        "annotations": ["artifact-warning"],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "fail"
+        }
+      }
+    },
+    {
+      "case_id": "C24b",
+      "title": "Artifact integrity failure under mandatory artifact policy",
+      "description": "The same artifact-integrity failure on an action-critical document whose policy marks the artifact residual mandatory; D11 escalates the policy-gated failure to a block.",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c24b",
+        "format": "synthetic-pdf-artifact-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?artifact=fail-mandatory",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": ["root:qrtrust-demo:2026"],
+        "governance_ref": "signed-invoice-artifact-policy",
+        "mandatory_residuals": ["artifact_integrity"]
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "accepted",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "fail"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "pass",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "fail"
+        }
+      }
+    },
+    {
+      "case_id": "C25a",
+      "title": "Cross-root contradiction under strict online policy",
+      "description": "Two accepted roots return contradictory verdicts for the same issuer; the strict online profile refuses to arbitrate and blocks (D13).",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c25a",
+        "format": "synthetic-signed-claim-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?issuer=contradictory",
+      "policy_bundle": {
+        "profile": "strict-online",
+        "accepted_roots": [
+          "root:qrtrust-demo:2026",
+          "root:qrtrust-partner:2026"
+        ],
+        "governance_ref": "cross-root-issuer-record"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "contradictory",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "blocked",
+        "annotations": [],
+        "residuals": {
+          "issuer_chain": "cross-root-contradiction",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    },
+    {
+      "case_id": "C25b",
+      "title": "Cross-root contradiction under bounded offline policy",
+      "description": "The same contradictory cross-root verdicts under a bounded offline profile; the contradiction downgrades to an explicitly labeled caution and never resolves into trust (D13).",
+      "qr_artifact": {
+        "artifact_id": "qr-corpus-c25b",
+        "format": "synthetic-signed-claim-fixture"
+      },
+      "decoded_payload": "https://acme.example/pay?issuer=contradictory",
+      "policy_bundle": {
+        "profile": "bounded-offline",
+        "accepted_roots": [
+          "root:qrtrust-demo:2026",
+          "root:qrtrust-partner:2026"
+        ],
+        "governance_ref": "cross-root-issuer-record"
+      },
+      "evidence": {
+        "qr_decodable": true,
+        "managed_trust_claim": "valid",
+        "signature": "valid",
+        "issuer": "contradictory",
+        "destination_policy": "bound",
+        "redirect_flow": "pass",
+        "runtime_safety": "clear",
+        "freshness": "fresh",
+        "artifact_integrity": "pass"
+      },
+      "expected": {
+        "primary_state": "unverified",
+        "annotations": ["incomplete-verification-warning"],
+        "residuals": {
+          "issuer_chain": "cross-root-contradiction",
+          "destination_policy": "pass",
+          "redirect_flow": "pass",
+          "runtime_safety": "pass",
+          "freshness": "pass",
+          "artifact_integrity": "pass"
+        }
+      }
+    }
+  ]
+}

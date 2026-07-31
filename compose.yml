@@ -1,0 +1,251 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: qr_admin
+      POSTGRES_PASSWORD: qr_dev_password
+      POSTGRES_DB: qr_db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qr_admin -d qr_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "${POSTGRES_PUBLISH_HOST:-127.0.0.1}:${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "${REDIS_PUBLISH_HOST:-127.0.0.1}:${REDIS_PUBLISH_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:-local-compose-dev-secret-change-me}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: qr_admin
+      DB_PASSWORD: qr_dev_password
+      DB_NAME: qr_db
+      QRTRUST_NETWORK_DATABASE_URL: postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db
+      REDIS_HOSTNAME: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_STARTUP_ENABLED: ${REDIS_STARTUP_ENABLED:-true}
+      VERIFIER_API_KEYS: ${VERIFIER_API_KEYS:-[]}
+      VERIFIER_STATIC_API_KEYS_ENABLED: ${VERIFIER_STATIC_API_KEYS_ENABLED:-false}
+      VERIFIER_ADMIN_TOKENS: ${VERIFIER_ADMIN_TOKENS:-[]}
+      VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED: ${VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED:-false}
+      VERIFIER_PROVIDER_PROFILE_STATE: ${VERIFIER_PROVIDER_PROFILE_STATE:-active}
+      VERIFIER_TLS_ENABLED: ${VERIFIER_TLS_ENABLED:-false}
+      VERIFIER_TLS_CERT_FILE: ${VERIFIER_TLS_CERT_FILE:-/app/local/https/verifier-lab.pem}
+      VERIFIER_TLS_KEY_FILE: ${VERIFIER_TLS_KEY_FILE:-/app/local/https/verifier-lab-key.pem}
+      DOMAIN_VERIFICATION_TEST_MODE: "true"
+      TEST_VERIFIED_DOMAINS: '["acme-corp.test","secure-bank.test","local-business.test","example.com","localhost","acme.example"]'
+    command: >
+      sh -lc "/app/backend/.venv/bin/alembic upgrade head &&
+      if [ \"$${VERIFIER_TLS_ENABLED}\" = \"true\" ]; then
+        /app/backend/.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --ssl-certfile \"$${VERIFIER_TLS_CERT_FILE}\" --ssl-keyfile \"$${VERIFIER_TLS_KEY_FILE}\";
+      else
+        /app/backend/.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000;
+      fi"
+    healthcheck:
+      test:
+        - CMD
+        - /app/backend/.venv/bin/python
+        - -c
+        - |
+          import os, socket, urllib.request
+          if os.environ.get("VERIFIER_TLS_ENABLED") == "true":
+              socket.create_connection(("127.0.0.1", 8000), timeout=5).close()
+          else:
+              urllib.request.urlopen("http://127.0.0.1:8000/verifier/status", timeout=5)
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    ports:
+      - "${API_PUBLISH_HOST:-127.0.0.1}:${API_PUBLISH_PORT:-8000}:8000"
+    volumes:
+      - ./local/https:/app/local/https:ro
+
+  api-verifier-b:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    profiles:
+      - verifier-federation
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DEBUG: "false"
+      SECRET_KEY: ${SECRET_KEY:-local-compose-dev-secret-change-me}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: qr_admin
+      DB_PASSWORD: qr_dev_password
+      DB_NAME: qr_db
+      QRTRUST_NETWORK_DATABASE_URL: postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db
+      QRTRUST_SCANNER_VERIFIER_ID: ${SECONDARY_VERIFIER_ID:-verifier:reference-http-runtime-b}
+      REDIS_HOSTNAME: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: ${SECONDARY_VERIFIER_REDIS_DB:-1}
+      REDIS_STARTUP_ENABLED: ${REDIS_STARTUP_ENABLED:-true}
+      VERIFIER_API_KEYS: ${VERIFIER_API_KEYS:-[]}
+      VERIFIER_STATIC_API_KEYS_ENABLED: ${VERIFIER_STATIC_API_KEYS_ENABLED:-false}
+      VERIFIER_ADMIN_TOKENS: ${VERIFIER_ADMIN_TOKENS:-[]}
+      VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED: ${VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED:-false}
+      VERIFIER_PROVIDER_PROFILE_STATE: ${SECONDARY_VERIFIER_PROVIDER_PROFILE_STATE:-stale}
+      VERIFIER_PUBLIC_BASE_URL: ${SECONDARY_VERIFIER_PUBLIC_BASE_URL:-http://127.0.0.1:8001}
+      VERIFIER_TLS_ENABLED: ${VERIFIER_TLS_ENABLED:-false}
+      VERIFIER_TLS_CERT_FILE: ${VERIFIER_TLS_CERT_FILE:-/app/local/https/verifier-lab.pem}
+      VERIFIER_TLS_KEY_FILE: ${VERIFIER_TLS_KEY_FILE:-/app/local/https/verifier-lab-key.pem}
+      DOMAIN_VERIFICATION_TEST_MODE: "true"
+      TEST_VERIFIED_DOMAINS: '["acme-corp.test","secure-bank.test","local-business.test","example.com","localhost","acme.example"]'
+    command: >
+      sh -lc "/app/backend/.venv/bin/alembic upgrade head &&
+      if [ \"$${VERIFIER_TLS_ENABLED}\" = \"true\" ]; then
+        /app/backend/.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --ssl-certfile \"$${VERIFIER_TLS_CERT_FILE}\" --ssl-keyfile \"$${VERIFIER_TLS_KEY_FILE}\";
+      else
+        /app/backend/.venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000;
+      fi"
+    healthcheck:
+      test:
+        - CMD
+        - /app/backend/.venv/bin/python
+        - -c
+        - |
+          import os, socket, urllib.request
+          if os.environ.get("VERIFIER_TLS_ENABLED") == "true":
+              socket.create_connection(("127.0.0.1", 8000), timeout=5).close()
+          else:
+              urllib.request.urlopen("http://127.0.0.1:8000/verifier/status", timeout=5)
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 60s
+    ports:
+      - "${SECONDARY_API_PUBLISH_HOST:-127.0.0.1}:${SECONDARY_API_PUBLISH_PORT:-8001}:8000"
+    volumes:
+      - ./local/https:/app/local/https:ro
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      VITE_BACKEND_TARGET: ${VITE_BACKEND_TARGET:-http://api:8000}
+      FRONTEND_TLS_ENABLED: ${FRONTEND_TLS_ENABLED:-false}
+      FRONTEND_TLS_CERT_FILE: ${FRONTEND_TLS_CERT_FILE:-/app/local/https/verifier-lab.pem}
+      FRONTEND_TLS_KEY_FILE: ${FRONTEND_TLS_KEY_FILE:-/app/local/https/verifier-lab-key.pem}
+      VITE_PORT: "5173"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - |
+          const net = require("net");
+          if (process.env.FRONTEND_TLS_ENABLED === "true") {
+            const s = net.connect(5173, "127.0.0.1", () => { s.end(); process.exit(0); });
+            s.on("error", () => process.exit(1));
+          } else {
+            fetch("http://127.0.0.1:5173/").then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1));
+          }
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    ports:
+      - "${FRONTEND_PUBLISH_HOST:-127.0.0.1}:${FRONTEND_PUBLISH_PORT:-5173}:5173"
+    volumes:
+      - ./local/https:/app/local/https:ro
+
+  management-cli:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles:
+      - management-tools
+    depends_on:
+      - api
+    environment:
+      QRTRUSTCTL_BASE_URL: ${QRTRUSTCTL_BASE_URL:-http://api:8000}
+      QRTRUSTCTL_ADMIN_TOKEN: ${QRTRUSTCTL_ADMIN_TOKEN:-}
+      QRTRUSTCTL_INSECURE_TLS: ${QRTRUSTCTL_INSECURE_TLS:-false}
+    entrypoint: ["python", "/app/backend/scripts/qrtrustctl.py"]
+    command: ["--help"]
+
+  network-artifact-publication-worker:
+    build:
+      context: ./network
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles:
+      - network-workers
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: ${QRTRUST_NETWORK_DATABASE_URL:-postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db}
+      QRTRUST_ARTIFACT_PUBLICATION_WORKER_ID: ${QRTRUST_ARTIFACT_PUBLICATION_WORKER_ID:-qrtrust-compose-artifact-publication-worker}
+      QRTRUST_ARTIFACT_PUBLICATION_BATCH_SIZE: ${QRTRUST_ARTIFACT_PUBLICATION_BATCH_SIZE:-50}
+      QRTRUST_ARTIFACT_PUBLICATION_CLAIM_TTL_MS: ${QRTRUST_ARTIFACT_PUBLICATION_CLAIM_TTL_MS:-60000}
+      QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS: ${QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS:-1000}
+      QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS: ${QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS:-5000}
+      QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT: ${QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT:-unbounded}
+      QRTRUST_ARTIFACT_PUBLICATION_MAX_ITERATIONS: ${QRTRUST_ARTIFACT_PUBLICATION_MAX_ITERATIONS:-unbounded}
+    command: ["npm", "run", "artifact-publication:worker"]
+
+  network-verifier-cache-worker:
+    build:
+      context: ./network
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    profiles:
+      - network-workers
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      QRTRUST_NETWORK_DATABASE_URL: ${QRTRUST_NETWORK_DATABASE_URL:-postgresql://qr_admin:qr_dev_password@postgres:5432/qr_db}
+      QRTRUST_VERIFIER_CACHE_WORKER_ID: ${QRTRUST_VERIFIER_CACHE_WORKER_ID:-qrtrust-compose-verifier-cache-worker}
+      QRTRUST_VERIFIER_CACHE_BATCH_SIZE: ${QRTRUST_VERIFIER_CACHE_BATCH_SIZE:-50}
+      QRTRUST_VERIFIER_CACHE_CLAIM_TTL_MS: ${QRTRUST_VERIFIER_CACHE_CLAIM_TTL_MS:-60000}
+      QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS: ${QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS:-1000}
+      QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS: ${QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS:-5000}
+      QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT: ${QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT:-unbounded}
+      QRTRUST_VERIFIER_CACHE_MAX_ITERATIONS: ${QRTRUST_VERIFIER_CACHE_MAX_ITERATIONS:-unbounded}
+    command: ["npm", "run", "verifier-cache:read-model-worker"]
+
+volumes:
+  pg_data:
+  redis_data:

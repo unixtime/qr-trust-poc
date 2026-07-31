@@ -1,0 +1,12 @@
+fixture_id: red_expired_qr
+decision_state: expired
+decision_color: red
+status: red
+title: Expired QR
+message: This QR is expired or not valid yet. Ask for a fresh QR.
+destination: https://acme.example/pay
+host: acme.example
+usage_policy: one_time
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-23T13:33:16.915Z

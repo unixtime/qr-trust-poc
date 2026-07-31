@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "QR Trust Signing Custody Audit Export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "export_id",
+    "generated_at",
+    "scope",
+    "redaction_status",
+    "entries",
+    "summary"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "signing_custody_audit_export"
+    },
+    "schema_version": {
+      "const": "2026-05-21"
+    },
+    "export_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "$ref": "#/$defs/scope"
+    },
+    "redaction_status": {
+      "const": "public_safe"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/audit_entry"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "root_program_id"
+      ],
+      "properties": {
+        "root_program_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delegated_authority_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issuer_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "audit_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "audit_event_id",
+        "artifact_id",
+        "artifact_type",
+        "artifact_version",
+        "artifact_hash",
+        "root_program_id",
+        "signer_id",
+        "key_id",
+        "algorithm_id",
+        "custody_provider_ref",
+        "provider_audit_id",
+        "automation_identity",
+        "requested_at",
+        "publication_result"
+      ],
+      "properties": {
+        "audit_event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "artifact_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "artifact_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "root_program_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "delegated_authority_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issuer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "algorithm_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "custody_provider_ref": {
+          "type": "string",
+          "pattern": "^(kms|hsm|managed)://"
+        },
+        "provider_audit_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "automation_identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "publication_result": {
+          "enum": [
+            "published",
+            "rejected",
+            "failed",
+            "pending"
+          ]
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entry_count",
+        "published",
+        "rejected",
+        "failed",
+        "pending",
+        "provider_refs"
+      ],
+      "properties": {
+        "entry_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "published": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pending": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "provider_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^(kms|hsm|managed)://"
+          }
+        }
+      }
+    }
+  }
+}

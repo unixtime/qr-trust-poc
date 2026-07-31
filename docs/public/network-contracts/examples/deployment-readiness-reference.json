@@ -1,0 +1,117 @@
+{
+  "artifact_type": "deployment_readiness_report",
+  "schema_version": "2026-05-20",
+  "mode": "reference",
+  "status": "ready_for_reference_drill",
+  "blocking_checks": [],
+  "warning_checks": [
+    "postgres_source_of_truth",
+    "migration_ledger",
+    "restore_automation",
+    "packaged_deployment_ownership",
+    "nats_propagation",
+    "managed_key_material",
+    "managed_signing_custody",
+    "custody_audit_export",
+    "runtime_safety_provider",
+    "worker_operations_evidence",
+    "operator_runbooks"
+  ],
+  "checks": [
+    {
+      "id": "postgres_source_of_truth",
+      "layer": "Source of truth",
+      "title": "Postgres trust-state store",
+      "status": "warn",
+      "evidence": "Reference mode can use the local shared-infra database or deterministic smokes.",
+      "remediation": "Configure a dedicated QR Trust Postgres database and keep publisher or other app databases separate."
+    },
+    {
+      "id": "migration_ledger",
+      "layer": "Schema ownership",
+      "title": "Migration ledger gate",
+      "status": "warn",
+      "evidence": "Reference schema and migration status checks are available in the repo.",
+      "remediation": "Apply and verify reference migrations through the migration ledger before workers write state."
+    },
+    {
+      "id": "restore_automation",
+      "layer": "Operations",
+      "title": "Backup and restore automation",
+      "status": "warn",
+      "evidence": "Reference mode documents restore as deployment-owned work.",
+      "remediation": "Add backup execution, restore drill, and rollback ownership before production deployment."
+    },
+    {
+      "id": "packaged_deployment_ownership",
+      "layer": "Operations",
+      "title": "Packaged deployment ownership",
+      "status": "warn",
+      "evidence": "Reference mode can run from local compose and scripted smokes without a packaged release owner.",
+      "remediation": "Assign owners for deployable artifacts, image provenance, release approval, environment promotion, and rollback before production deployment."
+    },
+    {
+      "id": "nats_propagation",
+      "layer": "Propagation",
+      "title": "NATS JetStream propagation",
+      "status": "warn",
+      "evidence": "Reference mode can validate event subjects without requiring a live broker.",
+      "remediation": "Configure NATS JetStream for propagation after Postgres-backed artifacts are durable."
+    },
+    {
+      "id": "managed_key_material",
+      "layer": "Verifier cache",
+      "title": "Managed public-key material source",
+      "status": "warn",
+      "evidence": "Fixture, environment, filesystem, and managed key-material ports are available for tests.",
+      "remediation": "Wire KMS, HSM, or another managed source for public verification material references."
+    },
+    {
+      "id": "managed_signing_custody",
+      "layer": "Artifact issuance",
+      "title": "Managed signing custody",
+      "status": "warn",
+      "evidence": "Fixture, environment, filesystem, static, and managed custody ports are contract-tested.",
+      "remediation": "Move artifact signing into a managed KMS or HSM custody provider before production issuance."
+    },
+    {
+      "id": "custody_audit_export",
+      "layer": "Artifact issuance",
+      "title": "Custody audit export",
+      "status": "warn",
+      "evidence": "Reference mode proves that private material is not exposed in signing results.",
+      "remediation": "Export signing custody audit events to an operator-owned audit trail."
+    },
+    {
+      "id": "runtime_safety_provider",
+      "layer": "Scan-time safety",
+      "title": "Live runtime-safety provider",
+      "status": "warn",
+      "evidence": "Deterministic runtime-safety providers are sufficient for reproducible local tests.",
+      "remediation": "Configure a live safe-browsing, reputation, redirect, or TLS inspector with privacy boundaries."
+    },
+    {
+      "id": "scanner_decision_persistence",
+      "layer": "Scanner decision",
+      "title": "Scanner-visible decision persistence",
+      "status": "pass",
+      "evidence": "Scanner decision persistence is enabled."
+    },
+    {
+      "id": "worker_operations_evidence",
+      "layer": "Operations",
+      "title": "Worker operations evidence packet",
+      "status": "warn",
+      "evidence": "Reference mode can run deterministic worker-operations evidence smokes without production supervisors.",
+      "remediation": "Attach a worker operations evidence packet before claiming production readiness."
+    },
+    {
+      "id": "operator_runbooks",
+      "layer": "Operations",
+      "title": "Operator runbooks",
+      "status": "warn",
+      "evidence": "Reference mode documents the intended operator-owned boundaries.",
+      "remediation": "Document issuance, key rotation, provider outage, worker recovery, and rollback procedures."
+    }
+  ]
+}

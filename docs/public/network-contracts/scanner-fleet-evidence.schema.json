@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/scanner-fleet-evidence.schema.json",
+  "title": "QR Trust scanner fleet evidence packet",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "packet_id",
+    "generated_at",
+    "scanner_app",
+    "active_verifier_profile",
+    "scanner_decision_endpoint_fingerprint",
+    "fixture_matrix",
+    "evidence_rows",
+    "reviewer",
+    "privacy"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "scanner_fleet_evidence_packet"
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scanner_app": {
+      "type": "object",
+      "required": [
+        "name",
+        "platform",
+        "build_version"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "minLength": 1
+        },
+        "build_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "os_version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "active_verifier_profile": {
+      "type": "object",
+      "required": [
+        "profile_id",
+        "profile_version",
+        "profile_fingerprint"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "profile_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "scanner_decision_endpoint_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "fixture_matrix": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fixture"
+      }
+    },
+    "evidence_rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/evidence_row"
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "required": [
+        "name",
+        "role",
+        "reviewed_at"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "raw_urls_redacted",
+        "secrets_included"
+      ],
+      "properties": {
+        "raw_urls_redacted": {
+          "type": "boolean"
+        },
+        "secrets_included": {
+          "const": false
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "fixture": {
+      "type": "object",
+      "required": [
+        "fixture_id",
+        "expected_color",
+        "expected_state"
+      ],
+      "properties": {
+        "fixture_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_color": {
+          "enum": [
+            "green",
+            "orange",
+            "red"
+          ]
+        },
+        "expected_state": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_row": {
+      "type": "object",
+      "required": [
+        "fixture_id",
+        "decision_id",
+        "scanner_client_id",
+        "scanner_build",
+        "profile_fingerprint",
+        "decision_color",
+        "decision_state",
+        "reason_codes",
+        "domain_fingerprint",
+        "opened_by_user",
+        "hold_required",
+        "hold_completed",
+        "observed_at",
+        "screenshot_ref",
+        "history_entry_ref",
+        "accessibility_ref"
+      ],
+      "properties": {
+        "fixture_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decision_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scanner_client_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scanner_build": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile_fingerprint": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "decision_color": {
+          "enum": [
+            "green",
+            "orange",
+            "red"
+          ]
+        },
+        "decision_state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "domain_fingerprint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\.\\.\\.",
+          "not": {
+            "pattern": "://|/|\\?|#|@|\\s"
+          }
+        },
+        "opened_by_user": {
+          "type": "boolean"
+        },
+        "hold_required": {
+          "type": "boolean"
+        },
+        "hold_completed": {
+          "type": "boolean"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "screenshot_ref": {
+          "type": "string",
+          "pattern": "^docs/public/evidence/iphone/[^.][^?]*\\.png$"
+        },
+        "history_entry_ref": {
+          "type": "string",
+          "pattern": "^docs/public/evidence/iphone/[^.][^?]*\\.png$"
+        },
+        "accessibility_ref": {
+          "type": "string",
+          "pattern": "^docs/public/evidence/iphone/[^.][^?]*\\.txt$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

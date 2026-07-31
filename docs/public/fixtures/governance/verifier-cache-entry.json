@@ -1,0 +1,36 @@
+{
+  "artifact_type": "verifier_cache_entry",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "cache_entry_id": "cache:acme-demo:2026-05-15",
+  "effective_issuer_namespace": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo"
+  },
+  "source_artifacts": {
+    "root_manifest_ref": "root-manifest.json",
+    "delegated_operator_manifest_ref": "delegated-operator-manifest.json",
+    "issuer_record_ref": "issuer-record.json",
+    "destination_policy_ref": "destination-policy.json",
+    "status_event_ref": "revocation-status-event.json"
+  },
+  "certificate_ref": "cert:acme-demo:2026-01",
+  "issuer_display_name": "Acme Demo Issuer",
+  "assurance_tier": "verified_business",
+  "destination_policy_id": "policy:acme-demo:web-payments:v1",
+  "scanner_trust_projection": {
+    "issuer_legitimacy": "recognized",
+    "destination_binding": "policy_bound",
+    "runtime_safety": "provider_required",
+    "scanner_decision_if_clean": "verified_issuer",
+    "scanner_decision_if_risky": "verified_issuer_destination_risky"
+  },
+  "freshness": {
+    "state_published_at": "2026-05-15T00:00:00Z",
+    "cache_generated_at": "2026-05-15T00:05:00Z",
+    "cache_expires_at": "2026-12-31T23:59:59Z",
+    "max_staleness_seconds": 31536000,
+    "stale_behavior": "downgrade_or_block"
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "artifact_type": "deployment_readiness_report",
+  "schema_version": "2026-05-20",
+  "mode": "production",
+  "status": "ready_for_production_drill",
+  "blocking_checks": [],
+  "warning_checks": [],
+  "checks": [
+    {
+      "id": "postgres_source_of_truth",
+      "layer": "Source of truth",
+      "title": "Postgres trust-state store",
+      "status": "pass",
+      "evidence": "Production database URL is configured.",
+      "evidence_refs": [
+        {
+          "label": "Dedicated Postgres source-of-truth database",
+          "uri": "docs/public/network-contracts/reference-postgres-schema.sql",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "migration_ledger",
+      "layer": "Schema ownership",
+      "title": "Migration ledger gate",
+      "status": "pass",
+      "evidence": "Migration ledger gate is enabled.",
+      "evidence_refs": [
+        {
+          "label": "Migration ledger status gate",
+          "uri": "docs/public/network-contracts/postgres-migration-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "restore_automation",
+      "layer": "Operations",
+      "title": "Backup and restore automation",
+      "status": "pass",
+      "evidence": "Restore automation is documented.",
+      "evidence_refs": [
+        {
+          "label": "Backup and restore drill",
+          "uri": "ops://qrtrust/restore-drill/2026-05-20",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "packaged_deployment_ownership",
+      "layer": "Operations",
+      "title": "Packaged deployment ownership",
+      "status": "pass",
+      "evidence": "Packaged deployment ownership is documented.",
+      "evidence_refs": [
+        {
+          "label": "Packaged deployment ownership",
+          "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "nats_propagation",
+      "layer": "Propagation",
+      "title": "NATS JetStream propagation",
+      "status": "pass",
+      "evidence": "NATS propagation URL is configured.",
+      "evidence_refs": [
+        {
+          "label": "NATS JetStream propagation plan",
+          "uri": "docs/public/network-contracts/nats-subjects.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "managed_key_material",
+      "layer": "Verifier cache",
+      "title": "Managed public-key material source",
+      "status": "pass",
+      "evidence": "Managed key-material provider configured: managed://qrtrust/key-material.",
+      "evidence_refs": [
+        {
+          "label": "Managed public-key material source",
+          "uri": "docs/public/network-contracts/managed-signing-custody-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "managed_signing_custody",
+      "layer": "Artifact issuance",
+      "title": "Managed signing custody",
+      "status": "pass",
+      "evidence": "Managed signing custody provider configured: managed://qrtrust/signing-custody.",
+      "evidence_refs": [
+        {
+          "label": "Managed signing custody provider",
+          "uri": "docs/public/network-contracts/managed-signing-custody-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "custody_audit_export",
+      "layer": "Artifact issuance",
+      "title": "Custody audit export",
+      "status": "pass",
+      "evidence": "Custody audit export is configured.",
+      "evidence_refs": [
+        {
+          "label": "Publication-backed signing custody audit export",
+          "uri": "docs/public/network-contracts/examples/signing-custody-publication-audit-export-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "runtime_safety_provider",
+      "layer": "Scan-time safety",
+      "title": "Live runtime-safety provider",
+      "status": "pass",
+      "evidence": "Runtime-safety provider configured: managed://qrtrust/runtime-safety.",
+      "evidence_refs": [
+        {
+          "label": "Runtime-safety provider integration",
+          "uri": "docs/public/network-contracts/runtime-safety-provider-deployment-policy.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "scanner_decision_persistence",
+      "layer": "Scanner decision",
+      "title": "Scanner-visible decision persistence",
+      "status": "pass",
+      "evidence": "Scanner decision persistence is enabled.",
+      "evidence_refs": [
+        {
+          "label": "Scanner decision persistence evidence",
+          "uri": "docs/public/network-contracts/scanner-decision.schema.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "worker_operations_evidence",
+      "layer": "Operations",
+      "title": "Worker operations evidence packet",
+      "status": "pass",
+      "evidence": "Worker operations evidence covers artifact publication, event outbox propagation, verifier-cache materialization, scanner runtime, monitoring, and replay/recovery drills.",
+      "evidence_refs": [
+        {
+          "label": "Worker operations evidence packet",
+          "uri": "docs/public/network-contracts/examples/worker-operations-evidence-reference.json",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    },
+    {
+      "id": "operator_runbooks",
+      "layer": "Operations",
+      "title": "Operator runbooks",
+      "status": "pass",
+      "evidence": "Operator runbooks are documented.",
+      "evidence_refs": [
+        {
+          "label": "Operator runbook bundle",
+          "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+          "owner": "QR Trust operator",
+          "reviewed_at": "2026-05-20"
+        }
+      ]
+    }
+  ]
+}

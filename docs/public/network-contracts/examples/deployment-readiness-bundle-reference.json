@@ -1,0 +1,155 @@
+{
+  "artifact_type": "deployment_readiness_bundle",
+  "generated_at": "2026-05-20T00:00:00.000Z",
+  "bundle_role": "operator_handoff",
+  "report": {
+    "mode": "reference",
+    "status": "ready_for_reference_drill",
+    "blocking_checks": [],
+    "warning_checks": [
+      "postgres_source_of_truth",
+      "migration_ledger",
+      "restore_automation",
+      "packaged_deployment_ownership",
+      "nats_propagation",
+      "managed_key_material",
+      "managed_signing_custody",
+      "custody_audit_export",
+      "runtime_safety_provider",
+      "worker_operations_evidence",
+      "operator_runbooks"
+    ]
+  },
+  "files": [
+    {
+      "role": "readiness_json_report",
+      "path": "local/network-readiness-report.json",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "bytes": 3946
+    },
+    {
+      "role": "readiness_markdown_report",
+      "path": "local/network-readiness-report.md",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "bytes": 3066
+    },
+    {
+      "role": "production_env_template",
+      "path": "docs/public/network-contracts/deployment-readiness.production.env.example",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "bytes": 1248
+    },
+    {
+      "role": "evidence_map",
+      "path": "docs/public/network-contracts/deployment-readiness.evidence.example.json",
+      "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "bytes": 2467
+    },
+    {
+      "role": "operator_guide",
+      "path": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+      "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "bytes": 5015
+    },
+    {
+      "role": "signing_custody_audit_export_contract",
+      "path": "docs/public/network-contracts/signing-custody-audit-export.md",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "bytes": 3292
+    },
+    {
+      "role": "signing_custody_publication_audit_export",
+      "path": "docs/public/network-contracts/examples/signing-custody-publication-audit-export-reference.json",
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "bytes": 2591
+    },
+    {
+      "role": "scanner_decision_runtime_contract",
+      "path": "docs/public/network-contracts/scanner-decision-http-runtime.md",
+      "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "bytes": 3210
+    },
+    {
+      "role": "verifier_profile_distribution_contract",
+      "path": "docs/public/network-contracts/verifier-profile-distribution.md",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "bytes": 3872
+    },
+    {
+      "role": "scanner_fleet_evidence_contract",
+      "path": "docs/public/network-contracts/scanner-fleet-evidence.md",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "bytes": 3425
+    },
+    {
+      "role": "scanner_fleet_evidence_packet",
+      "path": "docs/public/network-contracts/examples/scanner-fleet-evidence-reference.json",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "bytes": 9442
+    },
+    {
+      "role": "cross_surface_qr_evidence_contract",
+      "path": "docs/public/network-contracts/cross-surface-qr-evidence.md",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "bytes": 2248
+    },
+    {
+      "role": "cross_surface_qr_evidence_packet",
+      "path": "docs/public/network-contracts/examples/cross-surface-qr-evidence-reference.json",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "bytes": 5451
+    },
+    {
+      "role": "worker_operations_evidence_contract",
+      "path": "docs/public/network-contracts/worker-operations-evidence.md",
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "bytes": 3000
+    },
+    {
+      "role": "worker_operations_evidence_packet",
+      "path": "docs/public/network-contracts/examples/worker-operations-evidence-reference.json",
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "bytes": 3000
+    },
+    {
+      "role": "restore_automation_evidence_contract",
+      "path": "docs/public/network-contracts/restore-automation-evidence.md",
+      "sha256": "1212121212121212121212121212121212121212121212121212121212121212",
+      "bytes": 3000
+    },
+    {
+      "role": "restore_automation_evidence_packet",
+      "path": "docs/public/network-contracts/examples/restore-automation-evidence-reference.json",
+      "sha256": "1313131313131313131313131313131313131313131313131313131313131313",
+      "bytes": 3000
+    },
+    {
+      "role": "packaged_deployment_approval_evidence_contract",
+      "path": "docs/public/network-contracts/packaged-deployment-approval-evidence.md",
+      "sha256": "1414141414141414141414141414141414141414141414141414141414141414",
+      "bytes": 3000
+    },
+    {
+      "role": "packaged_deployment_approval_evidence_packet",
+      "path": "docs/public/network-contracts/examples/packaged-deployment-approval-evidence-reference.json",
+      "sha256": "1515151515151515151515151515151515151515151515151515151515151515",
+      "bytes": 3000
+    },
+    {
+      "role": "operator_evidence_index_contract",
+      "path": "docs/public/network-contracts/operator-evidence-index.md",
+      "sha256": "1616161616161616161616161616161616161616161616161616161616161616",
+      "bytes": 3000
+    },
+    {
+      "role": "operator_evidence_index_packet",
+      "path": "docs/public/network-contracts/examples/operator-evidence-index-reference.json",
+      "sha256": "1717171717171717171717171717171717171717171717171717171717171717",
+      "bytes": 3000
+    }
+  ],
+  "review_notes": [
+    "Reference mode can demonstrate the architecture without satisfying production-owned controls.",
+    "Generate a production-mode report before deployment review."
+  ]
+}

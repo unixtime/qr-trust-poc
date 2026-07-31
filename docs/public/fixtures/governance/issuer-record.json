@@ -1,0 +1,39 @@
+{
+  "artifact_type": "issuer_record",
+  "schema_version": "fixture-v1",
+  "fixture_notice": "Non-normative public PoC fixture. This is not a proposed standard.",
+  "issuer_namespace": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo"
+  },
+  "issuer_display_name": "Acme Demo Issuer",
+  "issuer_class": "merchant",
+  "assurance_tier": "verified_business",
+  "certificate_refs": [
+    "cert:acme-demo:2026-01"
+  ],
+  "destination_policies": [
+    {
+      "destination_policy_id": "policy:acme-demo:web-payments:v1",
+      "policy_ref": "destination-policy.json",
+      "status": "active"
+    }
+  ],
+  "inspection_scope": {
+    "passive_public_checks": true,
+    "runtime_reputation_checks": "simulated_provider_only",
+    "authenticated_or_invasive_testing": false
+  },
+  "status": {
+    "issuer_status": "active",
+    "certificate_status": "active",
+    "status_event_ref": "revocation-status-event.json"
+  },
+  "publication": {
+    "published_at": "2026-05-15T00:00:00Z",
+    "valid_until": "2026-12-31T23:59:59Z",
+    "signed_by": "authority:qrtrust-demo:merchant-web",
+    "signature_status": "fixture_unsigned"
+  }
+}

@@ -1,0 +1,253 @@
+{
+  "artifact_type": "reference_network_adoption_stage_gate",
+  "schema_version": "2026-05-21",
+  "generated_at": "2026-05-21T00:00:00.000Z",
+  "stage": 1,
+  "stage_name": "single_operator_pilot",
+  "claim_mode": "reference_only",
+  "status": "ready_for_stage_1_reference",
+  "blocking_boundaries": [],
+  "warning_boundaries": [
+    "nats_propagation",
+    "signing_custody",
+    "runtime_safety_provider",
+    "external_governance_audit"
+  ],
+  "boundaries": [
+    {
+      "id": "postgres_source_of_truth",
+      "layer": "Source of truth",
+      "title": "Postgres trust-state authority",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Postgres is the source-of-truth store for network trust state.",
+      "evidence_refs": [
+        {
+          "label": "Reference Postgres schema",
+          "uri": "docs/public/network-contracts/reference-postgres-schema.sql",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "make check-network-migrations"
+      ]
+    },
+    {
+      "id": "authority_publication",
+      "layer": "Governance publication",
+      "title": "Authority artifact publication",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Authority rows can be projected into ordered signed-artifact publication inputs.",
+      "evidence_refs": [
+        {
+          "label": "Authority publication smoke",
+          "uri": "network/src/programs/authority-publication-service-smoke.ts",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run authority:publication-service-smoke"
+      ]
+    },
+    {
+      "id": "nats_propagation",
+      "layer": "State propagation",
+      "title": "NATS JetStream propagation",
+      "status": "warn",
+      "evidence_tier": "unattached",
+      "evidence": "Single-operator pilots may validate event subjects without a live multi-node broker.",
+      "remediation": "Enable NATS propagation after Postgres persistence and publication workers are durable.",
+      "smoke_scripts": [
+        "npm run nats:propagation-smoke"
+      ]
+    },
+    {
+      "id": "verifier_cache_read_model",
+      "layer": "Verifier cache",
+      "title": "Verifier cache read model",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Verifier cache materialization converts published trust state into scan-time lookup rows.",
+      "evidence_refs": [
+        {
+          "label": "Verifier cache read-model smoke",
+          "uri": "network/src/programs/verifier-cache-read-model-worker-smoke.ts",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run verifier-cache:read-model-worker-smoke"
+      ]
+    },
+    {
+      "id": "scanner_decision_runtime",
+      "layer": "Scanner decision",
+      "title": "Scanner-visible decision runtime",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "The runtime emits scanner-visible green, orange, and red decisions.",
+      "evidence_refs": [
+        {
+          "label": "Scanner decision runtime smoke",
+          "uri": "network/src/programs/scanner-decision-http-runtime-smoke.ts",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run scanner-decision:http-runtime-smoke"
+      ]
+    },
+    {
+      "id": "scanner_fleet_evidence",
+      "layer": "Scanner fleet",
+      "title": "Scanner-fleet evidence packet",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "The scanner-fleet evidence packet covers minimum green, orange, and red scanner outcomes.",
+      "evidence_refs": [
+        {
+          "label": "Scanner fleet evidence packet",
+          "uri": "docs/public/network-contracts/examples/scanner-fleet-evidence-reference.json",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run scanner-fleet:evidence-smoke"
+      ]
+    },
+    {
+      "id": "cross_surface_qr_evidence",
+      "layer": "Same-QR evidence",
+      "title": "Cross-surface QR evidence packet",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Cross-surface evidence proves one QR artifact produces the same final scanner-visible decision across surfaces.",
+      "evidence_refs": [
+        {
+          "label": "Cross-surface QR evidence packet",
+          "uri": "docs/public/network-contracts/examples/cross-surface-qr-evidence-reference.json",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run cross-surface:evidence-smoke"
+      ]
+    },
+    {
+      "id": "worker_operations_evidence",
+      "layer": "Operations",
+      "title": "Worker operations evidence packet",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Worker evidence covers artifact publication, event outbox propagation, verifier-cache materialization, scanner decision runtime, monitoring thresholds, and replay/recovery drills.",
+      "evidence_refs": [
+        {
+          "label": "Worker operations evidence packet",
+          "uri": "docs/public/network-contracts/examples/worker-operations-evidence-reference.json",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run worker-operations:evidence-smoke"
+      ]
+    },
+    {
+      "id": "signing_custody_audit_export",
+      "layer": "Signing custody",
+      "title": "Publication custody audit export",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Publication-worker reports are converted into public-safe signing custody audit exports with published and failed rows preserved.",
+      "evidence_refs": [
+        {
+          "label": "Publication-backed signing custody audit export",
+          "uri": "docs/public/network-contracts/examples/signing-custody-publication-audit-export-reference.json",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ],
+      "smoke_scripts": [
+        "npm run signing-custody:publication-audit-smoke"
+      ]
+    },
+    {
+      "id": "signing_custody",
+      "layer": "Signing custody",
+      "title": "Managed signing custody",
+      "status": "warn",
+      "evidence_tier": "unattached",
+      "evidence": "Reference deployments may use deterministic signing fixtures while preserving the custody boundary.",
+      "remediation": "Move signing into KMS, HSM, or equivalent managed custody before production issuance.",
+      "smoke_scripts": [
+        "npm run signing-custody:smoke"
+      ]
+    },
+    {
+      "id": "runtime_safety_provider",
+      "layer": "Runtime safety",
+      "title": "Live runtime-safety provider",
+      "status": "warn",
+      "evidence_tier": "unattached",
+      "evidence": "Reference deployments may use deterministic runtime safety fixtures.",
+      "remediation": "Connect a live safe-browsing, reputation, redirect, or TLS-safety provider with privacy boundaries.",
+      "smoke_scripts": [
+        "npm run runtime:safety-smoke"
+      ]
+    },
+    {
+      "id": "operator_runbooks",
+      "layer": "Operations",
+      "title": "Operator runbooks",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Operator handoff, failure, rotation, restore, and rollback responsibilities are documented.",
+      "evidence_refs": [
+        {
+          "label": "Deployment readiness operator guide",
+          "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "id": "backup_restore",
+      "layer": "Operations",
+      "title": "Backup and restore drill",
+      "status": "pass",
+      "evidence_tier": "reference_backed",
+      "evidence": "Source-of-truth restore procedure is documented and drillable.",
+      "evidence_refs": [
+        {
+          "label": "Migration and restore policy",
+          "uri": "docs/public/network-contracts/postgres-migration-deployment-policy.md",
+          "owner": "QR Trust reference maintainer",
+          "reviewed_at": "2026-05-21"
+        }
+      ]
+    },
+    {
+      "id": "external_governance_audit",
+      "layer": "Governance assurance",
+      "title": "External governance audit",
+      "status": "warn",
+      "evidence_tier": "unattached",
+      "evidence": "External governance review is a future ecosystem-candidate obligation, not local proof.",
+      "remediation": "Obtain independent governance review before claiming ecosystem-candidate readiness."
+    }
+  ],
+  "review_notes": [
+    "Stage 1 (single_operator_pilot) is evaluated as reference_only.",
+    "Evidence tiers: 0 operator-backed, 10 reference-backed, 4 unattached.",
+    "Future-stage or production-only warnings remain: nats_propagation, signing_custody, runtime_safety_provider, external_governance_audit.",
+    "Reference-backed evidence is acceptable for a reference claim, but production-candidate claims must replace it with operator-owned evidence."
+  ]
+}

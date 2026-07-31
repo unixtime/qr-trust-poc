@@ -1,0 +1,12 @@
+fixture_id: red_resolver_final_target_mismatch
+decision_state: resolver_final_target_mismatch
+decision_color: red
+status: red
+title: Final destination changed
+message: The resolver led to a final destination that the issuer did not approve. Opening anyway may not be safe.
+destination: https://acme.example/pay
+host: acme.example
+usage_policy: reusable_public
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-23T13:31:52.511Z

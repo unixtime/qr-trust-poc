@@ -1,0 +1,63 @@
+{
+  "artifact_type": "signing_custody_audit_export",
+  "schema_version": "2026-05-21",
+  "export_id": "signing-custody-audit:reference:2026-05-21",
+  "generated_at": "2026-05-21T00:00:00.000Z",
+  "scope": {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web"
+  },
+  "redaction_status": "public_safe",
+  "entries": [
+    {
+      "audit_event_id": "audit:signing-custody:issuer-record:001",
+      "artifact_id": "issuer-record:acme-demo:v1",
+      "artifact_type": "issuer_record",
+      "artifact_version": 1,
+      "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "root_program_id": "root:qrtrust-demo:2026",
+      "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+      "issuer_id": "issuer:acme-demo",
+      "signer_id": "signer:authority:qrtrust-demo:merchant-web",
+      "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:managed",
+      "algorithm_id": "ed25519",
+      "custody_provider_ref": "kms://qrtrust-reference/us-west-1/authority/merchant-web",
+      "provider_audit_id": "kms-audit-issuer-record-001",
+      "automation_identity": "artifact-publication-worker/reference",
+      "requested_at": "2026-05-21T00:00:00.000Z",
+      "publication_result": "published"
+    },
+    {
+      "audit_event_id": "audit:signing-custody:destination-policy:002",
+      "artifact_id": "destination-policy:acme-demo:v2",
+      "artifact_type": "destination_policy",
+      "artifact_version": 1,
+      "artifact_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "root_program_id": "root:qrtrust-demo:2026",
+      "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+      "issuer_id": "issuer:acme-demo",
+      "signer_id": "signer:authority:qrtrust-demo:merchant-web",
+      "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:managed",
+      "algorithm_id": "ed25519",
+      "custody_provider_ref": "hsm://qrtrust-reference/partition-a/authority/merchant-web",
+      "provider_audit_id": "hsm-audit-destination-policy-002",
+      "automation_identity": "artifact-publication-worker/reference",
+      "requested_at": "2026-05-21T00:00:00.000Z",
+      "publication_result": "rejected",
+      "reason_codes": [
+        "local_signature_verification_failed"
+      ]
+    }
+  ],
+  "summary": {
+    "entry_count": 2,
+    "published": 1,
+    "rejected": 1,
+    "failed": 0,
+    "pending": 0,
+    "provider_refs": [
+      "hsm://qrtrust-reference/partition-a/authority/merchant-web",
+      "kms://qrtrust-reference/us-west-1/authority/merchant-web"
+    ]
+  }
+}

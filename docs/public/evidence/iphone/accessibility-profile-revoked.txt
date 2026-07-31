@@ -1,0 +1,13 @@
+fixture_id: red_revoked_verifier_profile
+decision_state: profile_revoked
+decision_color: red
+status: red
+verifier_profile_state: revoked
+title: Do not open
+message: This verifier provider profile was revoked. Use another trusted scanner or update the provider profile before continuing.
+destination: https://acme.example/pay
+host: acme.example
+usage_policy: not provided
+risk_score: not provided
+reason_codes: not provided
+checked_at: 2026-05-24T07:11:09.581Z

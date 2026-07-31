@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "QR Trust PoC: Reference Verifier and Scanner UX for QR Trust Decisions"
+type: software
+authors:
+  - family-names: "El-Masri"
+    given-names: "Hassan"
+    orcid: "https://orcid.org/0000-0001-6704-8605"
+abstract: "A public-safe reference implementation and teaching companion for QR trust decisions, including verifier flows, scanner-visible decision states, browser evidence, native iPhone scanner experiments, and draft QR trust-network contracts."
+license: "Apache-2.0"
+url: "https://github.com/unixtime/qr-trust-poc"
+repository-code: "https://github.com/unixtime/qr-trust-poc"
+date-released: 2026-07-31
+keywords:
+  - "QR code security"
+  - "trust model"
+  - "scanner UX"
+  - "destination binding"
+  - "runtime safety"
+  - "verifier cache"
+preferred-citation:
+  type: article
+  title: "QR Navigation Security Is Not Primarily a Cryptography Problem: A Trust-Model Framework for Managed Issuer Verification, Destination Binding, and Runtime Safety"
+  authors:
+    - family-names: "El-Masri"
+      given-names: "Hassan"
+      orcid: "https://orcid.org/0000-0001-6704-8605"
+  year: 2026
+  date-published: 2026-05-01
+  status: preprint
+  doi: "10.2139/ssrn.6577478"
+  url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478"

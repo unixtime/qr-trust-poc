@@ -1,0 +1,41 @@
+From: security@example.org
+To: reviewer@example.org
+Subject: QR artifact email fixture
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="===============3094342866770309134=="
+
+--===============3094342866770309134==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+Synthetic email fixture with a QR PNG attachment for corpus extraction tests.
+
+--===============3094342866770309134==
+Content-Type: image/png
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="qr-email-attachment.png"
+MIME-Version: 1.0
+
+iVBORw0KGgoAAAANSUhEUgAAAOgAAADoCAIAAABqyz8vAAAEXklEQVR4nO3dQYrdSBBAQcv8+19Z
+cwFroUFJ1ZMilnbzrW4/iiYpUsefiPM8//nnx3GMfv1d089z9fV3TX/+tL+rHwD+D+GSJFyShEuS
+cEkSLknCJel39RdPzTXv2m2OeHfOevfnNj1vPobnvtOunt+JS5JwSRIuScIlSbgkCZck4fKuOW5l
+Ljg9N70yfa/3qec8h+evq3pw4pIkXJKES5JwSRIuScIlSbh8Y467m932DEzfo131Obtx4pIkXJKE
+S5JwSRIuScIlSbgk5ee40/PXp/7d6c+/Up/XXnHikiRckoRLknBJEi5JwiVJuHxjjluZC07PQVfN
+U5+aH5+L9lo8xYlLknBJEi5JwiVJuCQJlyTh8q457m7vG7vy1JzyqfeNTe9hmH6eSg9OXJKES5Jw
+SRIuScIlSbgkCZeko3K/9mv7X3d7n9xunLgkCZck4ZIkXJKES5JwSRIuSUdlL8Hdz79r+vvabT/D
+bu9Xu/tzcOKSJFyShEuScEkSLknCJUm4JI3vx101p9xtTjzt2GzfwvReCycuScIlSbgkCZck4ZIk
+XJKES9Jvek65au67237Zu556/mmr/n+duCQJlyThkiRckoRLknBJEi7v2o+76v1blfnlqudZdc/4
+2Oz7deKSJFyShEuScEkSLknCJUm4fGOOu+pe5lv3+O62H/cp09+XE5ck4ZIkXJKES5JwSRIuScIl
+afw9Z3dN78edvu+72/vSzs3u3T7VjxOXJOGSJFyShEuScEkSLknC5dv7cVfto31qP+6VVfdxd9vP
+cGy218KJS5JwSRIuScIlSbgkCZck4ZKUuY/7tfumq+4l7/Zz854zXsWvCiQJlyThkiRckoRLknBJ
++u127/atc8e7n/PU11/ZbY/EXU5ckoRLknBJEi5JwiVJuCQJl6Tt9ipU5pe7/btn5P60/bh8ml8V
+SBIuScIlSbgkCZck4fLtvQq7vZ9sWuV5dtv/8FQ/TlyShEuScEkSLknCJUm4JAmXb9/HnX4/2d3P
+ecpu91lXzU2PRfPpK05ckoRLknBJEi5JwiVJuCQJl6Rjet/tKuajLe7j8gl+VSBJuCQJlyThkiRc
+koTLu+a4FU/dA67vGTgWvW9s1fzeiUuScEkSLknCJUm4JAmXJOGS9NvtHu1b546V5zw2ex/b1dc7
+cUkSLknCJUm4JAmXJOGSJFySfld/seqebmXOOv3z2W1v8SpXz+/EJUm4JAmXJOGSJFyShEuScHnX
+HPfKqv0DT33O9H3T6T0PlXvJ5/D+CicuScIlSbgkCZck4ZIkXJKEyzfmuLtZtR93ep46vR93+ucz
+/X05cUkSLknCJUm4JAmXJOGSJFyS8nPc+n3ZVfPXM34f2olLknBJEi5JwiVJuCQJlyTh8o057m77
+U1fNTeuORXNo7znj0/yqQJJwSRIuScIlSbgkCZd3zXEr886788jpvQpPPU/l/+VcNNd34pIkXJKE
+S5JwSRIuScIlSbj8KfoPewka529Q3KwAAAAASUVORK5CYII=
+
+--===============3094342866770309134==--

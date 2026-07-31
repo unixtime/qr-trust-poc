@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/deployment-readiness-report.schema.json",
+  "title": "QR Trust deployment readiness report",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "mode",
+    "status",
+    "blocking_checks",
+    "warning_checks",
+    "checks"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "deployment_readiness_report"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mode": {
+      "enum": [
+        "reference",
+        "production"
+      ]
+    },
+    "status": {
+      "enum": [
+        "ready_for_reference_drill",
+        "blocked_for_production",
+        "ready_for_production_drill"
+      ]
+    },
+    "blocking_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check_id"
+      }
+    },
+    "warning_checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check_id"
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/readiness_check"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "check_id": {
+      "enum": [
+        "postgres_source_of_truth",
+        "migration_ledger",
+        "restore_automation",
+        "packaged_deployment_ownership",
+        "nats_propagation",
+        "managed_key_material",
+        "managed_signing_custody",
+        "custody_audit_export",
+        "runtime_safety_provider",
+        "scanner_decision_persistence",
+        "worker_operations_evidence",
+        "operator_runbooks"
+      ]
+    },
+    "readiness_check": {
+      "type": "object",
+      "required": [
+        "id",
+        "layer",
+        "title",
+        "status",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/check_id"
+        },
+        "layer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "block"
+          ]
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/evidence_ref"
+          }
+        },
+        "remediation": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": [
+        "label",
+        "uri",
+        "owner",
+        "reviewed_at"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reviewed_at": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

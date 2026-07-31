@@ -1,0 +1,421 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/deployment-readiness-bundle.schema.json",
+  "title": "QR Trust deployment readiness handoff bundle",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "generated_at",
+    "bundle_role",
+    "report",
+    "files",
+    "review_notes"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "deployment_readiness_bundle"
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bundle_role": {
+      "const": "operator_handoff"
+    },
+    "report": {
+      "type": "object",
+      "required": [
+        "mode",
+        "status",
+        "blocking_checks",
+        "warning_checks"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "reference",
+            "production"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ready_for_reference_drill",
+            "blocked_for_production",
+            "ready_for_production_drill"
+          ]
+        },
+        "blocking_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check_id"
+          }
+        },
+        "warning_checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check_id"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "minItems": 21,
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "readiness_json_report"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "signing_custody_audit_export_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "signing_custody_publication_audit_export"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "readiness_markdown_report"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "production_env_template"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "evidence_map"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "operator_guide"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "scanner_decision_runtime_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "verifier_profile_distribution_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "scanner_fleet_evidence_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "scanner_fleet_evidence_packet"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "cross_surface_qr_evidence_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "cross_surface_qr_evidence_packet"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "worker_operations_evidence_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "worker_operations_evidence_packet"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "restore_automation_evidence_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "restore_automation_evidence_packet"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "packaged_deployment_approval_evidence_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "packaged_deployment_approval_evidence_packet"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "operator_evidence_index_contract"
+              }
+            }
+          }
+        },
+        {
+          "contains": {
+            "type": "object",
+            "required": [
+              "role"
+            ],
+            "properties": {
+              "role": {
+                "const": "operator_evidence_index_packet"
+              }
+            }
+          }
+        }
+      ],
+      "items": {
+        "$ref": "#/$defs/bundle_file"
+      }
+    },
+    "review_notes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "bundle_file": {
+      "type": "object",
+      "required": [
+        "role",
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "readiness_json_report",
+            "readiness_markdown_report",
+            "production_env_template",
+            "evidence_map",
+            "operator_guide",
+            "signing_custody_audit_export_contract",
+            "signing_custody_publication_audit_export",
+            "scanner_decision_runtime_contract",
+            "verifier_profile_distribution_contract",
+            "scanner_fleet_evidence_contract",
+            "scanner_fleet_evidence_packet",
+            "cross_surface_qr_evidence_contract",
+            "cross_surface_qr_evidence_packet",
+            "worker_operations_evidence_contract",
+            "worker_operations_evidence_packet",
+            "restore_automation_evidence_contract",
+            "restore_automation_evidence_packet",
+            "packaged_deployment_approval_evidence_contract",
+            "packaged_deployment_approval_evidence_packet",
+            "operator_evidence_index_contract",
+            "operator_evidence_index_packet"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "check_id": {
+      "enum": [
+        "postgres_source_of_truth",
+        "migration_ledger",
+        "restore_automation",
+        "packaged_deployment_ownership",
+        "nats_propagation",
+        "managed_key_material",
+        "managed_signing_custody",
+        "custody_audit_export",
+        "runtime_safety_provider",
+        "scanner_decision_persistence",
+        "worker_operations_evidence",
+        "operator_runbooks"
+      ]
+    }
+  }
+}

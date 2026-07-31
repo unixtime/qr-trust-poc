@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/runtime-safety-observation.schema.json",
+  "title": "QR Trust runtime-safety observation",
+  "type": "object",
+  "required": [
+    "artifact_type",
+    "schema_version",
+    "observation_id",
+    "observed_at",
+    "provider",
+    "destination",
+    "verdict",
+    "risk_score",
+    "reason_codes",
+    "privacy",
+    "decision_role"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "runtime_safety_observation"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observation_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "provider_kind",
+        "response_status"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_kind": {
+          "enum": [
+            "redirect_inspector",
+            "reputation_provider",
+            "tls_https_inspector",
+            "composite_runtime_safety"
+          ]
+        },
+        "provider_version": {
+          "type": "string"
+        },
+        "response_status": {
+          "enum": [
+            "usable",
+            "timeout",
+            "auth_failed",
+            "malformed",
+            "unavailable"
+          ]
+        },
+        "checked_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": true
+    },
+    "destination": {
+      "type": "object",
+      "required": [
+        "destination_host",
+        "destination_url",
+        "fingerprint"
+      ],
+      "properties": {
+        "destination_host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "destination_url": {
+          "type": "string"
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resolver_url": {
+          "type": "string"
+        },
+        "final_url": {
+          "type": "string"
+        },
+        "final_host": {
+          "type": "string"
+        },
+        "observed_redirect_hops": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "https_status": {
+          "enum": [
+            "valid",
+            "absent",
+            "invalid",
+            "not_checked"
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "verdict": {
+      "enum": [
+        "clear",
+        "risky",
+        "blocked",
+        "unavailable"
+      ]
+    },
+    "risk_score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "required": [
+        "payload_disclosure",
+        "user_data_disclosure",
+        "raw_provider_payload_retained"
+      ],
+      "properties": {
+        "payload_disclosure": {
+          "enum": [
+            "host_only",
+            "normalized_url",
+            "full_url",
+            "provider_required"
+          ]
+        },
+        "user_data_disclosure": {
+          "enum": [
+            "none",
+            "pseudonymous",
+            "provider_required"
+          ]
+        },
+        "raw_provider_payload_retained": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "decision_role": {
+      "type": "object",
+      "required": [
+        "source_of_truth",
+        "scanner_visible_impact"
+      ],
+      "properties": {
+        "source_of_truth": {
+          "const": false
+        },
+        "scanner_visible_impact": {
+          "enum": [
+            "may_support_green_when_prior_layers_pass",
+            "may_downgrade_to_orange",
+            "may_block_to_red",
+            "no_decision_impact"
+          ]
+        },
+        "operator_note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "governance": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

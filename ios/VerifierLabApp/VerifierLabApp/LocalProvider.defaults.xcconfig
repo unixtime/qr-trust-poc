@@ -1,0 +1,6 @@
+// Default local provider profile for developer builds.
+// scripts/write_ios_local_provider_config.sh writes the ignored override one level up.
+
+QRTRUST_VERIFIER_BASE_URLS =
+
+#include? "../LocalProvider.xcconfig"

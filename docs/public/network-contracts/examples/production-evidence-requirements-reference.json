@@ -1,0 +1,211 @@
+{
+  "artifact_type": "production_evidence_requirements",
+  "requirements_id": "production-evidence-requirements:reference:2026-05-22",
+  "generated_at": "2026-05-22T00:00:00Z",
+  "scope": {
+    "claim_mode": "production_candidate",
+    "root_program_id": "qrtrust-demo-root",
+    "environment": "operator-owned production candidate",
+    "boundary": "Requirements only; actual evidence remains in operator-owned evidence storage."
+  },
+  "controls": [
+    {
+      "control_id": "postgres_source_of_truth",
+      "layer": "source_of_truth",
+      "title": "Authoritative Postgres trust-state ownership",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "database operator",
+      "minimum_review_role": "database_operator",
+      "retention_policy": "Retain schema, backup, and access-review evidence for the operator-defined audit window.",
+      "why_required": "Production scanners cannot trust derived cache state unless durable governance state has an owned source of truth.",
+      "required_artifacts": [
+        "schema ownership record",
+        "database backup policy",
+        "privileged access review"
+      ]
+    },
+    {
+      "control_id": "migration_ledger",
+      "layer": "source_of_truth",
+      "title": "Migration ledger and rollback review",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "database operator",
+      "minimum_review_role": "database_operator",
+      "retention_policy": "Retain migration approvals, checksums, and rollback rehearsal records with release evidence.",
+      "why_required": "Trust-state schema changes must be replayable, auditable, and reversible before production traffic depends on them.",
+      "required_artifacts": [
+        "applied migration checksum ledger",
+        "rollback rehearsal record"
+      ]
+    },
+    {
+      "control_id": "restore_automation",
+      "layer": "operator_readiness",
+      "title": "Restore automation proof",
+      "minimum_refs": 3,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "operations owner",
+      "minimum_review_role": "operations_reviewer",
+      "retention_policy": "Retain the most recent successful backup, scratch restore, and failover drill evidence.",
+      "why_required": "An operator cannot claim production readiness if root, issuer, policy, or cache state cannot be restored under controlled conditions.",
+      "required_artifacts": [
+        "scheduled backup result",
+        "scratch restore transcript",
+        "operator failover handoff"
+      ]
+    },
+    {
+      "control_id": "packaged_deployment_ownership",
+      "layer": "operator_readiness",
+      "title": "Packaged deployment approval chain",
+      "minimum_refs": 3,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "release owner",
+      "minimum_review_role": "release_owner",
+      "retention_policy": "Retain artifact provenance, promotion approval, security review, operations review, and rollback acceptance for each promoted release.",
+      "why_required": "A scanner-facing trust service should only run artifacts that have explicit release ownership and rollback acceptance.",
+      "required_artifacts": [
+        "artifact fingerprint",
+        "release approval record",
+        "rollback acceptance record"
+      ]
+    },
+    {
+      "control_id": "nats_propagation",
+      "layer": "propagation",
+      "title": "Propagation broker ownership",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "operations owner",
+      "minimum_review_role": "operations_reviewer",
+      "retention_policy": "Retain broker configuration, stream retention, subject ACL, and replay drill evidence for the operator-defined audit window.",
+      "why_required": "Propagation accelerates verifier updates but must not become an unowned or unaudited source of trust.",
+      "required_artifacts": [
+        "NATS JetStream stream configuration",
+        "subject ACL review",
+        "event replay drill"
+      ]
+    },
+    {
+      "control_id": "managed_key_material",
+      "layer": "custody",
+      "title": "Managed key-material custody",
+      "minimum_refs": 3,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "custody operator",
+      "minimum_review_role": "custody_operator",
+      "retention_policy": "Retain managed key inventory, rotation ceremony, and access review evidence according to the custody policy.",
+      "why_required": "Production signing keys must be managed through owned custody controls rather than fixture, filesystem, or environment-only signing material.",
+      "required_artifacts": [
+        "managed key inventory",
+        "rotation ceremony record",
+        "custody access review"
+      ]
+    },
+    {
+      "control_id": "managed_signing_custody",
+      "layer": "custody",
+      "title": "Managed signing operation custody",
+      "minimum_refs": 3,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "custody operator",
+      "minimum_review_role": "custody_operator",
+      "retention_policy": "Retain signing provider configuration, signer identity mapping, and approval workflow evidence.",
+      "why_required": "Issuer and status artifacts need an auditable signing path that does not expose signing secrets to application code or public repositories.",
+      "required_artifacts": [
+        "signing provider configuration",
+        "signer identity mapping",
+        "signing approval workflow"
+      ]
+    },
+    {
+      "control_id": "custody_audit_export",
+      "layer": "custody",
+      "title": "Public-safe custody audit export",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "security reviewer",
+      "minimum_review_role": "security_reviewer",
+      "retention_policy": "Retain redacted custody audit exports and review decisions for every promoted signer or release.",
+      "why_required": "Reviewers need to verify custody posture without receiving signing material or provider secrets.",
+      "required_artifacts": [
+        "redacted custody audit export",
+        "security review approval"
+      ]
+    },
+    {
+      "control_id": "runtime_safety_provider",
+      "layer": "runtime",
+      "title": "Runtime safety provider operation",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "runtime operator",
+      "minimum_review_role": "runtime_operator",
+      "retention_policy": "Retain provider health, stale-data policy, and fail-closed drill evidence.",
+      "why_required": "Present-time destination safety is a separate trust layer and cannot be inferred from successful QR decoding or signature validation.",
+      "required_artifacts": [
+        "runtime safety provider health record",
+        "stale-data fail-closed drill"
+      ]
+    },
+    {
+      "control_id": "scanner_decision_persistence",
+      "layer": "scanner",
+      "title": "Scanner decision persistence and auditability",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "runtime operator",
+      "minimum_review_role": "runtime_operator",
+      "retention_policy": "Retain sampled scanner decision logs and privacy review evidence without storing unnecessary payload data.",
+      "why_required": "Scanner-visible green, orange, and red states need reviewable reason codes and privacy-preserving audit behavior.",
+      "required_artifacts": [
+        "scanner decision log sample",
+        "privacy and redaction review"
+      ]
+    },
+    {
+      "control_id": "worker_operations_evidence",
+      "layer": "operator_readiness",
+      "title": "Always-on worker operations evidence",
+      "minimum_refs": 3,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "operations owner",
+      "minimum_review_role": "operations_reviewer",
+      "retention_policy": "Retain worker supervisor reports, lag metrics, and recovery drills for each runtime component.",
+      "why_required": "Publication, propagation, cache materialization, and scanner-decision workers must be observable and recoverable before they support production trust decisions.",
+      "required_artifacts": [
+        "worker supervisor report",
+        "lag metric snapshot",
+        "worker recovery drill"
+      ]
+    },
+    {
+      "control_id": "operator_runbooks",
+      "layer": "operator_readiness",
+      "title": "Operator runbook and escalation readiness",
+      "minimum_refs": 2,
+      "required_ref_scheme": "ops://qrtrust/",
+      "evidence_owner": "operations owner",
+      "minimum_review_role": "operations_reviewer",
+      "retention_policy": "Retain current runbook review and escalation contact records with release evidence.",
+      "why_required": "The QR trust network needs human-operable procedures for key incidents, verifier cache staleness, provider outage, restore, and rollback.",
+      "required_artifacts": [
+        "operator runbook review",
+        "incident escalation matrix"
+      ]
+    }
+  ],
+  "guardrails": {
+    "requirements_are_not_evidence": true,
+    "public_repo_contains_no_operator_secrets": true,
+    "production_claim_requires_ops_refs": true,
+    "operators_own_evidence_storage": true
+  },
+  "reviewer": {
+    "name": "QR Trust reference reviewer",
+    "role": "reference operator",
+    "reviewed_at": "2026-05-22"
+  }
+}

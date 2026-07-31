@@ -1,0 +1,13 @@
+{
+  "event_id": "evt_issuer_record_published_001",
+  "type": "issuer.record.published",
+  "occurred_at": "2026-05-17T00:00:00Z",
+  "root_program_id": "root:qrtrust-demo:2026",
+  "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+  "issuer_id": "issuer:acme-demo",
+  "artifact_id": "art_issuer_acme_demo_v1",
+  "artifact_hash": "sha256:fixturehash000000000000000000000000000000000000000000000000000000",
+  "artifact_ref": "issuer-record.json",
+  "version": 1,
+  "reason": "demo issuer record published"
+}

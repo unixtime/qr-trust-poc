@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qrtrust.local/contracts/event-envelope.schema.json",
+  "title": "QR Trust network event envelope",
+  "type": "object",
+  "required": [
+    "event_id",
+    "type",
+    "occurred_at",
+    "root_program_id",
+    "artifact_id",
+    "artifact_hash",
+    "version"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "root_program_id": {
+      "type": "string",
+      "pattern": "^(root:|control-plane$)"
+    },
+    "delegated_authority_id": {
+      "type": "string",
+      "pattern": "^authority:"
+    },
+    "issuer_id": {
+      "type": "string",
+      "pattern": "^issuer:"
+    },
+    "destination_policy_id": {
+      "type": "string",
+      "pattern": "^policy:"
+    },
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^sha256:"
+    },
+    "artifact_ref": {
+      "type": "string"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "previous_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

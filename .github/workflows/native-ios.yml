@@ -1,0 +1,18 @@
+name: Native iOS Smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios-smoke:
+    name: iOS Harness Smoke
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run iOS harness smoke
+        run: make smoke-ios

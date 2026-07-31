@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in the public QR verifier PoC.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include secrets, real API keys, private logs, or exploitable vulnerability details.
+        For security-sensitive reports, use the private process in SECURITY.md.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What failed, and what did you expect instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend verifier/API
+        - Frontend verifier lab
+        - Native iPhone lab
+        - Docker/compose/runtime
+        - Documentation/evidence
+        - Public release boundary
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction Steps
+      description: Use deterministic steps and placeholder credentials only.
+      placeholder: |
+        1. Run ...
+        2. Select scenario ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Observed Result
+      description: Include verifier stage, error text, or command output if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Result
+      description: What should the PoC have done?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Checks Run
+      description: List relevant commands and results.
+      placeholder: |
+        - make release-audit
+        - make smoke-compose
+        - cd frontend && npm run build
+    validations:
+      required: false

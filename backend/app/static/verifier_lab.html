@@ -1,0 +1,2045 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Verifier Lab</title>
+    <style>
+      :root {
+        --paper: #f5f0e7;
+        --ink: #1e2a24;
+        --muted: #5c665f;
+        --panel: rgba(255, 252, 246, 0.88);
+        --line: rgba(30, 42, 36, 0.12);
+        --accent: #0e5a4f;
+        --accent-strong: #083d36;
+        --danger: #a53030;
+        --warning: #b96b1d;
+        --ok: #1f7a4d;
+        --shadow: 0 24px 80px rgba(30, 42, 36, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(14, 90, 79, 0.15), transparent 28%),
+          radial-gradient(circle at bottom right, rgba(185, 107, 29, 0.12), transparent 26%),
+          linear-gradient(135deg, #efe8db 0%, #f8f5ef 42%, #ece4d6 100%);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      }
+
+      .shell {
+        max-width: 1540px;
+        margin: 0 auto;
+        padding: 32px 24px 48px;
+      }
+
+      .hero-copy,
+      .hero-notes,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(16px);
+      }
+
+      .hero-copy {
+        padding: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero-copy::after {
+        content: "";
+        position: absolute;
+        inset: auto -12% -18% auto;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        border: 1px solid rgba(14, 90, 79, 0.16);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--accent-strong);
+        background: rgba(14, 90, 79, 0.09);
+      }
+
+      h1 {
+        margin: 20px 0 12px;
+        font-size: clamp(2.6rem, 5vw, 4.7rem);
+        line-height: 0.94;
+        letter-spacing: -0.05em;
+        max-width: 12ch;
+      }
+
+      .hero-copy p,
+      .hero-notes p,
+      .muted,
+      .meta-list,
+      label,
+      input,
+      textarea,
+      select,
+      button {
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .hero-copy p,
+      .hero-notes p {
+        margin: 0;
+        font-size: 1rem;
+        line-height: 1.6;
+        color: var(--muted);
+        max-width: 64ch;
+      }
+
+      .hero-notes {
+        padding: 22px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .hero-notes h2,
+      .section-title {
+        margin: 0 0 6px;
+        font-size: 0.92rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .workspace-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+        gap: 24px;
+        align-items: start;
+      }
+
+      .stack {
+        display: grid;
+        gap: 24px;
+      }
+
+      .panel {
+        padding: 24px;
+      }
+
+      .quick-facts {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .quick-fact {
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+        padding: 14px 16px;
+      }
+
+      .quick-fact strong {
+        display: block;
+        margin-bottom: 6px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.74rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .quick-fact span {
+        display: block;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.94rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .panel-header h3 {
+        margin: 0;
+        font-size: 1.4rem;
+        letter-spacing: -0.03em;
+      }
+
+      .panel-header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+
+      .scenario-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-size: 0.88rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--accent-strong);
+      }
+
+      select,
+      textarea,
+      button,
+      input[type="file"] {
+        border: 1px solid rgba(30, 42, 36, 0.18);
+        border-radius: 18px;
+        padding: 14px 16px;
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--ink);
+        font-size: 0.96rem;
+      }
+
+      .file-input-hidden {
+        display: none;
+      }
+
+      textarea {
+        min-height: 180px;
+        resize: vertical;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      button {
+        cursor: pointer;
+        transition: transform 160ms ease, background 160ms ease, color 160ms ease;
+      }
+
+      button.primary {
+        background: var(--accent);
+        color: #f7f4ef;
+        border-color: transparent;
+      }
+
+      button.secondary {
+        background: transparent;
+      }
+
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      .artifact-frame {
+        display: grid;
+        gap: 18px;
+      }
+
+      .artifact-card {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .artifact-image {
+        width: 100%;
+        aspect-ratio: 1;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(135deg, rgba(14, 90, 79, 0.08), rgba(14, 90, 79, 0.02)),
+          #fff;
+        object-fit: contain;
+        padding: 14px;
+      }
+
+      .meta-list {
+        display: grid;
+        gap: 10px;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      .meta-list strong {
+        color: var(--ink);
+        display: block;
+        margin-bottom: 3px;
+      }
+
+      .video-frame {
+        position: relative;
+        overflow: hidden;
+        min-height: 360px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(circle at top, rgba(14, 90, 79, 0.18), transparent 45%),
+          #131916;
+      }
+
+      .video-frame.flash-capture {
+        box-shadow:
+          0 0 0 3px rgba(31, 122, 77, 0.42),
+          0 24px 80px rgba(30, 42, 36, 0.12);
+      }
+
+      .video-frame.flash-error {
+        box-shadow:
+          0 0 0 3px rgba(165, 48, 48, 0.35),
+          0 24px 80px rgba(30, 42, 36, 0.12);
+      }
+
+      video {
+        width: 100%;
+        min-height: 360px;
+        display: block;
+        object-fit: cover;
+      }
+
+      .video-overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255, 255, 255, 0.82);
+        text-align: center;
+        padding: 24px;
+        pointer-events: none;
+      }
+
+      .status-banner,
+      .history-item {
+        border-radius: 20px;
+        padding: 16px 18px;
+        border: 1px solid transparent;
+      }
+
+      .status-banner {
+        display: grid;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .status-banner strong,
+      .history-item strong {
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.84rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .status-accepted,
+      .history-accepted {
+        background: rgba(31, 122, 77, 0.11);
+        border-color: rgba(31, 122, 77, 0.24);
+      }
+
+      .status-replay_guard,
+      .status-certificate_status,
+      .status-signed_schema,
+      .history-replay_guard,
+      .history-certificate_status,
+      .history-signed_schema {
+        background: rgba(165, 48, 48, 0.1);
+        border-color: rgba(165, 48, 48, 0.22);
+      }
+
+      .status-time_window,
+      .status-payload_revalidation,
+      .history-time_window,
+      .history-payload_revalidation {
+        background: rgba(185, 107, 29, 0.12);
+        border-color: rgba(185, 107, 29, 0.22);
+      }
+
+      .capture-indicator {
+        margin-top: 14px;
+        border-radius: 18px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .capture-indicator strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .scanner-panel-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+        align-items: start;
+      }
+
+      .scanner-workbench,
+      .scanner-stage-stack {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .scanner-stage-stack .status-banner,
+      .scanner-stage-stack .capture-indicator {
+        margin-top: 0;
+      }
+
+      .stage-card {
+        border-radius: 20px;
+        padding: 16px 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .stage-card h4 {
+        margin: 0 0 8px;
+        font-size: 0.84rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      .stage-note {
+        margin: 0;
+        font-size: 0.92rem;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .history-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .status-tile {
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .status-tile strong,
+      .trace-row strong {
+        display: block;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.74rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .status-tile span {
+        display: block;
+        margin-top: 6px;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-size: 0.96rem;
+      }
+
+      .trace-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .trace-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .trace-row code,
+      .trace-row span {
+        display: block;
+        margin-top: 6px;
+      }
+
+      .access-list {
+        display: grid;
+        gap: 12px;
+        max-height: 540px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .access-item {
+        display: grid;
+        gap: 8px;
+        padding: 12px 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+      }
+
+      .access-item-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .access-item code {
+        font-size: 0.82rem;
+      }
+
+      .access-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .access-actions button {
+        padding: 10px 12px;
+        font-size: 0.88rem;
+      }
+
+      .access-summary {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .access-summary-item {
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.62);
+        padding: 12px 14px;
+      }
+
+      .access-summary-item strong {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.74rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+
+      .access-summary-item span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .list-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 18px;
+        margin-bottom: 12px;
+      }
+
+      .list-toolbar small {
+        color: var(--muted);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        background: rgba(14, 90, 79, 0.08);
+        color: var(--accent-strong);
+      }
+
+      .history-item small {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+      }
+
+      code {
+        font-family: "SFMono-Regular", "Menlo", monospace;
+        font-size: 0.88rem;
+      }
+
+      @media (max-width: 1120px) {
+        .workspace-grid,
+        .artifact-card,
+        .scanner-panel-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .scanner-stage-stack {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .shell {
+          padding: 16px 12px 28px;
+        }
+
+        .status-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .scenario-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .quick-facts {
+          grid-template-columns: 1fr;
+        }
+
+        h1 {
+          font-size: 2.3rem;
+        }
+
+        .hero-copy,
+        .hero-notes,
+        .panel {
+          padding: 18px;
+        }
+
+        .actions button,
+        .actions input[type="file"],
+        .actions a {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .video-frame,
+        video {
+          min-height: 250px;
+        }
+
+        textarea {
+          min-height: 140px;
+        }
+
+        .scanner-stage-stack {
+          order: -1;
+        }
+
+        .artifact-card {
+          gap: 14px;
+        }
+
+        .artifact-image {
+          max-width: 240px;
+          margin: 0 auto;
+        }
+
+        .access-summary {
+          grid-template-columns: 1fr;
+        }
+
+        .list-toolbar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace-grid">
+        <div class="stack">
+          <section class="hero-copy">
+          <div class="eyebrow">Verifier Reference Lab</div>
+          <h1>Scan the exact envelope, not a hand-waved demo string.</h1>
+          <p>
+            This lab generates a signed QR artifact from the narrowed verifier
+            flow, then sends the scanned payload through the live
+            <code>/verifier/verify-scanned</code> path. It replaces the old
+            desktop-only scanner with a browser tester built around the current
+            contract.
+          </p>
+          <div class="quick-facts">
+            <div class="quick-fact">
+              <strong>Golden path</strong>
+              <span>Generate QR, open fullscreen on device A, scan from device B.</span>
+            </div>
+            <div class="quick-fact">
+              <strong>Replay proof</strong>
+              <span>Keep fixed nonce enabled, then verify the same generated QR twice.</span>
+            </div>
+            <div class="quick-fact">
+              <strong>Native camera warning</strong>
+              <span>Use the lab camera, not the iPhone Camera app, if you want verifier behavior.</span>
+            </div>
+          </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Scenario Generator</h3>
+                <p>Build fresh demo material and render a scannable QR image.</p>
+              </div>
+            </div>
+            <div class="scenario-grid">
+              <label>
+                Scenario
+                <select id="scenario-select">
+                  <option value="valid">Valid first scan</option>
+                  <option value="expired">Expired credential</option>
+                  <option value="revoked">Revoked certificate</option>
+                  <option value="subdomain-allowed">Subdomain allowed</option>
+                  <option value="subdomain-blocked">Subdomain blocked</option>
+                  <option value="payload-mismatch">Payload mismatch</option>
+                </select>
+              </label>
+              <label>
+                Nonce label
+                <select id="nonce-style">
+                  <option value="fixed">Fixed nonce per scenario</option>
+                  <option value="timestamp">Timestamped nonce</option>
+                </select>
+              </label>
+              <label>
+                API key
+                <input
+                  id="api-key-input"
+                  type="password"
+                  placeholder="Optional unless verifier API keys are enabled"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <p class="muted" style="margin-top: 14px">
+              Use <strong>Fixed nonce per scenario</strong> to prove replay
+              blocking. If you regenerate a QR with a new timestamped nonce, the
+              verifier will correctly treat it as a fresh credential instead of
+              replay.
+            </p>
+            <div class="actions" style="margin-top: 18px">
+              <button class="primary" id="generate-button">Generate demo QR</button>
+              <button class="secondary" id="show-qr-fullscreen-button" disabled>
+                Show QR fullscreen
+              </button>
+              <button class="secondary" id="verify-current-button" disabled>
+                Verify current QR without scanning
+              </button>
+              <button class="secondary" id="download-qr-button" disabled>
+                Download QR image
+              </button>
+              <button class="secondary" id="copy-payload-button" disabled>
+                Copy QR payload
+              </button>
+            </div>
+            <div class="artifact-frame" style="margin-top: 22px">
+              <div class="artifact-card">
+                <img
+                  id="artifact-image"
+                  class="artifact-image"
+                  alt="Generated verifier QR"
+                />
+                <div class="meta-list">
+                  <div>
+                    <strong>Scenario</strong>
+                    <span id="artifact-scenario">No scenario loaded.</span>
+                  </div>
+                  <div>
+                    <strong>Nonce</strong>
+                    <span id="artifact-nonce">-</span>
+                  </div>
+                  <div>
+                    <strong>Payload</strong>
+                    <span id="artifact-payload">-</span>
+                  </div>
+                  <div>
+                    <strong>Verified Domains</strong>
+                    <span id="artifact-domains">-</span>
+                  </div>
+                  <div>
+                    <strong>Certificate Mode</strong>
+                    <span id="artifact-certificate">-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Scanned Payload</h3>
+                <p>
+                  The browser can scan from the camera or from a QR image file.
+                </p>
+              </div>
+            </div>
+            <p class="muted" style="margin-bottom: 18px">
+              Camera scan means this device's camera must look at a QR shown on
+              <strong>another screen</strong> or on paper. If you are on the
+              laptop, show the QR on your phone. If you are on the phone, show
+              the QR on your laptop. The native iPhone Camera app is not the
+              verifier and will open the payload URL directly.
+            </p>
+            <div class="scanner-panel-grid">
+              <div class="scanner-workbench">
+                <div class="video-frame">
+                  <video id="scanner-video" playsinline muted></video>
+                  <div class="video-overlay" id="video-overlay">
+                    Generate demo material, then point this device's camera at the
+                    QR on another screen, or upload the QR image instead.
+                  </div>
+                </div>
+                <canvas id="scanner-canvas" hidden></canvas>
+                <div class="actions">
+                  <button class="primary" id="start-camera-button">Start camera scan</button>
+                  <button class="secondary" id="stop-camera-button" disabled>Stop camera</button>
+                  <button class="secondary" id="refresh-cameras-button">Refresh cameras</button>
+                  <button class="secondary" id="upload-image-button" type="button">Upload QR image</button>
+                  <input
+                    id="image-input"
+                    class="file-input-hidden"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                  />
+                </div>
+                <div class="scenario-grid">
+                  <label>
+                    Camera source
+                    <select id="camera-select">
+                      <option value="">Environment-facing camera</option>
+                    </select>
+                  </label>
+                  <label>
+                    Decoder mode
+                    <input id="decoder-mode-input" type="text" readonly />
+                  </label>
+                </div>
+                <label>
+                  Decoded QR payload
+                  <textarea
+                    id="scanned-payload"
+                    placeholder="Camera or image decode results appear here."
+                  ></textarea>
+                </label>
+                <div class="actions">
+                  <button class="primary" id="verify-scanned-button" disabled>
+                    Verify scanned payload
+                  </button>
+                </div>
+              </div>
+              <div class="scanner-stage-stack">
+                <div id="capture-indicator" class="capture-indicator">
+                  <strong>Camera capture state</strong>
+                  <span id="capture-indicator-text">No QR captured yet.</span>
+                </div>
+                <div class="stage-card">
+                  <h4>Verification result</h4>
+                  <p class="stage-note">
+                    The last verifier decision is surfaced here immediately after
+                    scan or direct verify.
+                  </p>
+                  <div id="result-panel" class="status-banner" hidden></div>
+                </div>
+                <div class="stage-card">
+                  <h4>Scan status</h4>
+                  <p class="stage-note">
+                    Decode, camera, and fallback state changes appear here while
+                    the scanner is active.
+                  </p>
+                  <div id="scan-status" class="status-banner" hidden></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Recent History</h3>
+                <p>Each run records scenario, stage, and reservation state.</p>
+              </div>
+            </div>
+            <div id="history-list" class="history-list">
+              <div class="history-item">
+                <strong>Waiting</strong>
+                <div class="muted">
+                  Generate a QR, scan it, and the lab will record the verifier
+                  outcome here.
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="stack sidebar-stack">
+          <section class="hero-notes">
+            <div>
+              <h2>What This Proves</h2>
+              <p>
+                The QR actually carries a compact signed envelope. The browser
+                decodes the QR, submits the scanned payload, and shows the
+                verifier stage the API returns.
+              </p>
+            </div>
+            <div>
+              <h2>Expected Stages</h2>
+              <p>
+                <code>accepted</code>, <code>replay_guard</code>,
+                <code>time_window</code>, <code>certificate_status</code>, and
+                <code>payload_revalidation</code>.
+              </p>
+            </div>
+            <div>
+              <h2>Fastest Test</h2>
+              <p>
+                Generate a QR, press <code>Verify current QR without scanning</code>,
+                then press it again to confirm <code>replay_guard</code>.
+              </p>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Runtime Posture</h3>
+                <p>What this verifier instance is enforcing right now.</p>
+              </div>
+            </div>
+            <div id="runtime-status-grid" class="status-grid"></div>
+            <div id="trace-status" class="trace-list" style="margin-top: 18px"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h3>Access Control</h3>
+                <p>Issue, rotate, and revoke verifier API keys for authenticated testing.</p>
+              </div>
+            </div>
+            <div class="scenario-grid">
+              <label>
+                Admin token
+                <input
+                  id="admin-token-input"
+                  type="password"
+                  placeholder="Required for admin key management"
+                  autocomplete="off"
+                />
+              </label>
+              <label>
+                New key label
+                <input
+                  id="admin-key-label-input"
+                  type="text"
+                  placeholder="lab-client"
+                  autocomplete="off"
+                />
+              </label>
+            </div>
+            <div class="actions" style="margin-top: 18px">
+              <button class="primary" id="issue-key-button">Issue verifier key</button>
+              <button class="secondary" id="refresh-keys-button">Refresh key list</button>
+            </div>
+            <div class="access-summary">
+              <div class="access-summary-item">
+                <strong>Active dynamic keys</strong>
+                <span id="access-active-count">0</span>
+              </div>
+              <div class="access-summary-item">
+                <strong>Configured keys</strong>
+                <span id="access-config-count">0</span>
+              </div>
+            </div>
+            <div id="access-status" class="status-banner" hidden></div>
+            <div class="list-toolbar">
+              <small id="access-list-caption">Showing issued verifier keys.</small>
+              <button class="secondary" id="toggle-access-list-button" hidden>Show all keys</button>
+            </div>
+            <div id="access-list" class="access-list" style="margin-top: 18px">
+              <div class="access-item">
+                <strong>Waiting</strong>
+                <div class="muted">Issue or list keys to manage verifier access here.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const scenarioSelect = document.getElementById("scenario-select");
+      const nonceStyleSelect = document.getElementById("nonce-style");
+      const generateButton = document.getElementById("generate-button");
+      const verifyCurrentButton = document.getElementById("verify-current-button");
+      const downloadQrButton = document.getElementById("download-qr-button");
+      const showQrFullscreenButton = document.getElementById("show-qr-fullscreen-button");
+      const copyPayloadButton = document.getElementById("copy-payload-button");
+      const startCameraButton = document.getElementById("start-camera-button");
+      const stopCameraButton = document.getElementById("stop-camera-button");
+      const refreshCamerasButton = document.getElementById("refresh-cameras-button");
+      const uploadImageButton = document.getElementById("upload-image-button");
+      const verifyScannedButton = document.getElementById("verify-scanned-button");
+      const imageInput = document.getElementById("image-input");
+      const cameraSelect = document.getElementById("camera-select");
+      const decoderModeInput = document.getElementById("decoder-mode-input");
+      const apiKeyInput = document.getElementById("api-key-input");
+      const adminTokenInput = document.getElementById("admin-token-input");
+      const adminKeyLabelInput = document.getElementById("admin-key-label-input");
+      const issueKeyButton = document.getElementById("issue-key-button");
+      const refreshKeysButton = document.getElementById("refresh-keys-button");
+      const toggleAccessListButton = document.getElementById("toggle-access-list-button");
+      const accessActiveCount = document.getElementById("access-active-count");
+      const accessConfigCount = document.getElementById("access-config-count");
+      const accessListCaption = document.getElementById("access-list-caption");
+      const artifactImage = document.getElementById("artifact-image");
+      const artifactScenario = document.getElementById("artifact-scenario");
+      const artifactNonce = document.getElementById("artifact-nonce");
+      const artifactPayload = document.getElementById("artifact-payload");
+      const artifactDomains = document.getElementById("artifact-domains");
+      const artifactCertificate = document.getElementById("artifact-certificate");
+      const scannedPayloadField = document.getElementById("scanned-payload");
+      const resultPanel = document.getElementById("result-panel");
+      const scanStatus = document.getElementById("scan-status");
+      const accessStatus = document.getElementById("access-status");
+      const accessList = document.getElementById("access-list");
+      const historyList = document.getElementById("history-list");
+      const runtimeStatusGrid = document.getElementById("runtime-status-grid");
+      const traceStatus = document.getElementById("trace-status");
+      const captureIndicatorText = document.getElementById("capture-indicator-text");
+      const video = document.getElementById("scanner-video");
+      const videoFrame = document.querySelector(".video-frame");
+      const videoOverlay = document.getElementById("video-overlay");
+      const scanCanvas = document.getElementById("scanner-canvas");
+      const scanCanvasContext = scanCanvas.getContext("2d");
+
+      const barcodeDetector =
+        "BarcodeDetector" in window
+          ? new BarcodeDetector({ formats: ["qr_code"] })
+          : null;
+      const hasNativeBarcodeDetector = Boolean(barcodeDetector);
+      const hasCameraCapture = Boolean(navigator.mediaDevices?.getUserMedia);
+      const hasCameraEnumeration = Boolean(navigator.mediaDevices?.enumerateDevices);
+
+      let activeDemo = null;
+      let activeStream = null;
+      let scanLoopId = null;
+      let scanPending = false;
+      const apiKeyStorageKey = "verifier-lab-api-key";
+      const adminTokenStorageKey = "verifier-lab-admin-token";
+      const cameraDeviceStorageKey = "verifier-lab-camera-device";
+      const fullscreenQrStorageKey = "verifier-lab-fullscreen-qr";
+      let activeKeyRecords = [];
+      let activeRuntimeStatus = null;
+      let showAllAccessKeys = false;
+      const nativeScanIntervalMs = 180;
+      const fallbackScanIntervalMs = 1500;
+
+      apiKeyInput.value = window.localStorage.getItem(apiKeyStorageKey) || "";
+      apiKeyInput.addEventListener("input", () => {
+        const normalized = apiKeyInput.value.trim();
+        if (normalized) {
+          window.localStorage.setItem(apiKeyStorageKey, normalized);
+        } else {
+          window.localStorage.removeItem(apiKeyStorageKey);
+        }
+      });
+      adminTokenInput.value = window.localStorage.getItem(adminTokenStorageKey) || "";
+      adminTokenInput.addEventListener("input", () => {
+        const normalized = adminTokenInput.value.trim();
+        if (normalized) {
+          window.localStorage.setItem(adminTokenStorageKey, normalized);
+        } else {
+          window.localStorage.removeItem(adminTokenStorageKey);
+        }
+      });
+      decoderModeInput.value = currentDecoderLabel();
+
+      const scenarioPresets = {
+        valid: {
+          label: "Valid first scan",
+          body: {},
+        },
+        expired: {
+          label: "Expired credential",
+          body: {
+            issued_offset_minutes: -10,
+            expires_offset_minutes: -1,
+          },
+        },
+        revoked: {
+          label: "Revoked certificate",
+          body: {
+            certificate_revoked: true,
+            certificate_revocation_reason: "Revoked in verifier lab scenario",
+          },
+        },
+        "subdomain-allowed": {
+          label: "Subdomain allowed",
+          body: {
+            payload: "https://login.acme.example/sign-in",
+            verified_domains: ["acme.example"],
+            allow_subdomains: true,
+          },
+        },
+        "subdomain-blocked": {
+          label: "Subdomain blocked",
+          body: {
+            payload: "https://login.acme.example/sign-in",
+            verified_domains: ["acme.example"],
+            allow_subdomains: false,
+          },
+        },
+        "payload-mismatch": {
+          label: "Payload mismatch",
+          body: {
+            payload: "https://evil.example/phish",
+            verified_domains: ["acme.example"],
+          },
+        },
+      };
+
+      function buildNonce(scenarioKey) {
+        if (nonceStyleSelect.value === "fixed") {
+          return `lab-${scenarioKey}`;
+        }
+        return `lab-${scenarioKey}-${Date.now()}`;
+      }
+
+      function buildScenarioRequest() {
+        const scenarioKey = scenarioSelect.value;
+        const preset = scenarioPresets[scenarioKey];
+        return {
+          label: preset.label,
+          body: {
+            ...preset.body,
+            nonce: buildNonce(scenarioKey),
+            usage_policy: "one_time",
+          },
+        };
+      }
+
+      function currentDecoderLabel() {
+        return hasNativeBarcodeDetector ? "native browser decoder" : "bundled verifier fallback";
+      }
+
+      function cameraUnavailableReason() {
+        if (hasCameraCapture) {
+          return "";
+        }
+        if (!window.isSecureContext) {
+          return "Camera capture is unavailable because this page is not running in a secure context. On iPhone Safari over plain LAN HTTP, use image upload or direct verify, or expose the lab over HTTPS.";
+        }
+        if (!navigator.mediaDevices) {
+          return "Camera capture is unavailable because navigator.mediaDevices is not exposed in this browser.";
+        }
+        return "Camera capture is unavailable because getUserMedia is not exposed in this browser.";
+      }
+
+      function updateCameraAvailability() {
+        const unavailableReason = cameraUnavailableReason();
+        const cameraSupported = !unavailableReason;
+
+        startCameraButton.disabled = !cameraSupported;
+        stopCameraButton.disabled = !cameraSupported || !activeStream;
+        refreshCamerasButton.disabled = !hasCameraEnumeration;
+
+        if (!cameraSupported) {
+          videoOverlay.textContent = "Camera capture is unavailable in this browser context. Use image upload or Verify current QR without scanning.";
+          cameraSelect.disabled = true;
+        }
+
+        return unavailableReason;
+      }
+
+      function buildJsonHeaders() {
+        const headers = { "Content-Type": "application/json" };
+        const apiKey = apiKeyInput.value.trim();
+        if (apiKey) {
+          headers["X-API-Key"] = apiKey;
+        }
+        return headers;
+      }
+
+      function buildAdminHeaders() {
+        const headers = { "Content-Type": "application/json" };
+        const adminToken = adminTokenInput.value.trim();
+        if (adminToken) {
+          headers["X-Admin-Token"] = adminToken;
+        }
+        return headers;
+      }
+
+      async function fetchJson(url, options = {}) {
+        const response = await fetch(url, options);
+        const requestId = response.headers.get("X-Request-ID") || "";
+        const payload = await response.json();
+        return { response, payload, requestId };
+      }
+
+      function renderBanner(target, title, message) {
+        const heading = document.createElement("strong");
+        heading.textContent = title;
+        const body = document.createElement("div");
+        body.textContent = message;
+        target.replaceChildren(heading, body);
+      }
+
+      function setStatus(target, stage, title, message) {
+        target.hidden = false;
+        target.className = `status-banner status-${stage}`;
+        renderBanner(target, title, message);
+      }
+
+      function clearStatus(target) {
+        target.hidden = true;
+        target.className = "status-banner";
+        target.replaceChildren();
+      }
+
+      function isActiveVerifierKey(record) {
+        if ("active" in record) {
+          return Boolean(record.active);
+        }
+        return record.status === "active";
+      }
+
+      function verifierKeySource(record) {
+        return record.source || "postgres-management";
+      }
+
+      function setCaptureIndicator(message) {
+        captureIndicatorText.textContent = message;
+      }
+
+      function flashVideoFrame(className) {
+        if (!videoFrame) return;
+        videoFrame.classList.remove("flash-capture", "flash-error");
+        videoFrame.classList.add(className);
+        window.setTimeout(() => {
+          videoFrame.classList.remove(className);
+        }, 900);
+      }
+
+      async function playTone({ frequency, durationMs }) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) return;
+
+        const audioContext = new AudioContextCtor();
+        try {
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.value = frequency;
+          gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.08, audioContext.currentTime + 0.02);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + durationMs / 1000);
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          oscillator.start();
+          oscillator.stop(audioContext.currentTime + durationMs / 1000);
+          await new Promise((resolve) => window.setTimeout(resolve, durationMs + 40));
+        } catch {
+          // Ignore audio feedback failures; visual feedback remains primary.
+        } finally {
+          await audioContext.close().catch(() => {});
+        }
+      }
+
+      function vibrateIfSupported(pattern) {
+        try {
+          if (navigator.vibrate) {
+            navigator.vibrate(pattern);
+          }
+        } catch {
+          // Ignore unsupported vibration attempts.
+        }
+      }
+
+      async function emitCaptureFeedback() {
+        vibrateIfSupported([70]);
+        await playTone({ frequency: 880, durationMs: 110 });
+      }
+
+      async function emitVerificationFeedback(allowed) {
+        vibrateIfSupported(allowed ? [45] : [35, 35, 35]);
+        await playTone({
+          frequency: allowed ? 1046 : 392,
+          durationMs: allowed ? 95 : 130,
+        });
+      }
+
+      function renderTrace(label, statusCode, requestId) {
+        traceStatus.replaceChildren();
+
+        const actionRow = document.createElement("div");
+        actionRow.className = "trace-row";
+        const actionLabel = document.createElement("div");
+        const actionHeading = document.createElement("strong");
+        actionHeading.textContent = "Last action";
+        const actionValue = document.createElement("span");
+        actionValue.textContent = label;
+        actionLabel.replaceChildren(actionHeading, actionValue);
+
+        const statusLabel = document.createElement("div");
+        const statusHeading = document.createElement("strong");
+        statusHeading.textContent = "HTTP status";
+        const statusValue = document.createElement("span");
+        statusValue.textContent = String(statusCode);
+        statusLabel.replaceChildren(statusHeading, statusValue);
+        actionRow.replaceChildren(actionLabel, statusLabel);
+
+        const traceRow = document.createElement("div");
+        traceRow.className = "trace-row";
+        const traceLabel = document.createElement("div");
+        const traceHeading = document.createElement("strong");
+        traceHeading.textContent = "Request trace";
+        const traceValue = document.createElement("code");
+        traceValue.textContent = requestId || "not returned";
+        traceLabel.replaceChildren(traceHeading, traceValue);
+
+        const decoderLabel = document.createElement("div");
+        const decoderHeading = document.createElement("strong");
+        decoderHeading.textContent = "Decoder";
+        const decoderValue = document.createElement("span");
+        decoderValue.textContent = currentDecoderLabel();
+        decoderLabel.replaceChildren(decoderHeading, decoderValue);
+        traceRow.replaceChildren(traceLabel, decoderLabel);
+
+        traceStatus.replaceChildren(actionRow, traceRow);
+      }
+
+      function renderRuntimeStatus(payload) {
+        activeRuntimeStatus = payload;
+        runtimeStatusGrid.replaceChildren();
+
+        const tiles = [
+          ["Verifier auth", payload.api_key_auth_enabled ? `required via ${payload.api_key_header}` : "open"],
+          ["Admin flow", payload.admin_api_key_management_enabled ? `enabled via ${payload.admin_header}` : "disabled"],
+          ["Rate limit", `${payload.rate_limit_max_requests} / ${payload.rate_limit_window_seconds}s`],
+          ["Decode limit", `${payload.decode_rate_limit_max_requests} / ${payload.rate_limit_window_seconds}s`],
+          ["Redis", payload.redis_connected ? "connected" : "local fallback"],
+          ["Image fallback", payload.decode_image_fallback_enabled ? "enabled" : "disabled"],
+        ];
+
+        tiles.forEach(([label, value]) => {
+          const tile = document.createElement("div");
+          tile.className = "status-tile";
+          const heading = document.createElement("strong");
+          heading.textContent = label;
+          const body = document.createElement("span");
+          body.textContent = value;
+          tile.replaceChildren(heading, body);
+          runtimeStatusGrid.append(tile);
+        });
+      }
+
+      function renderHistory(entry) {
+        const item = document.createElement("div");
+        item.className = `history-item history-${entry.stage}`;
+        const heading = document.createElement("strong");
+        heading.textContent = entry.stage;
+        const label = document.createElement("div");
+        label.textContent = entry.label;
+        const detail = document.createElement("small");
+        detail.textContent = `${entry.reason}${entry.reservationState ? ` | ${entry.reservationState}` : ""}`;
+        item.replaceChildren(heading, label, detail);
+
+        if (historyList.children.length === 1 && historyList.firstElementChild?.querySelector(".muted")) {
+          historyList.replaceChildren();
+        }
+        historyList.prepend(item);
+      }
+
+      function renderAccessList(records) {
+        activeKeyRecords = records;
+        accessList.replaceChildren();
+        const activeDynamicCount = records.filter(
+          (record) => verifierKeySource(record) !== "config" && isActiveVerifierKey(record)
+        ).length;
+        const configuredCount = records.filter((record) => verifierKeySource(record) === "config").length;
+        accessActiveCount.textContent = String(activeDynamicCount);
+        accessConfigCount.textContent = String(configuredCount);
+
+        if (!records.length) {
+          toggleAccessListButton.hidden = true;
+          accessListCaption.textContent = "Showing issued verifier keys.";
+          const empty = document.createElement("div");
+          empty.className = "access-item";
+          const heading = document.createElement("strong");
+          heading.textContent = "No dynamic keys";
+          const detail = document.createElement("div");
+          detail.className = "muted";
+          detail.textContent = "Issue a verifier API key to protect and test the POST endpoints.";
+          empty.replaceChildren(heading, detail);
+          accessList.append(empty);
+          return;
+        }
+
+        const sortedRecords = [...records].sort((left, right) => {
+          const leftActive = isActiveVerifierKey(left);
+          const rightActive = isActiveVerifierKey(right);
+          const leftSource = verifierKeySource(left);
+          const rightSource = verifierKeySource(right);
+          if (leftActive !== rightActive) return leftActive ? -1 : 1;
+          if (leftSource !== rightSource) return leftSource === "config" ? 1 : -1;
+          return right.created_at.localeCompare(left.created_at);
+        });
+        const visibleRecords = showAllAccessKeys ? sortedRecords : sortedRecords.slice(0, 6);
+        toggleAccessListButton.hidden = sortedRecords.length <= 6;
+        toggleAccessListButton.textContent = showAllAccessKeys ? "Show fewer keys" : "Show all keys";
+        accessListCaption.textContent = showAllAccessKeys
+          ? `Showing all ${sortedRecords.length} verifier keys.`
+          : `Showing ${visibleRecords.length} of ${sortedRecords.length} verifier keys.`;
+
+        visibleRecords.forEach((record) => {
+          const item = document.createElement("div");
+          item.className = "access-item";
+
+          const header = document.createElement("div");
+          header.className = "access-item-header";
+
+          const titleBlock = document.createElement("div");
+          const heading = document.createElement("strong");
+          heading.textContent = record.label;
+          const fingerprint = document.createElement("code");
+          fingerprint.textContent = record.key_id.slice(0, 16);
+          titleBlock.replaceChildren(heading, fingerprint);
+
+          const source = document.createElement("span");
+          source.className = "pill";
+          source.textContent = verifierKeySource(record);
+          header.replaceChildren(titleBlock, source);
+
+          const detail = document.createElement("small");
+          detail.textContent = `${isActiveVerifierKey(record) ? "active" : "inactive"} | created ${record.created_at}`;
+
+          const actions = document.createElement("div");
+          actions.className = "access-actions";
+
+          if (verifierKeySource(record) !== "config" && isActiveVerifierKey(record)) {
+            const useButton = document.createElement("button");
+            useButton.className = "secondary";
+            useButton.dataset.action = "use";
+            useButton.dataset.keyId = record.key_id;
+            useButton.textContent = "Use in lab";
+
+            const revokeButton = document.createElement("button");
+            revokeButton.className = "secondary";
+            revokeButton.dataset.action = "revoke";
+            revokeButton.dataset.keyId = record.key_id;
+            revokeButton.textContent = "Revoke";
+
+            actions.replaceChildren(useButton, revokeButton);
+          }
+
+          item.replaceChildren(header, detail, actions);
+          accessList.append(item);
+        });
+      }
+
+      function updateArtifactCard(label, demoPayload) {
+        artifactImage.src = `data:image/png;base64,${demoPayload.qr_png_base64}`;
+        artifactScenario.textContent = label;
+        artifactNonce.textContent = demoPayload.verify_request.envelope.claims.nonce;
+        artifactPayload.textContent = demoPayload.verify_request.envelope.claims.payload;
+        artifactDomains.textContent = demoPayload.issuer_state.verified_domains.join(", ") || "(none)";
+        artifactCertificate.textContent = demoPayload.issuer_state.certificate_revoked
+          ? "revoked"
+          : demoPayload.issuer_state.certificate_active
+            ? "active"
+            : "inactive";
+      }
+
+      function persistFullscreenQrState() {
+        if (!activeDemo) return;
+        window.localStorage.setItem(
+          fullscreenQrStorageKey,
+          JSON.stringify({
+            scenario: activeDemo.label,
+            nonce: activeDemo.verify_request.envelope.claims.nonce,
+            payload: activeDemo.verify_request.envelope.claims.payload,
+            qrPngBase64: activeDemo.qr_png_base64,
+          })
+        );
+      }
+
+      async function decodeImageBase64ThroughVerifier(imageBase64) {
+        const { response, payload, requestId } = await fetchJson("/verifier/decode-image", {
+          method: "POST",
+          headers: buildJsonHeaders(),
+          body: JSON.stringify({ image_base64: imageBase64 }),
+        });
+        renderTrace("Decode QR image", response.status, requestId);
+        if (!response.ok) {
+          const error = new Error(payload.detail || "QR decode failed");
+          if (response.status === 429) {
+            const retryAfterSeconds = Number.parseInt(response.headers.get("Retry-After") || "1", 10);
+            error.isRateLimit = true;
+            error.retryAfterSeconds = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+              ? retryAfterSeconds
+              : 1;
+          }
+          throw error;
+        }
+        return payload.qr_payload;
+      }
+
+      async function refreshRuntimeStatus() {
+        const { response, payload, requestId } = await fetchJson("/verifier/status", {
+          method: "GET",
+        });
+        renderTrace("Load verifier status", response.status, requestId);
+        if (!response.ok) {
+          throw new Error(payload.detail || "Failed to load verifier status");
+        }
+        renderRuntimeStatus(payload);
+      }
+
+      async function refreshCameraOptions() {
+        const rememberedDeviceId = window.localStorage.getItem(cameraDeviceStorageKey) || "";
+        cameraSelect.replaceChildren();
+
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Environment-facing camera";
+        cameraSelect.append(defaultOption);
+
+        if (!hasCameraEnumeration) {
+          defaultOption.textContent = "Camera list unavailable in this browser context";
+          cameraSelect.disabled = true;
+          return;
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const cameras = devices.filter((device) => device.kind === "videoinput");
+        cameras.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.textContent = device.label || `Camera ${index + 1}`;
+          cameraSelect.append(option);
+        });
+
+        if (rememberedDeviceId && cameras.some((device) => device.deviceId === rememberedDeviceId)) {
+          cameraSelect.value = rememberedDeviceId;
+        }
+        cameraSelect.disabled = false;
+      }
+
+      async function listVerifierKeys() {
+        const { response, payload, requestId } = await fetchJson("/admin/verifier-clients/api-keys", {
+          method: "GET",
+          headers: buildAdminHeaders(),
+        });
+        renderTrace("List verifier API keys", response.status, requestId);
+        if (!response.ok) {
+          throw new Error(payload.detail || "Failed to list verifier API keys");
+        }
+        renderAccessList(payload.records);
+        return payload.records;
+      }
+
+      async function issueVerifierKey() {
+        const { response, payload, requestId } = await fetchJson("/admin/verifier-clients/api-keys/issue", {
+          method: "POST",
+          headers: buildAdminHeaders(),
+          body: JSON.stringify({
+            label: adminKeyLabelInput.value.trim() || "lab-client",
+          }),
+        });
+        renderTrace("Issue verifier API key", response.status, requestId);
+        if (!response.ok) {
+          throw new Error(payload.detail || "Failed to issue verifier API key");
+        }
+        apiKeyInput.value = payload.plaintext_key;
+        window.localStorage.setItem(apiKeyStorageKey, payload.plaintext_key);
+        await listVerifierKeys();
+        setStatus(
+          accessStatus,
+          "accepted",
+          "Verifier Key Issued",
+          `Issued key ${payload.record.key_id.slice(0, 16)} and loaded it into the lab API key field.`
+        );
+        await refreshRuntimeStatus();
+      }
+
+      async function revokeVerifierKey(keyId) {
+        const { response, payload, requestId } = await fetchJson(`/admin/verifier-clients/api-keys/${keyId}/revoke`, {
+          method: "POST",
+          headers: buildAdminHeaders(),
+        });
+        renderTrace("Revoke verifier API key", response.status, requestId);
+        if (!response.ok) {
+          throw new Error(payload.detail || "Failed to revoke verifier API key");
+        }
+        await listVerifierKeys();
+        setStatus(
+          accessStatus,
+          "accepted",
+          "Verifier Key Revoked",
+          `Revoked key ${payload.record.key_id.slice(0, 16)}.`
+        );
+        await refreshRuntimeStatus();
+      }
+
+      async function generateDemo() {
+        clearStatus(resultPanel);
+        clearStatus(scanStatus);
+        const scenario = buildScenarioRequest();
+        generateButton.disabled = true;
+
+        try {
+          const { response, payload, requestId } = await fetchJson("/verifier/demo-materials", {
+            method: "POST",
+            headers: buildJsonHeaders(),
+            body: JSON.stringify(scenario.body),
+          });
+          renderTrace("Generate demo materials", response.status, requestId);
+          if (!response.ok) {
+            throw new Error(payload.detail || "Failed to generate demo materials");
+          }
+
+          activeDemo = {
+            label: scenario.label,
+            ...payload,
+          };
+          updateArtifactCard(scenario.label, payload);
+          scannedPayloadField.value = payload.qr_payload;
+          verifyScannedButton.disabled = false;
+          verifyCurrentButton.disabled = false;
+          downloadQrButton.disabled = false;
+          showQrFullscreenButton.disabled = false;
+          copyPayloadButton.disabled = false;
+          persistFullscreenQrState();
+          videoOverlay.textContent = `Demo QR is ready. Scan it with the camera or verify the current payload. Active decoder: ${currentDecoderLabel()}.`;
+          setStatus(
+            scanStatus,
+            "accepted",
+            "Demo Ready",
+            `Generated ${scenario.label.toLowerCase()} with nonce ${payload.verify_request.envelope.claims.nonce}. Decoder mode: ${currentDecoderLabel()}.`
+          );
+        } catch (error) {
+          setStatus(scanStatus, "signed_schema", "Generation Failed", error.message);
+        } finally {
+          generateButton.disabled = false;
+        }
+      }
+
+      async function verifyPayload(label, qrPayload) {
+        if (!activeDemo) {
+          setStatus(resultPanel, "signed_schema", "No Demo Loaded", "Generate demo materials before verifying.");
+          return;
+        }
+
+        const { response, payload, requestId } = await fetchJson("/verifier/verify-scanned", {
+          method: "POST",
+          headers: buildJsonHeaders(),
+          body: JSON.stringify({
+            qr_payload: qrPayload,
+            certificate: activeDemo.certificate,
+            issuer_state: activeDemo.issuer_state,
+          }),
+        });
+        renderTrace("Verify scanned payload", response.status, requestId);
+        if (!response.ok) {
+          throw new Error(payload.detail || "Verification request failed");
+        }
+
+        setStatus(
+          resultPanel,
+          payload.stage,
+          payload.allowed ? "Accepted" : "Blocked",
+          `${payload.reason}${payload.reservation_state ? ` | reservation: ${payload.reservation_state}` : ""}${activeDemo?.verify_request?.envelope?.claims?.nonce ? ` | nonce: ${activeDemo.verify_request.envelope.claims.nonce}` : ""}`
+        );
+        resultPanel.scrollIntoView({ behavior: "smooth", block: "center" });
+        renderHistory({
+          label,
+          stage: payload.stage,
+          reason: payload.reason,
+          reservationState: payload.reservation_state,
+        });
+        await emitVerificationFeedback(payload.allowed);
+        if (label.includes("Camera scan")) {
+          setCaptureIndicator(
+            payload.allowed
+              ? "QR captured from the live camera feed and accepted by the verifier."
+              : `QR captured from the live camera feed and blocked at ${payload.stage}.`
+          );
+        }
+      }
+
+      async function decodeFromBitmap(bitmap) {
+        if (!barcodeDetector) {
+          throw new Error("Native QR decoding is not available in this browser.");
+        }
+        const codes = await barcodeDetector.detect(bitmap);
+        if (!codes.length || !codes[0].rawValue) {
+          throw new Error("No QR payload was detected.");
+        }
+        return codes[0].rawValue;
+      }
+
+      async function handleUploadedImage(file) {
+        let qrPayload;
+        if (hasNativeBarcodeDetector) {
+          const bitmap = await createImageBitmap(file);
+          qrPayload = await decodeFromBitmap(bitmap);
+        } else {
+          qrPayload = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = async () => {
+              try {
+                resolve(await decodeImageBase64ThroughVerifier(reader.result));
+              } catch (error) {
+                reject(error);
+              }
+            };
+            reader.onerror = () => reject(new Error("Image file could not be read."));
+            reader.readAsDataURL(file);
+          });
+        }
+        scannedPayloadField.value = qrPayload;
+        verifyScannedButton.disabled = false;
+        setCaptureIndicator(`QR decoded from uploaded image using ${currentDecoderLabel()}.`);
+        flashVideoFrame("flash-capture");
+        await emitCaptureFeedback();
+        setStatus(
+          scanStatus,
+          "accepted",
+          "Image Decoded",
+          `QR payload decoded from uploaded image using ${currentDecoderLabel()}.`
+        );
+      }
+
+      async function scanVideoFrame() {
+        if (!activeStream || scanPending) {
+          return;
+        }
+
+        scanPending = true;
+        try {
+          let decodedValue = "";
+
+          if (hasNativeBarcodeDetector) {
+            const codes = await barcodeDetector.detect(video);
+            if (codes.length && codes[0].rawValue) {
+              decodedValue = codes[0].rawValue;
+            }
+          } else {
+            const width = video.videoWidth || 1280;
+            const height = video.videoHeight || 720;
+            scanCanvas.width = width;
+            scanCanvas.height = height;
+            scanCanvasContext.drawImage(video, 0, 0, width, height);
+            const frameBase64 = scanCanvas.toDataURL("image/png");
+            try {
+              decodedValue = await decodeImageBase64ThroughVerifier(frameBase64);
+            } catch (error) {
+              if (!String(error.message || "").includes("No QR payload")) {
+                throw error;
+              }
+            }
+          }
+
+          if (decodedValue) {
+            scannedPayloadField.value = decodedValue;
+            verifyScannedButton.disabled = false;
+            setCaptureIndicator("QR captured from the live camera feed. Verifying now.");
+            flashVideoFrame("flash-capture");
+            await emitCaptureFeedback();
+            setStatus(
+              scanStatus,
+              "accepted",
+              "Scan Captured",
+              `QR payload decoded from the live camera frame using ${currentDecoderLabel()}.`
+            );
+            stopCamera({ preserveIndicator: true });
+            await verifyPayload(activeDemo?.label || "Camera scan", decodedValue);
+            return;
+          }
+        } catch (error) {
+          flashVideoFrame("flash-error");
+          setCaptureIndicator(`Camera scan failed: ${error.message}`);
+          if (error?.isRateLimit) {
+            const retryAfterSeconds = error.retryAfterSeconds || 1;
+            setStatus(
+              scanStatus,
+              "time_window",
+              "Camera Scan Paused",
+              `Decode rate limit reached. The lab will retry in ${retryAfterSeconds}s.`
+            );
+            scanLoopId = window.setTimeout(scanVideoFrame, retryAfterSeconds * 1000);
+            return;
+          }
+          setStatus(scanStatus, "payload_revalidation", "Camera Scan Error", error.message);
+          stopCamera();
+          return;
+        } finally {
+          scanPending = false;
+        }
+
+        scanLoopId = window.setTimeout(
+          scanVideoFrame,
+          hasNativeBarcodeDetector ? nativeScanIntervalMs : fallbackScanIntervalMs
+        );
+      }
+
+      async function startCamera() {
+        if (!activeDemo) {
+          setStatus(scanStatus, "signed_schema", "No Demo Loaded", "Generate demo materials before starting the scanner.");
+          return;
+        }
+
+        const unavailableReason = cameraUnavailableReason();
+        if (unavailableReason) {
+          setStatus(scanStatus, "payload_revalidation", "Camera Unsupported", unavailableReason);
+          return;
+        }
+
+        try {
+          const selectedDeviceId = cameraSelect.value;
+          const videoConstraints = selectedDeviceId
+            ? { deviceId: { exact: selectedDeviceId } }
+            : { facingMode: { ideal: "environment" } };
+          activeStream = await navigator.mediaDevices.getUserMedia({
+            video: videoConstraints,
+            audio: false,
+          });
+          video.srcObject = activeStream;
+          await video.play();
+          await refreshCameraOptions();
+          videoOverlay.textContent = `Point the camera at the generated QR artifact. Active decoder: ${currentDecoderLabel()}.`;
+          startCameraButton.disabled = true;
+          stopCameraButton.disabled = false;
+          setCaptureIndicator("Camera active. Waiting for a QR on another screen or on paper.");
+          scanLoopId = window.setTimeout(
+            scanVideoFrame,
+            hasNativeBarcodeDetector ? nativeScanIntervalMs : fallbackScanIntervalMs
+          );
+        } catch (error) {
+          flashVideoFrame("flash-error");
+          setCaptureIndicator(`Camera access failed: ${error.message}`);
+          setStatus(scanStatus, "payload_revalidation", "Camera Access Failed", error.message);
+        }
+      }
+
+      function stopCamera({ preserveIndicator = false } = {}) {
+        if (scanLoopId) {
+          clearTimeout(scanLoopId);
+          scanLoopId = null;
+        }
+        scanPending = false;
+        if (activeStream) {
+          activeStream.getTracks().forEach((track) => track.stop());
+          activeStream = null;
+        }
+        video.srcObject = null;
+        const unavailableReason = updateCameraAvailability();
+        videoOverlay.textContent = unavailableReason
+          ? "Camera capture is unavailable in this browser context. Use image upload or Verify current QR without scanning."
+          : "Camera idle. Generate a QR and scan again when ready.";
+        if (!preserveIndicator) {
+          setCaptureIndicator(
+            unavailableReason
+              ? unavailableReason
+              : "No QR captured yet."
+          );
+        }
+      }
+
+      async function initializeLab() {
+        try {
+          await refreshRuntimeStatus();
+        } catch (error) {
+          setStatus(resultPanel, "signed_schema", "Runtime Status Failed", error.message);
+        }
+
+        await refreshCameraOptions().catch(() => {});
+        const cameraWarning = updateCameraAvailability();
+
+        if (adminTokenInput.value.trim()) {
+          await listVerifierKeys().catch(() => {});
+        }
+
+        if (activeRuntimeStatus?.api_key_auth_enabled && !apiKeyInput.value.trim()) {
+          setStatus(
+            scanStatus,
+            "payload_revalidation",
+            "API Key Required",
+            "This verifier requires an API key for POST actions. Issue or enter a key, then generate demo material."
+          );
+          return;
+        }
+
+        await generateDemo();
+        if (cameraWarning) {
+          setStatus(scanStatus, "payload_revalidation", "Camera Unsupported", cameraWarning);
+        }
+      }
+
+      generateButton.addEventListener("click", generateDemo);
+      downloadQrButton.addEventListener("click", () => {
+        if (!activeDemo) return;
+        const anchor = document.createElement("a");
+        anchor.href = `data:image/png;base64,${activeDemo.qr_png_base64}`;
+        anchor.download = `${activeDemo.verify_request.envelope.claims.nonce}.png`;
+        anchor.click();
+      });
+      showQrFullscreenButton.addEventListener("click", () => {
+        if (!activeDemo) return;
+        persistFullscreenQrState();
+        window.open("/verifier/qr-display", "_blank", "noopener,noreferrer");
+      });
+      copyPayloadButton.addEventListener("click", async () => {
+        if (!activeDemo) return;
+        try {
+          if (!navigator.clipboard?.writeText) {
+            throw new Error("Clipboard write is not available in this browser.");
+          }
+          await navigator.clipboard.writeText(activeDemo.qr_payload);
+          setStatus(scanStatus, "accepted", "Payload Copied", "Copied the current QR payload to the clipboard.");
+        } catch (error) {
+          setStatus(scanStatus, "payload_revalidation", "Copy Failed", error.message);
+        }
+      });
+      issueKeyButton.addEventListener("click", async () => {
+        issueKeyButton.disabled = true;
+        try {
+          await issueVerifierKey();
+        } catch (error) {
+          setStatus(accessStatus, "signed_schema", "Key Issue Failed", error.message);
+        } finally {
+          issueKeyButton.disabled = false;
+        }
+      });
+      refreshKeysButton.addEventListener("click", async () => {
+        refreshKeysButton.disabled = true;
+        try {
+          await listVerifierKeys();
+          setStatus(accessStatus, "accepted", "Key List Updated", "Loaded current verifier API keys.");
+        } catch (error) {
+          setStatus(accessStatus, "signed_schema", "Key List Failed", error.message);
+        } finally {
+          refreshKeysButton.disabled = false;
+        }
+      });
+      toggleAccessListButton.addEventListener("click", () => {
+        showAllAccessKeys = !showAllAccessKeys;
+        renderAccessList(activeKeyRecords);
+      });
+      accessList.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+        const keyId = target.dataset.keyId;
+        const action = target.dataset.action;
+        if (!keyId || !action) return;
+
+        target.disabled = true;
+        try {
+          if (action === "use") {
+            setStatus(
+              accessStatus,
+              "payload_revalidation",
+              "Key Copy Required",
+              "Plaintext API keys are only shown once at issue time. Issue a fresh key to load a plaintext value into the lab."
+            );
+          } else if (action === "revoke") {
+            await revokeVerifierKey(keyId);
+          }
+        } catch (error) {
+          setStatus(accessStatus, "signed_schema", "Key Action Failed", error.message);
+        } finally {
+          target.disabled = false;
+        }
+      });
+      verifyCurrentButton.addEventListener("click", async () => {
+        if (!activeDemo) return;
+        scannedPayloadField.value = activeDemo.qr_payload;
+        await verifyPayload(`${activeDemo.label} (direct verify)`, activeDemo.qr_payload);
+      });
+      verifyScannedButton.addEventListener("click", async () => {
+        const qrPayload = scannedPayloadField.value.trim();
+        if (!qrPayload) {
+          setStatus(scanStatus, "signed_schema", "Missing Payload", "Scan or paste a QR payload before verifying.");
+          return;
+        }
+        try {
+          await verifyPayload(`${activeDemo?.label || "Manual payload"} (scanned)`, qrPayload);
+        } catch (error) {
+          setStatus(resultPanel, "signed_schema", "Verification Failed", error.message);
+        }
+      });
+      startCameraButton.addEventListener("click", startCamera);
+      stopCameraButton.addEventListener("click", stopCamera);
+      refreshCamerasButton.addEventListener("click", async () => {
+        try {
+          await refreshCameraOptions();
+          setStatus(scanStatus, "accepted", "Camera List Updated", "Refreshed available camera sources.");
+        } catch (error) {
+          setStatus(scanStatus, "payload_revalidation", "Camera List Failed", error.message);
+        }
+      });
+      uploadImageButton.addEventListener("click", () => {
+        imageInput.click();
+      });
+      cameraSelect.addEventListener("change", () => {
+        if (cameraSelect.value) {
+          window.localStorage.setItem(cameraDeviceStorageKey, cameraSelect.value);
+        } else {
+          window.localStorage.removeItem(cameraDeviceStorageKey);
+        }
+      });
+      imageInput.addEventListener("change", async (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        try {
+          await handleUploadedImage(file);
+        } catch (error) {
+          setStatus(scanStatus, "payload_revalidation", "Image Decode Failed", error.message);
+        } finally {
+          imageInput.value = "";
+        }
+      });
+
+      window.addEventListener("beforeunload", stopCamera);
+      initializeLab().catch((error) => {
+        setStatus(resultPanel, "signed_schema", "Lab Bootstrap Failed", error.message);
+      });
+    </script>
+  </body>
+</html>

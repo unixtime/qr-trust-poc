@@ -1,0 +1,104 @@
+{
+  "postgres_source_of_truth": [
+    {
+      "label": "Dedicated Postgres source-of-truth database",
+      "uri": "docs/public/network-contracts/reference-postgres-schema.sql",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "migration_ledger": [
+    {
+      "label": "Migration ledger status gate",
+      "uri": "docs/public/network-contracts/postgres-migration-deployment-policy.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "restore_automation": [
+    {
+      "label": "Restore automation evidence packet",
+      "uri": "docs/public/network-contracts/examples/restore-automation-evidence-reference.json",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "packaged_deployment_ownership": [
+    {
+      "label": "Packaged deployment ownership",
+      "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    },
+    {
+      "label": "Packaged deployment approval evidence packet",
+      "uri": "docs/public/network-contracts/examples/packaged-deployment-approval-evidence-reference.json",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-21"
+    }
+  ],
+  "nats_propagation": [
+    {
+      "label": "NATS JetStream propagation plan",
+      "uri": "docs/public/network-contracts/nats-subjects.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "managed_key_material": [
+    {
+      "label": "Managed public-key material source",
+      "uri": "docs/public/network-contracts/managed-signing-custody-deployment-policy.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "managed_signing_custody": [
+    {
+      "label": "Managed signing custody provider",
+      "uri": "docs/public/network-contracts/managed-signing-custody-deployment-policy.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "custody_audit_export": [
+    {
+      "label": "Publication-backed signing custody audit export",
+      "uri": "docs/public/network-contracts/examples/signing-custody-publication-audit-export-reference.json",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "runtime_safety_provider": [
+    {
+      "label": "Runtime-safety provider integration",
+      "uri": "docs/public/network-contracts/runtime-safety-provider-deployment-policy.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "scanner_decision_persistence": [
+    {
+      "label": "Scanner decision persistence evidence",
+      "uri": "docs/public/network-contracts/scanner-decision.schema.json",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "worker_operations_evidence": [
+    {
+      "label": "Worker operations evidence packet",
+      "uri": "docs/public/network-contracts/examples/worker-operations-evidence-reference.json",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ],
+  "operator_runbooks": [
+    {
+      "label": "Operator runbook bundle",
+      "uri": "docs/public/network-contracts/deployment-readiness-operator-guide.md",
+      "owner": "QR Trust operator",
+      "reviewed_at": "2026-05-20"
+    }
+  ]
+}
