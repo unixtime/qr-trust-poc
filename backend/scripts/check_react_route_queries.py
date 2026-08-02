@@ -44,6 +44,12 @@ def _expect_text(page: Page, text: str) -> None:
     expect(page.get_by_text(text).first).to_be_visible(timeout=10_000)
 
 
+def _expect_pressed(page: Page, test_id: str, pressed: bool) -> None:
+    expect(page.get_by_test_id(test_id)).to_have_attribute(
+        "aria-pressed", "true" if pressed else "false", timeout=10_000
+    )
+
+
 def _check_about_and_removed_routes(page: Page, base_url: str) -> None:
     page.goto(f"{base_url}/about", wait_until="domcontentloaded")
     _expect_text(page, "How it works")
@@ -62,6 +68,7 @@ def _check_lab_query_refresh(page: Page, base_url: str) -> None:
         wait_until="domcontentloaded",
     )
     expect(page.get_by_test_id("flow-stepper")).to_be_visible(timeout=10_000)
+    _expect_pressed(page, "scenario-payload-mismatch", True)
     _expect_text(page, "Payload mismatch")
     _expect_text(
         page,
@@ -69,6 +76,8 @@ def _check_lab_query_refresh(page: Page, base_url: str) -> None:
     )
 
     _push_route(page, "/?scenario=subdomain-blocked&nonce=fixed&autogenerate=0&compare=subdomain-allowed")
+    _expect_pressed(page, "scenario-subdomain-blocked", True)
+    _expect_pressed(page, "scenario-payload-mismatch", False)
     _expect_text(page, "Subdomain blocked")
     _expect_text(
         page,

@@ -198,6 +198,8 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # Venv-only API: no postgres or redis, so the smoke can assert route
+      # and query-param behavior but not operator panels backed by the DB.
       - name: Start verifier API
         env:
           REDIS_STARTUP_ENABLED: "false"
