@@ -91,3 +91,9 @@ docker-compose.override.yml
 
 # Redis
 dump.rdb
+
+# Agent tooling and browser-session scratch
+/.agents/
+/.playwright-mcp/
+/skills-lock.json
+/lab-artifact-quiet-zone-result.png

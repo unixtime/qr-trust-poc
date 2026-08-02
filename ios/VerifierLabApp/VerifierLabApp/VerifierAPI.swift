@@ -129,11 +129,11 @@ struct VerifierAPI {
                     path: "/scanner/decisions",
                     body: requestBody
                 )
-            } catch let error as URLError {
+            } catch {
+                // Any per-candidate failure (network, HTTP, or decode) moves on
+                // to the next candidate; only an all-candidates failure throws.
                 lastError = error
                 continue
-            } catch {
-                throw error
             }
         }
 
@@ -149,11 +149,11 @@ struct VerifierAPI {
                     path: "/verifier/status"
                 )
                 return VerifierStatusProbe(baseURLString: baseURLString, status: status)
-            } catch let error as URLError {
+            } catch {
+                // Any per-candidate failure (network, HTTP, or decode) moves on
+                // to the next candidate; only an all-candidates failure throws.
                 lastError = error
                 continue
-            } catch {
-                throw error
             }
         }
 
@@ -169,11 +169,11 @@ struct VerifierAPI {
                     path: "/scanner/provider-profile"
                 )
                 return ProviderProfileDocumentProbe(baseURLString: baseURLString, data: data)
-            } catch let error as URLError {
+            } catch {
+                // Any per-candidate failure (network, HTTP, or decode) moves on
+                // to the next candidate; only an all-candidates failure throws.
                 lastError = error
                 continue
-            } catch {
-                throw error
             }
         }
 

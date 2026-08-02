@@ -204,42 +204,53 @@ function scannerPreviewSummary(decision: ScanDecision) {
   return decision.primary_message
 }
 
-function riskStripeClass(level: "green" | "amber" | "red" | undefined) {
-  if (level === "green") return "bg-emerald-500"
-  if (level === "red") return "bg-red-500"
-  return "bg-amber-500"
+function riskStripeClass(level: "green" | "amber" | "red"): string {
+  if (level === "green") return "bg-(--trust-green)"
+  if (level === "red") return "bg-(--trust-red)"
+  return "bg-(--trust-amber)"
 }
 
-function riskPillClass(level: "green" | "amber" | "red" | undefined) {
+function riskPillClass(level: "green" | "amber" | "red"): string {
   if (level === "green") {
-    return "border-emerald-600/18 bg-emerald-500/10 text-emerald-950"
+    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
   }
   if (level === "red") {
-    return "border-red-500/18 bg-red-500/10 text-red-950"
+    return "border-(--trust-red)/25 bg-(--trust-red)/10 text-(--trust-red)"
   }
-  return "border-amber-500/22 bg-amber-500/12 text-amber-950"
+  return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
 }
 
-function signalClasses(state: string) {
-  const normalized = state.toLowerCase()
+function signalClasses(state: string): string {
+  const value = state.toLowerCase()
   if (
-    normalized.includes("blocked") ||
-    normalized.includes("mismatch") ||
-    normalized.includes("revoked") ||
-    normalized.includes("expired") ||
-    normalized.includes("risky")
+    value.includes("blocked") ||
+    value.includes("mismatch") ||
+    value.includes("revoked") ||
+    value.includes("expired") ||
+    value.includes("risky")
   ) {
-    return "border-red-500/18 bg-red-500/10 text-red-950"
+    return "border-(--trust-red)/25 bg-(--trust-red)/10 text-(--trust-red)"
   }
   if (
-    normalized.includes("unknown") ||
-    normalized.includes("unverified") ||
-    normalized.includes("not") ||
-    normalized.includes("secondary")
+    value.includes("unknown") ||
+    value.includes("unverified") ||
+    value.includes("not") ||
+    value.includes("secondary")
   ) {
-    return "border-amber-500/22 bg-amber-500/12 text-amber-950"
+    return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
   }
-  return "border-emerald-600/18 bg-emerald-500/10 text-emerald-950"
+  if (
+    value.includes("verified") ||
+    value.includes("pass") ||
+    value.includes("ok") ||
+    value.includes("allowed") ||
+    value.includes("green") ||
+    value.includes("fresh") ||
+    value.includes("valid")
+  ) {
+    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
+  }
+  return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
 }
 
 function scannerDestinationUrl(decision: ScanDecision) {
@@ -400,10 +411,10 @@ function ScannerDecisionPanel({
           : "bg-amber-500"
   const cardClass =
     tone === "success"
-      ? "border-emerald-600/20 bg-emerald-500/10 text-emerald-950"
+      ? "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
       : tone === "blocked"
         ? "border-destructive/20 bg-destructive/10 text-destructive"
-        : "border-amber-500/24 bg-amber-500/12 text-amber-950"
+        : "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
   const riskLevel = scannerRiskLevel(decision)
   const reasonCodes = scannerUx?.reason_codes ?? decision.contract?.reason_codes ?? []
   const fingerprint =
@@ -627,7 +638,7 @@ function ScannerDecisionPanel({
   )
 }
 
-function ScanWorkbenchSection({
+export function ScanWorkbenchSection({
   workbench,
   camera,
   decoder,
@@ -673,14 +684,11 @@ function ScanWorkbenchSection({
   } = actions
 
   return (
-    <Card className="security-card overflow-hidden rounded-[1.35rem] bg-card/96">
-      <CardHeader className="border-b border-emerald-950/10 bg-card/72">
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b border-border/60 bg-card/72">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-stone-950 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white">
-                Step 2
-              </span>
               <span className="rounded-full border border-border/70 bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Capture and verify
               </span>
@@ -693,28 +701,13 @@ function ScanWorkbenchSection({
               result panel is the source of truth for the scan.
             </CardDescription>
           </div>
-          <div className="rounded-xl border border-emerald-950/10 bg-white/72 px-3 py-2 text-sm leading-6 text-muted-foreground">
+          <div className="rounded-xl border border-border/60 bg-card/72 px-3 py-2 text-sm leading-6 text-muted-foreground">
             <span className="font-medium text-foreground">Decoder:</span>{" "}
             {decoderLabel}
           </div>
         </div>
       </CardHeader>
       <CardContent className="grid gap-4 p-4 md:p-5">
-        <div className="grid gap-2 rounded-[1rem] border border-emerald-950/10 bg-emerald-600/8 p-3 text-sm leading-6 text-muted-foreground md:grid-cols-3">
-          <div>
-            <span className="font-semibold text-foreground">1. Generate</span>{" "}
-            a QR in the scenario builder.
-          </div>
-          <div>
-            <span className="font-semibold text-foreground">2. Scan</span>{" "}
-            with camera, upload, or pasted payload.
-          </div>
-          <div>
-            <span className="font-semibold text-foreground">3. Explain</span>{" "}
-            the green, orange, or red result.
-          </div>
-        </div>
-
         {secureContextBlocked ? (
           <Alert>
             <CircleAlert />
@@ -729,7 +722,7 @@ function ScanWorkbenchSection({
           <div className="grid gap-4">
             <div
               className={cn(
-                "qr-scan-surface relative overflow-hidden rounded-[1.25rem] border bg-[#0b100d] shadow-[0_16px_40px_rgba(13,18,15,0.18)]",
+                "relative overflow-hidden rounded-lg border bg-zinc-950",
                 frameFlashTone === "success"
                   ? "border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.22)]"
                   : frameFlashTone === "blocked"
@@ -759,7 +752,7 @@ function ScanWorkbenchSection({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-emerald-950/10 bg-emerald-600/8 p-3">
+            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
               <Button
                 onClick={startCamera}
                 disabled={!cameraSupported || isStartingCamera || isCameraRunning}
@@ -781,7 +774,7 @@ function ScanWorkbenchSection({
               </Button>
             </div>
 
-            <div className="grid gap-4 rounded-[1rem] border border-emerald-950/10 bg-white/72 p-4 md:grid-cols-2">
+            <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="camera-source">Camera source</FieldLabel>
                 {cameraDevices.length ? (
@@ -818,7 +811,7 @@ function ScanWorkbenchSection({
               </Field>
             </div>
 
-            <FieldGroup className="rounded-[1rem] border border-emerald-950/10 bg-white/72 p-4">
+            <FieldGroup className="rounded-[1rem] border border-border/60 bg-card/72 p-4">
               <Field>
                 <FieldLabel htmlFor="decoded-payload">Decoded QR payload</FieldLabel>
                 <Textarea
@@ -836,7 +829,7 @@ function ScanWorkbenchSection({
               </Field>
             </FieldGroup>
 
-            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-emerald-900/10 bg-emerald-600/8 p-3">
+            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
               <Button
                 onClick={verifyScannedPayload}
                 disabled={!scannedPayload.trim() || isVerifyingScanned}
@@ -895,5 +888,3 @@ function ScanWorkbenchSection({
     </Card>
   )
 }
-
-export default ScanWorkbenchSection

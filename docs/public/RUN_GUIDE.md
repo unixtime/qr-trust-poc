@@ -730,7 +730,7 @@ The smoke target checks:
 - `/verifier/status`
 - API key issue, QR demo-material generation, first accepted verification, and replay rejection
 - the React root route
-- the lab comparison route at `/lab?scenario=payload-mismatch&nonce=fixed&autogenerate=1&compare=valid`
+- the lab comparison route at `/?scenario=payload-mismatch&nonce=fixed&autogenerate=1&compare=valid`
 
 For the React app itself, run the route-query navigation smoke while the dev
 server is active:
@@ -740,7 +740,7 @@ make check-route-navigation FRONTEND_DEV_PORT=5173
 ```
 
 That browser check pushes query-only route changes inside the same page session
-and verifies that `/learn`, `/lab`, and `/operator` refresh their state. It is
+and verifies that `/`, `/about`, and `/operator` refresh their state. It is
 the regression guard for stale guided-track, scenario, or operator-handoff
 state when only the query string changes.
 

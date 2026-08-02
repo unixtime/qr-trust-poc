@@ -174,9 +174,30 @@ struct ProviderConnectionStatus: Equatable {
     let tone: ProviderConnectionTone
     let title: String
     let message: String
+    /// The one endpoint that actually answered; nil while checking or when none did.
     let endpoint: String?
+    /// The full failover candidate list the app tries, joined for display.
+    let candidateEndpoints: String?
     let checkedAt: Date?
     let technicalDetail: String?
+
+    init(
+        tone: ProviderConnectionTone,
+        title: String,
+        message: String,
+        endpoint: String?,
+        candidateEndpoints: String? = nil,
+        checkedAt: Date?,
+        technicalDetail: String?
+    ) {
+        self.tone = tone
+        self.title = title
+        self.message = message
+        self.endpoint = endpoint
+        self.candidateEndpoints = candidateEndpoints
+        self.checkedAt = checkedAt
+        self.technicalDetail = technicalDetail
+    }
 
     static let notChecked = ProviderConnectionStatus(
         tone: .notChecked,

@@ -5,28 +5,10 @@ import type {
   ScannerDecisionResponse,
   UsagePolicy,
   VerifierDecision,
-  VerifierStatus,
 } from "@/lib/verifier-client"
+import type { NonceMode, ScenarioKey } from "@/domain/scenarios"
 
-export type ScenarioKey =
-  | "valid"
-  | "expired"
-  | "revoked"
-  | "subdomain-allowed"
-  | "subdomain-blocked"
-  | "payload-mismatch"
-  | "redirect-approved"
-  | "redirect-final-mismatch"
-  | "redirect-too-many-hops"
-  | "redirect-nested-shortener"
-  | "runtime-risky"
-  | "runtime-blocked"
-  | "stale-cache"
-  | "unknown-issuer"
-  | "artifact-quiet-zone"
-  | "artifact-mismatch"
-
-export type NonceMode = "fixed" | "timestamped"
+export type { NonceMode, ScenarioKey }
 export type { UsagePolicy }
 export type Tone = "neutral" | "success" | "blocked"
 
@@ -68,65 +50,6 @@ export type ScenarioMeta = {
     layer: string
     summary: string
   }
-}
-
-export type ScenarioGuideEntry = {
-  key: ScenarioKey
-  title: string
-  summary: string
-}
-
-export type NonceGuideEntry = {
-  key: NonceMode
-  title: string
-  summary: string
-}
-
-export type UsagePolicyGuideEntry = {
-  key: UsagePolicy
-  title: string
-  summary: string
-}
-
-export type ScenarioGeneratorSectionProps = {
-  scenario: ScenarioKey
-  nonceMode: NonceMode
-  usagePolicy: UsagePolicy
-  apiKey: string
-  currentScenario: ScenarioMeta
-  scenarioMeta: Record<ScenarioKey, ScenarioMeta>
-  scenarioGuide: ScenarioGuideEntry[]
-  nonceGuide: NonceGuideEntry[]
-  usagePolicyGuide: UsagePolicyGuideEntry[]
-  demo: DemoMaterialsResponse | null
-  generatedScenario: ScenarioMeta | null
-  scannerDecision: ScannerDecisionResponse | null
-  scannerDecisionPending: boolean
-  scannerDecisionError: string | null
-  generationError: string | null
-  generatorSettingsChanged: boolean
-  apiAuthEnabled: boolean
-  localKeyIssue: {
-    visible: boolean
-    pending: boolean
-    onIssue: () => void
-  }
-  showOptionGuide: boolean
-  isGenerating: boolean
-  isVerifyingCurrent: boolean
-  fixedReplayVisible: boolean
-  onScenarioChange: (value: ScenarioKey) => void
-  onNonceModeChange: (value: NonceMode) => void
-  onUsagePolicyChange: (value: UsagePolicy) => void
-  onApiKeyChange: (value: string) => void
-  onToggleOptionGuide: () => void
-  onGenerateDemo: () => void
-  onGenerateFreshValidDemo: () => void
-  onCheckScannerDecision: () => void
-  onOpenQrFullscreen: () => void
-  onVerifyCurrent: () => void
-  onDownloadQrImage: () => void
-  onCopyQrPayload: () => void
 }
 
 export type ScanWorkbenchSectionProps = {
@@ -184,21 +107,6 @@ export type ScanWorkbenchSectionProps = {
       elapsedMs: number,
     ) => void
   }
-}
-
-export type LabSupportRailProps = {
-  runtimeStatus: VerifierStatus | null
-  apiKeyHeader: string
-  apiKey: string
-  apiAuthEnabled: boolean
-  adminFlowEnabled: boolean
-  currentScenario: ScenarioMeta
-  compareScenario: ScenarioKey | null
-  comparisonScenario: ScenarioMeta | null
-  history: HistoryEntry[]
-  onOpenOperator: () => void
-  onClearLabKey: () => void
-  onGenerateComparisonDemo: () => void
 }
 
 export type QrDisplayModalProps = {

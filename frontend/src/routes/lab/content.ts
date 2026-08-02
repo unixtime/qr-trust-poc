@@ -1,12 +1,9 @@
 import type { DemoMaterialsRequest } from "@/lib/verifier-client"
 import type {
-  NonceGuideEntry,
   NonceMode,
-  ScenarioGuideEntry,
   ScenarioKey,
   ScenarioMeta,
   UsagePolicy,
-  UsagePolicyGuideEntry,
 } from "@/routes/lab/types"
 
 export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
@@ -311,120 +308,6 @@ export const fixedNonces: Record<ScenarioKey, string> = {
   "artifact-quiet-zone": "lab-artifact-quiet-zone-001",
   "artifact-mismatch": "lab-artifact-mismatch-001",
 }
-
-export const scenarioGuide: ScenarioGuideEntry[] = [
-  {
-    key: "valid",
-    title: "Valid first scan",
-    summary: "Baseline success path. Reusable public QR should keep passing; one-time QR should block on the second fixed-nonce scan.",
-  },
-  {
-    key: "expired",
-    title: "Expired",
-    summary: "Uses a past expiry time so the verifier should stop at the time-window gate before replay reservation.",
-  },
-  {
-    key: "revoked",
-    title: "Revoked certificate",
-    summary: "Uses the same payload shape but marks the certificate revoked so the verifier should stop at certificate_status.",
-  },
-  {
-    key: "subdomain-allowed",
-    title: "Subdomain allowed",
-    summary: "Uses a subdomain payload and issuer policy that explicitly allows subdomains, so the payload revalidation step should pass.",
-  },
-  {
-    key: "subdomain-blocked",
-    title: "Subdomain blocked",
-    summary: "Uses the same subdomain payload but disables subdomain trust, so payload_revalidation should block it.",
-  },
-  {
-    key: "payload-mismatch",
-    title: "Payload mismatch",
-    summary: "The signed envelope is valid but the destination is outside the issuer-approved domain set, so payload_revalidation should block it.",
-  },
-  {
-    key: "redirect-approved",
-    title: "Approved resolver flow",
-    summary: "Uses an enrolled resolver URL and an approved final destination, so redirect policy should keep the destination bound.",
-  },
-  {
-    key: "redirect-final-mismatch",
-    title: "Resolver final mismatch",
-    summary: "Uses an enrolled resolver that points to a non-approved final host, so redirect_policy should block it.",
-  },
-  {
-    key: "redirect-too-many-hops",
-    title: "Too many redirect hops",
-    summary: "Uses an enrolled resolver and approved final destination, but exceeds the issuer's maximum redirect-hop policy.",
-  },
-  {
-    key: "redirect-nested-shortener",
-    title: "Nested shortener",
-    summary: "Uses an enrolled resolver with a nested shortener marker that issuer policy explicitly disallows.",
-  },
-  {
-    key: "runtime-risky",
-    title: "Verified issuer, destination risky",
-    summary: "Issuer and destination binding pass, but runtime safety reports elevated risk and returns the paper's caution state.",
-  },
-  {
-    key: "runtime-blocked",
-    title: "Runtime safety blocked",
-    summary: "Issuer and destination binding pass, but runtime safety reports a high-confidence block condition before opening.",
-  },
-  {
-    key: "stale-cache",
-    title: "Stale verifier cache",
-    summary: "Issuer and destination are otherwise valid, but synchronized trust state is stale, so the scanner must not preserve a positive badge.",
-  },
-  {
-    key: "unknown-issuer",
-    title: "Signed, unknown issuer",
-    summary: "Generates a correctly signed envelope without enrolling its certificate, so the scanner decision should stop at the signed-unknown-issuer caution.",
-  },
-  {
-    key: "artifact-quiet-zone",
-    title: "Tampered print: missing quiet zone",
-    summary: "Renders the QR image without its quiet zone, so the scanner decision keeps the verified result but adds an artifact-integrity caution.",
-  },
-  {
-    key: "artifact-mismatch",
-    title: "Tampered print: payload mismatch",
-    summary: "Renders the QR image from an attacker destination, so the scanner decision blocks at artifact integrity before trusting the payload.",
-  },
-]
-
-export const nonceGuide: NonceGuideEntry[] = [
-  {
-    key: "fixed",
-    title: "Fixed nonce",
-    summary: "Use this when you want repeated-scan behavior to be obvious. It blocks only when the usage policy is one-time.",
-  },
-  {
-    key: "timestamped",
-    title: "Timestamped nonce",
-    summary: "Use this when you want a fresh credential on every generation without manually resetting replay state.",
-  },
-]
-
-export const usagePolicyGuide: UsagePolicyGuideEntry[] = [
-  {
-    key: "reusable_public",
-    title: "Reusable public",
-    summary: "Use this for printed posters, menus, labels, and shared public QR codes. Many users may scan the same code.",
-  },
-  {
-    key: "one_time",
-    title: "One-time",
-    summary: "Use this for login, payment, ticket, or other single-use flows where reuse should be blocked.",
-  },
-  {
-    key: "time_limited",
-    title: "Time-limited",
-    summary: "Use this for reusable codes that are valid only inside a freshness window, without per-user nonce consumption.",
-  },
-]
 
 const scenarioKeys = Object.keys(scenarioMeta) as ScenarioKey[]
 

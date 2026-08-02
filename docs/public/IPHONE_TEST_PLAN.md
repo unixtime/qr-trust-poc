@@ -109,7 +109,7 @@ scanner-fleet packet.
 Use the browser lab on the laptop to generate QR artifacts:
 
 ```text
-https://<mac-lan-ip-or-bonjour-name>:5174/lab
+https://<mac-lan-ip-or-bonjour-name>:5174/
 ```
 
 Use the iPhone app only to scan those QR codes and display the user-facing

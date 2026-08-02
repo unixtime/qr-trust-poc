@@ -19,6 +19,10 @@ DOCS_HOST ?= 127.0.0.1
 DOCS_PORT ?= 8088
 HTTPS_API_PUBLISH_PORT ?= 8443
 HTTPS_FRONTEND_PUBLISH_PORT ?= 5174
+# Advertised in provider profiles served by the HTTPS stack; must match the
+# hostname iOS clients dial (see scripts/write_ios_local_provider_config.sh).
+# Empty (no LocalHostName) falls back to the backend's request-Host echo.
+HTTPS_VERIFIER_PUBLIC_BASE_URL ?= $(shell h=$$(scutil --get LocalHostName 2>/dev/null); if [ -n "$$h" ]; then printf 'https://%s.local:$(HTTPS_API_PUBLISH_PORT)' "$$h"; fi)
 ROUTE_SMOKE_FRONTEND_BASE_URL ?= http://$(FRONTEND_DEV_HOST):$(FRONTEND_DEV_PORT)
 POSTGRES_PUBLISH_HOST ?= 127.0.0.1
 POSTGRES_PUBLISH_PORT ?= 5432
@@ -266,6 +270,7 @@ up-https-admin:
 	VERIFIER_ADMIN_TOKENS='$(VERIFIER_ADMIN_TOKENS)' \
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
+	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
 	API_PUBLISH_HOST='0.0.0.0' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	FRONTEND_PUBLISH_HOST='0.0.0.0' \

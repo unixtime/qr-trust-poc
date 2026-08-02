@@ -1117,7 +1117,7 @@ struct ContentView: View {
 
             providerRow("Trust program", provider.trustProgram)
             providerRow("Policy", provider.policy)
-            providerRow("Endpoint", provider.endpointSummary)
+            providerRow("Endpoints", provider.endpointSummary)
             providerRow("Profile state", profileState.capitalized)
             providerRow("Profile status", provider.signatureStatus)
         }
@@ -1191,6 +1191,10 @@ struct ContentView: View {
 
             if let endpoint = status.endpoint {
                 providerRow("Active endpoint", endpoint)
+            }
+
+            if let candidates = status.candidateEndpoints, candidates != status.endpoint {
+                providerRow("Configured endpoints", candidates)
             }
 
             if let checkedAt = status.checkedAt {

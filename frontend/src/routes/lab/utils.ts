@@ -15,7 +15,7 @@ export function toneForDecision(result: VerifierDecision): Tone {
 
 export function toneClasses(tone: Tone) {
   if (tone === "success") {
-    return "border-emerald-600/20 bg-emerald-500/10 text-emerald-950"
+    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
   }
   if (tone === "blocked") {
     return "border-destructive/20 bg-destructive/10 text-destructive"
@@ -39,10 +39,6 @@ export function toHistoryEntry(title: string, body: string, tone: Tone): History
     tone,
     timestamp: isoTimestamp(),
   }
-}
-
-export function compactCount(value: boolean) {
-  return value ? "enabled" : "disabled"
 }
 
 export function summariseError(error: unknown) {

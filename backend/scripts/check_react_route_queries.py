@@ -44,55 +44,50 @@ def _expect_text(page: Page, text: str) -> None:
     expect(page.get_by_text(text).first).to_be_visible(timeout=10_000)
 
 
-def _check_learn_query_refresh(page: Page, base_url: str) -> None:
-    page.goto(
-        f"{base_url}/learn?track=professor-seminar&step=0",
-        wait_until="domcontentloaded",
-    )
-    _expect_text(page, "Prepared sequence active")
-    _expect_text(page, "Current sequence step 1 of 5")
+def _check_about_and_removed_routes(page: Page, base_url: str) -> None:
+    page.goto(f"{base_url}/about", wait_until="domcontentloaded")
+    _expect_text(page, "How it works")
+    expect(page.get_by_test_id("about-open-workflow")).to_be_visible(timeout=10_000)
 
-    _push_route(page, "/learn?track=reviewer-defense&step=0")
-    _expect_text(page, "Prepared sequence active")
-    _expect_text(page, "Current sequence step 1 of 4")
+    _push_route(page, "/learn?track=professor-seminar&step=0")
+    _expect_text(page, "Route not found")
 
-    _push_route(page, "/learn?track=professor-seminar&step=3")
-    _expect_text(page, "Current sequence step 4 of 5")
-    _expect_text(page, "Ground the architecture in policy-driven binding")
+    _push_route(page, "/about")
+    _expect_text(page, "Issuer legitimacy")
 
 
 def _check_lab_query_refresh(page: Page, base_url: str) -> None:
     page.goto(
-        f"{base_url}/lab?scenario=payload-mismatch&nonce=fixed&autogenerate=0&compare=valid",
+        f"{base_url}/?scenario=payload-mismatch&nonce=fixed&autogenerate=0&compare=valid",
         wait_until="domcontentloaded",
     )
+    expect(page.get_by_test_id("flow-stepper")).to_be_visible(timeout=10_000)
     _expect_text(page, "Payload mismatch")
     _expect_text(
         page,
         "The envelope is signed correctly, but the payload falls outside the issuer-approved destination set.",
     )
 
-    _push_route(page, "/lab?scenario=subdomain-blocked&nonce=fixed&autogenerate=0&compare=subdomain-allowed")
+    _push_route(page, "/?scenario=subdomain-blocked&nonce=fixed&autogenerate=0&compare=subdomain-allowed")
     _expect_text(page, "Subdomain blocked")
     _expect_text(
         page,
         "The same subdomain should fail when the issuer policy only trusts the exact registered domain.",
     )
 
+    _push_route(page, "/lab?scenario=valid")
+    _expect_text(page, "Route not found")
+
 
 def _check_operator_query_refresh(page: Page, base_url: str) -> None:
-    page.goto(
-        f"{base_url}/operator?focus=runtime&scenario=valid&compare=expired&source=reviewer-defense",
-        wait_until="domcontentloaded",
-    )
-    _expect_text(page, "Operator Surface")
-    _expect_text(page, "valid vs expired")
-    _expect_text(page, "Start with runtime posture")
+    page.goto(f"{base_url}/operator?focus=runtime", wait_until="domcontentloaded")
+    expect(page.get_by_test_id("operator-panel-runtime")).to_be_visible(timeout=10_000)
 
-    _push_route(page, "/operator?focus=access&scenario=revoked&compare=valid&source=committee-review")
-    _expect_text(page, "revoked vs valid")
-    _expect_text(page, "Start with access control")
-    _expect_text(page, "committee review handoff")
+    _push_route(page, "/operator?focus=access")
+    expect(page.get_by_test_id("operator-panel-access")).to_be_visible(timeout=10_000)
+
+    _push_route(page, "/operator?focus=management")
+    expect(page.get_by_test_id("operator-panel-management")).to_be_visible(timeout=10_000)
 
 
 def main() -> None:
@@ -105,14 +100,20 @@ def main() -> None:
             page = context.new_page()
             page.set_default_timeout(10_000)
 
-            _check_learn_query_refresh(page, base_url)
-            print("PASS learn route query refresh")
+            _check_about_and_removed_routes(page, base_url)
+            print("PASS about and removed routes")
 
             _check_lab_query_refresh(page, base_url)
             print("PASS lab route query refresh")
 
             _check_operator_query_refresh(page, base_url)
             print("PASS operator route query refresh")
+
+            _push_route(page, "/about")
+            _expect_text(page, "How it works")
+            _expect_text(page, "Issuer legitimacy")
+            _expect_text(page, "Scanner decision")
+            print("PASS about route renders")
         finally:
             browser.close()
 

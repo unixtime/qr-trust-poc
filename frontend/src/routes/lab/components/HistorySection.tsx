@@ -7,37 +7,47 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import type { HistoryEntry } from "@/routes/lab/types"
-import { badgeVariantForTone, toneClasses } from "@/routes/lab/utils"
+import type { HistoryEntry, Tone } from "@/routes/lab/types"
 
-function HistorySection({ history }: { history: HistoryEntry[] }) {
+function toneBadgeVariant(tone: Tone): "secondary" | "destructive" | "outline" {
+  if (tone === "success") return "secondary"
+  if (tone === "blocked") return "destructive"
+  return "outline"
+}
+
+export function HistorySection({ history }: { history: HistoryEntry[] }) {
   return (
-    <Card className="security-card rounded-[1.9rem] bg-card/94">
+    <Card data-testid="history-section">
       <CardHeader>
-        <CardTitle className="text-lg font-black tracking-[-0.035em]">
-          Recent verifier history
-        </CardTitle>
+        <CardTitle className="text-base">Recent verifier history</CardTitle>
         <CardDescription>
-          The latest generate, accept, block, and admin events stay visible here.
+          The latest generate, accept, block, and admin events stay visible
+          here.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[260px] rounded-[1.2rem] border border-border/70 bg-background/80">
-          <div className="grid gap-3 p-3">
-            {history.map((entry) => (
-              <div key={entry.id} className={`rounded-2xl border p-3 ${toneClasses(entry.tone)}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-medium">{entry.title}</div>
-                  <Badge variant={badgeVariantForTone(entry.tone)}>{entry.timestamp}</Badge>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{entry.body}</p>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No events yet.</p>
+        ) : (
+          <ScrollArea className="max-h-72">
+            <ul className="flex flex-col gap-3">
+              {history.map((entry) => (
+                <li key={entry.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">{entry.title}</p>
+                    <Badge variant={toneBadgeVariant(entry.tone)}>
+                      {entry.timestamp}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {entry.body}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
+        )}
       </CardContent>
     </Card>
   )
 }
-
-export default HistorySection

@@ -105,9 +105,9 @@ fi
 
 LAN_IP="${IPHONE_LAN_IP:-$(detect_lan_ip | head -n 1 || true)}"
 if [ -n "$LAN_IP" ]; then
-  LAB_URL="https://${LAN_IP}:5174/lab"
+  LAB_URL="https://${LAN_IP}:5174/"
 else
-  LAB_URL="https://<your-mac-lan-ip>:5174/lab"
+  LAB_URL="https://<your-mac-lan-ip>:5174/"
 fi
 
 mkdir -p "$INCOMING_DIR" "$ACCESSIBILITY_TEMPLATE_DIR"

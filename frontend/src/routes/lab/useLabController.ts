@@ -28,7 +28,7 @@ import {
   scenarioMeta,
   shouldAutogenerateFromRoute,
 } from "@/routes/lab/content"
-import { buildOperatorLink } from "@/routes/learn/content"
+import { buildOperatorLink } from "@/domain/links"
 import type {
   CameraDevice,
   HistoryEntry,
@@ -59,11 +59,17 @@ type WindowWithAudioContext = Window &
     webkitAudioContext?: typeof AudioContext
   }
 
+const staleStoredKeyMessage =
+  "The verifier rejected the API key saved in this browser, which happens when the key store is rebuilt. The stale key was cleared. Issue a new lab key, then try again."
+
 const cameraDeviceStorageKey = "verifier-react-camera-device"
 const scannerKnownHostsStorageKey = "qr-trust-scanner-known-hosts"
 const nativeScanIntervalMs = 180
 const fallbackScanIntervalMs = 1500
-const scannerDecisionStatusPollMs = 750
+// Key-less tabs share one IP-based rate bucket (60 requests/minute) behind the
+// compose proxy, so the status poll must stay well under that budget even with
+// a few tabs open.
+const scannerDecisionStatusPollMs = 5000
 const idleCameraOverlay =
   "Camera idle. Point the lens at a generated, printed, or external QR code."
 
@@ -340,6 +346,18 @@ export function useLabController() {
     decoderLabelRef.current = decoderLabel
   }, [decoderLabel])
 
+  // A 403 for a request that carried a stored key means the key store no
+  // longer knows the key (e.g. the backend database was rebuilt), so the
+  // stored key can never work again and must be cleared.
+  function isStaleStoredKeyError(error: unknown) {
+    return (
+      error instanceof VerifierApiError &&
+      error.status === 403 &&
+      error.message.includes("verifier API key") &&
+      Boolean(apiKeyRef.current.trim())
+    )
+  }
+
   function pushHistory(title: string, body: string, tone: Tone) {
     setHistory((current) => [toHistoryEntry(title, body, tone), ...current].slice(0, 10))
   }
@@ -472,6 +490,7 @@ export function useLabController() {
 
     void loadRuntimeStatus()
     const runtimeStatusTimer = window.setInterval(() => {
+      if (document.hidden) return
       void loadRuntimeStatus({ reportErrors: false })
     }, scannerDecisionStatusPollMs)
     const cameraOptionsTimer = window.setTimeout(() => {
@@ -556,7 +575,11 @@ export function useLabController() {
         "neutral",
       )
     } catch (error) {
-      const message = summariseError(error)
+      const staleKey = isStaleStoredKeyError(error)
+      if (staleKey) {
+        clearLabKey()
+      }
+      const message = staleKey ? staleStoredKeyMessage : summariseError(error)
       setDemo(null)
       setGeneratedScenario(null)
       setGeneratedNonceMode(null)
@@ -565,7 +588,7 @@ export function useLabController() {
       setScannedPayload("")
       setGenerationError(message)
       setScanMessage({
-        title: "Demo generation failed",
+        title: staleKey ? "Stored verifier key rejected" : "Demo generation failed",
         body: message,
         tone: "blocked",
       })
@@ -1112,9 +1135,13 @@ export function useLabController() {
         qrPayload: demo.qr_payload,
       })
     } catch (error) {
+      const staleKey = isStaleStoredKeyError(error)
+      if (staleKey) {
+        clearLabKey()
+      }
       setScanMessage({
-        title: "Signed-verifier proof failed",
-        body: summariseSignedVerifierError(error),
+        title: staleKey ? "Stored verifier key rejected" : "Signed-verifier proof failed",
+        body: staleKey ? staleStoredKeyMessage : summariseSignedVerifierError(error),
         tone: "blocked",
       })
     } finally {

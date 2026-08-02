@@ -92,12 +92,14 @@ final class VerifierLabViewModel: ObservableObject {
         profile: ImportedVerifierProviderProfile?,
         api: VerifierAPI
     ) -> String {
+        // Endpoint changes are deliberately excluded: switching verifier URLs
+        // does not change which provider signed past results, so scan history
+        // must survive an endpoint-only reconfiguration.
         [
             profile?.id ?? "no-runtime-provider-profile",
             normalizedProviderProfileState(profile?.profileState)
                 ?? normalizedProviderProfileState(api.providerProfileState)
                 ?? "active",
-            api.endpointSummary,
         ].joined(separator: "|")
     }
 
@@ -137,7 +139,8 @@ final class VerifierLabViewModel: ObservableObject {
             tone: .checking,
             title: String(localized: "Checking provider"),
             message: String(localized: "Checking whether the protection service can answer QR decisions."),
-            endpoint: api.endpointSummary,
+            endpoint: nil,
+            candidateEndpoints: api.endpointSummary,
             checkedAt: nil,
             technicalDetail: nil
         )
@@ -173,7 +176,8 @@ final class VerifierLabViewModel: ObservableObject {
             tone: .checking,
             title: String(localized: "Refreshing provider profile"),
             message: String(localized: "Asking the protection service for the current managed provider profile."),
-            endpoint: api.endpointSummary,
+            endpoint: nil,
+            candidateEndpoints: api.endpointSummary,
             checkedAt: nil,
             technicalDetail: nil
         )
@@ -194,6 +198,7 @@ final class VerifierLabViewModel: ObservableObject {
                 title: String(localized: "Provider profile refreshed"),
                 message: String(localized: "Installed the latest provider profile from \(profile.name). Checking whether it can answer QR decisions."),
                 endpoint: probe.baseURLString,
+                candidateEndpoints: api.endpointSummary,
                 checkedAt: Date(),
                 technicalDetail: nil
             )
@@ -203,7 +208,8 @@ final class VerifierLabViewModel: ObservableObject {
                 tone: .misconfigured,
                 title: String(localized: "Profile refresh failed"),
                 message: String(localized: "The app could not install the latest provider profile from the protection service."),
-                endpoint: api.endpointSummary,
+                endpoint: nil,
+                candidateEndpoints: api.endpointSummary,
                 checkedAt: Date(),
                 technicalDetail: error.localizedDescription
             )
@@ -260,7 +266,8 @@ final class VerifierLabViewModel: ObservableObject {
                 tone: .notChecked,
                 title: String(localized: "Provider profile imported"),
                 message: String(localized: "The app installed \(profile.name). Checking whether it can answer QR decisions."),
-                endpoint: profile.endpointSummary,
+                endpoint: nil,
+                candidateEndpoints: api.endpointSummary,
                 checkedAt: nil,
                 technicalDetail: nil
             )
@@ -280,7 +287,8 @@ final class VerifierLabViewModel: ObservableObject {
             tone: .notChecked,
             title: String(localized: "Provider profile removed"),
             message: String(localized: "The provider profile was removed from app state. Refresh or import a provider profile before production use."),
-            endpoint: api.endpointSummary,
+            endpoint: nil,
+            candidateEndpoints: api.endpointSummary,
             checkedAt: nil,
             technicalDetail: nil
         )
@@ -578,6 +586,7 @@ final class VerifierLabViewModel: ObservableObject {
                 title: String(localized: "Provider profile stale"),
                 message: String(localized: "Needs refresh because the provider profile is stale. Scanner decisions should use caution until the managed profile is refreshed."),
                 endpoint: probe.baseURLString,
+                candidateEndpoints: api.endpointSummary,
                 checkedAt: Date(),
                 technicalDetail: technicalDetail + "\nprofile is stale"
             )
@@ -589,6 +598,7 @@ final class VerifierLabViewModel: ObservableObject {
                 title: String(localized: "Provider profile revoked"),
                 message: String(localized: "Do not use this provider because the profile was revoked. Scanner decisions should not rely on this trust program."),
                 endpoint: probe.baseURLString,
+                candidateEndpoints: api.endpointSummary,
                 checkedAt: Date(),
                 technicalDetail: technicalDetail + "\nprofile was revoked"
             )
@@ -599,6 +609,7 @@ final class VerifierLabViewModel: ObservableObject {
             title: String(localized: "Provider reachable"),
             message: "\(credentialCopy) \(runtimeCopy)",
             endpoint: probe.baseURLString,
+            candidateEndpoints: api.endpointSummary,
             checkedAt: Date(),
             technicalDetail: technicalDetail
         )
@@ -653,7 +664,8 @@ final class VerifierLabViewModel: ObservableObject {
             tone: tone,
             title: title,
             message: message,
-            endpoint: api.endpointSummary,
+            endpoint: nil,
+            candidateEndpoints: api.endpointSummary,
             checkedAt: Date(),
             technicalDetail: error.localizedDescription
         )
