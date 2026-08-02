@@ -198,8 +198,31 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Start verifier API
+        env:
+          REDIS_STARTUP_ENABLED: "false"
+          SECRET_KEY: route-navigation-smoke-secret
+        run: |
+          ./backend/.venv/bin/python -m uvicorn backend.app.main:app \
+            --host 127.0.0.1 --port 8000 --log-level warning \
+            > /tmp/qrcode-poc-api.log 2>&1 &
+          echo "$!" > /tmp/qrcode-poc-api.pid
+
+      - name: Wait for verifier API
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/verifier/status >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/qrcode-poc-api.log
+          exit 1
+
       - name: Start React dev server
         working-directory: frontend
+        env:
+          VITE_BACKEND_TARGET: http://127.0.0.1:8000
         run: |
           npm run dev -- --host 127.0.0.1 --port 5173 > /tmp/qrcode-poc-vite.log 2>&1 &
           echo "$!" > /tmp/qrcode-poc-vite.pid
@@ -224,3 +247,10 @@ jobs:
         with:
           name: route-navigation-vite-log
           path: /tmp/qrcode-poc-vite.log
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: route-navigation-api-log
+          path: /tmp/qrcode-poc-api.log

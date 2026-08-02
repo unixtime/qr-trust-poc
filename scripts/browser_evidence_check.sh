@@ -4,7 +4,9 @@ set -eu
 EVIDENCE_DIR="${BROWSER_EVIDENCE_DIR:-docs/public/evidence/browser}"
 EXPECTED_WIDTH="${BROWSER_EVIDENCE_WIDTH:-1440}"
 MIN_HEIGHT="${BROWSER_EVIDENCE_MIN_HEIGHT:-1000}"
-MIN_SIZE_BYTES="${BROWSER_EVIDENCE_MIN_SIZE_BYTES:-102400}"
+# Blank-capture guard: a blank 1440x1100 PNG is ~7 KiB and a near-empty error
+# page ~16 KiB, while genuine captures start near 100 KiB; 40 KiB separates them.
+MIN_SIZE_BYTES="${BROWSER_EVIDENCE_MIN_SIZE_BYTES:-40960}"
 failures=0
 
 fail() {
