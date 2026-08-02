@@ -682,6 +682,14 @@ export function ScanWorkbenchSection({
     startScannerHold,
     completeScannerHold,
   } = actions
+  const [isCameraPanelOpen, setIsCameraPanelOpen] = useState(false)
+
+  function toggleCameraPanel() {
+    if (isCameraPanelOpen && isCameraRunning) {
+      stopCamera()
+    }
+    setIsCameraPanelOpen(!isCameraPanelOpen)
+  }
 
   return (
     <Card className="overflow-hidden">
@@ -697,8 +705,9 @@ export function ScanWorkbenchSection({
               Scan console
             </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
-              Capture with camera, upload an image, or paste a payload. The
-              result panel is the source of truth for the scan.
+              Upload an image or paste a payload — the result panel is the
+              source of truth for the scan. A live camera scan is available as
+              a secondary path for second-screen demos.
             </CardDescription>
           </div>
           <div className="rounded-xl border border-border/60 bg-card/72 px-3 py-2 text-sm leading-6 text-muted-foreground">
@@ -720,95 +729,15 @@ export function ScanWorkbenchSection({
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid gap-4">
-            <div
-              className={cn(
-                "relative overflow-hidden rounded-lg border bg-zinc-950",
-                frameFlashTone === "success"
-                  ? "border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.22)]"
-                  : frameFlashTone === "blocked"
-                    ? "border-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.18)]"
-                    : "border-border/70",
-              )}
-            >
-              <video
-                ref={videoRef}
-                className={`aspect-video w-full object-cover ${isCameraRunning ? "block" : "hidden"}`}
-                muted
-                playsInline
-                autoPlay
-              />
-              <canvas ref={canvasRef} className="hidden" />
-              <div
-                className={`flex aspect-video w-full items-center justify-center px-8 text-center text-sm leading-7 text-stone-200 ${
-                  isCameraRunning ? "absolute inset-0 bg-black/10" : ""
-                }`}
-              >
-                <div className="max-w-md">
-                  <div className="mx-auto mb-4 grid size-16 place-items-center rounded-3xl border border-stone-100/10 bg-stone-50/[0.06]">
-                    <QrCode className="size-7 text-emerald-200" />
-                  </div>
-                  {cameraOverlay}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
-              <Button
-                onClick={startCamera}
-                disabled={!cameraSupported || isStartingCamera || isCameraRunning}
-              >
-                <Camera data-icon="inline-start" />
-                {isStartingCamera ? "Starting…" : "Start camera scan"}
-              </Button>
-              <Button variant="outline" onClick={stopCamera} disabled={!isCameraRunning}>
-                <CameraOff data-icon="inline-start" />
-                Stop camera
-              </Button>
-              <Button variant="outline" onClick={refreshCameras} disabled={isRefreshingCameras}>
-                <RefreshCw data-icon="inline-start" />
-                {isRefreshingCameras ? "Refreshing…" : "Refresh cameras"}
-              </Button>
-              <Button variant="outline" disabled={isDecodingImage} onClick={openImagePicker}>
+            <div className="flex flex-wrap items-center gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-4">
+              <Button disabled={isDecodingImage} onClick={openImagePicker}>
                 <Upload data-icon="inline-start" />
                 {isDecodingImage ? "Checking…" : "Upload and check QR"}
               </Button>
-            </div>
-
-            <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="camera-source">Camera source</FieldLabel>
-                {cameraDevices.length ? (
-                  <Select value={selectedCameraId} onValueChange={(value: string | null) => setSelectedCameraId(value || "")}>
-                    <SelectTrigger id="camera-source" className="w-full">
-                      <SelectValue placeholder="Environment-facing camera" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {cameraDevices.map((camera) => (
-                          <SelectItem key={camera.deviceId} value={camera.deviceId}>
-                            {camera.label}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Input
-                    id="camera-source"
-                    disabled
-                    value={cameraSupported ? "Environment-facing camera" : "Camera capture unavailable"}
-                  />
-                )}
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="decoder-mode">Decoder mode</FieldLabel>
-                <Input id="decoder-mode" disabled value={decoderLabel} />
-                <FieldDescription>
-                  {hasNativeDetector
-                    ? "Native browser decode is active. The backend fallback is available if capture moves to upload."
-                    : "The browser has no native QR detector, so the backend fallback will decode uploads and camera frames."}
-                </FieldDescription>
-              </Field>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Uploaded screenshots and photos are decoded and checked
+                automatically.
+              </p>
             </div>
 
             <FieldGroup className="rounded-[1rem] border border-border/60 bg-card/72 p-4">
@@ -843,6 +772,117 @@ export function ScanWorkbenchSection({
               </Button>
             </div>
 
+            <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="outline"
+                  data-testid="camera-panel-toggle"
+                  aria-expanded={isCameraPanelOpen}
+                  onClick={toggleCameraPanel}
+                >
+                  <Camera data-icon="inline-start" />
+                  {isCameraPanelOpen
+                    ? "Hide live camera scan"
+                    : "Try a live camera scan"}
+                </Button>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Secondary path for second-screen demos: show the QR on one
+                  device and scan it here from another.
+                </p>
+              </div>
+
+              {/* Hidden with CSS, not unmounted: the controller hook owns
+                  videoRef and expects the element to stay in the DOM. */}
+              <div className={isCameraPanelOpen ? "grid gap-4" : "hidden"}>
+                <div
+                  className={cn(
+                    "relative overflow-hidden rounded-lg border bg-zinc-950",
+                    frameFlashTone === "success"
+                      ? "border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.22)]"
+                      : frameFlashTone === "blocked"
+                        ? "border-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.18)]"
+                        : "border-border/70",
+                  )}
+                >
+                  <video
+                    ref={videoRef}
+                    className={`aspect-video w-full object-cover ${isCameraRunning ? "block" : "hidden"}`}
+                    muted
+                    playsInline
+                    autoPlay
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                  <div
+                    className={`flex aspect-video w-full items-center justify-center px-8 text-center text-sm leading-7 text-stone-200 ${
+                      isCameraRunning ? "absolute inset-0 bg-black/10" : ""
+                    }`}
+                  >
+                    <div className="max-w-md">
+                      <div className="mx-auto mb-4 grid size-16 place-items-center rounded-3xl border border-stone-100/10 bg-stone-50/[0.06]">
+                        <QrCode className="size-7 text-emerald-200" />
+                      </div>
+                      {cameraOverlay}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
+                  <Button
+                    onClick={startCamera}
+                    disabled={!cameraSupported || isStartingCamera || isCameraRunning}
+                  >
+                    <Camera data-icon="inline-start" />
+                    {isStartingCamera ? "Starting…" : "Start camera scan"}
+                  </Button>
+                  <Button variant="outline" onClick={stopCamera} disabled={!isCameraRunning}>
+                    <CameraOff data-icon="inline-start" />
+                    Stop camera
+                  </Button>
+                  <Button variant="outline" onClick={refreshCameras} disabled={isRefreshingCameras}>
+                    <RefreshCw data-icon="inline-start" />
+                    {isRefreshingCameras ? "Refreshing…" : "Refresh cameras"}
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4 md:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="camera-source">Camera source</FieldLabel>
+                    {cameraDevices.length ? (
+                      <Select value={selectedCameraId} onValueChange={(value: string | null) => setSelectedCameraId(value || "")}>
+                        <SelectTrigger id="camera-source" className="w-full">
+                          <SelectValue placeholder="Environment-facing camera" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {cameraDevices.map((camera) => (
+                              <SelectItem key={camera.deviceId} value={camera.deviceId}>
+                                {camera.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="camera-source"
+                        disabled
+                        value={cameraSupported ? "Environment-facing camera" : "Camera capture unavailable"}
+                      />
+                    )}
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="decoder-mode">Decoder mode</FieldLabel>
+                    <Input id="decoder-mode" disabled value={decoderLabel} />
+                    <FieldDescription>
+                      {hasNativeDetector
+                        ? "Native browser decode is active. The backend fallback is available if capture moves to upload."
+                        : "The browser has no native QR detector, so the backend fallback will decode uploads and camera frames."}
+                    </FieldDescription>
+                  </Field>
+                </div>
+              </div>
+            </div>
+
             <input
               ref={imageInputRef}
               type="file"
@@ -870,7 +910,9 @@ export function ScanWorkbenchSection({
             ) : (
               <DecisionPanel result={result} />
             )}
-            <StatusPanel label="Camera capture state" message={cameraMessage} />
+            {isCameraPanelOpen ? (
+              <StatusPanel label="Camera capture state" message={cameraMessage} />
+            ) : null}
             <StatusPanel label="Scan status" message={scanStatus} />
             <div className="rounded-[1.4rem] border border-border bg-background/80 p-4">
               <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">

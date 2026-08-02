@@ -23,8 +23,9 @@ export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
       <header>
         <h2 className="text-xl font-semibold tracking-tight">Scan</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scan the QR with a camera, decode an uploaded image, or run the
-          scanner pipeline directly against the QR from step 2.
+          Upload a QR image, paste a decoded payload, or run the scanner
+          pipeline directly against the QR from step 2. A live camera scan is
+          available for second-screen demos.
         </p>
       </header>
 
