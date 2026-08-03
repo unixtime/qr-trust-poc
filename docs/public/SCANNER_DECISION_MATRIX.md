@@ -11,7 +11,7 @@ Purpose:
 | Issuer enrolled | Signature valid | Destination bound | Runtime safe | Suggested state | Suggested action |
 |---|---|---|---|---|---|
 | No | No | Unknown | Unknown | Unverified | Show normalized destination and caution |
-| No | Yes | Unknown | Unknown | Signed, unknown issuer | Show caution, no trusted badge |
+| No | Yes | Unknown | Unknown | Signed, unaccepted issuer | Show caution, no trusted badge |
 | Yes | Yes | Yes | Yes | Verified issuer | Allow with positive trust signal |
 | Yes | Yes | No | Unknown | Destination changed | Strong warning or block |
 | Yes | Yes | Yes | No | Verified issuer, destination risky | Caution or block depending on severity |
@@ -53,7 +53,7 @@ State:
 - scanner does not recognize issuer trust root
 
 State:
-- `Signed, unknown issuer`
+- `Signed, unaccepted issuer`
 
 ## Policy Principle
 

@@ -12,7 +12,7 @@ Important semantic rules:
 - `runtime safety` remains a separate operational signal, not an onboarding result
 - `QR can be created anywhere` stays separate from trust enrollment; generator is not trust root
 - scanner-visible outcomes should use the same wording as the paper:
-  - `signed, unknown issuer`
+  - `signed, unaccepted issuer`
   - `verified issuer, destination risky`
 
 ```text
@@ -62,7 +62,7 @@ Trust-Model Relationship Graph
                                                                     | Scanner outcomes                 |
                                                                     | User-visible trust states        |
                                                                     | - unverified                     |
-                                                                    | - signed, unknown issuer         |
+                                                                    | - signed, unaccepted issuer      |
                                                                     | - verified issuer                |
                                                                     | - verified issuer, destination   |
                                                                     |   risky                          |

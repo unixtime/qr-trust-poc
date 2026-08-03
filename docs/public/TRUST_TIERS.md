@@ -29,11 +29,11 @@ Use cases:
 - one-off event posters
 - random web links
 
-## Tier 1: Signed But Unknown Issuer
+## Tier 1: Signed But Unaccepted Issuer
 
 Definition:
 - QR carries a valid signature
-- issuer is not in a trusted program recognized by the scanner
+- issuer is not accepted by a trusted program recognized by the scanner
 
 User-facing result:
 - `Signed, issuer not trusted`

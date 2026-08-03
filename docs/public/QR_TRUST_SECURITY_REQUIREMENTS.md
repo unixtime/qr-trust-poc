@@ -226,7 +226,7 @@ Addresses:
 - adversarial findings 1 and 3
 
 `QR-SEC-012` `MUST`
-- The state currently described as `signed, unknown issuer` must be presented as an untrusted caution state rather than as partial legitimacy.
+- The state currently described as `signed, unaccepted issuer` must be presented as an untrusted caution state rather than as partial legitimacy.
 
 Preferred wording:
 - `Untrusted signed QR`

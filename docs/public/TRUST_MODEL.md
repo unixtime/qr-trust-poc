@@ -167,7 +167,7 @@ The system must distinguish:
 The platform must show consistent outcomes for:
 - verified
 - unverified
-- signed but unknown issuer
+- signed but unaccepted issuer
 - approved but risky
 - blocked
 

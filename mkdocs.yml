@@ -64,6 +64,9 @@ nav:
       - Scanner decision matrix: public/SCANNER_DECISION_MATRIX.md
       - Scanner UX states: public/SCANNER_UX_STATES.md
       - Security requirements: public/QR_TRUST_SECURITY_REQUIREMENTS.md
+      - Enrollment and consent: public/ENROLLMENT_AND_CONSENT_MODEL.md
+      - Short URL and redirect policy: public/SHORT_URL_REDIRECT_POLICY.md
+      - Failure modes: public/TRUST_MODEL_FAILURE_MODES.md
   - Evaluation:
       - Evaluation guide: public/evaluation/README.md
       - Evaluation results: public/evaluation/trust_residuals_results.v1.md
@@ -73,6 +76,7 @@ nav:
   - Architecture:
       - Network architecture: public/NETWORK_ARCHITECTURE_PLAN.md
       - Network contracts: public/network-contracts/README.md
+      - Governance artifacts: public/APPENDIX_GOVERNANCE_ARTIFACTS.md
       - iOS app design: public/IOS_END_USER_APP_DESIGN.md
       - iOS enterprise readiness: public/IOS_ENTERPRISE_READINESS.md
   - Operations:

@@ -101,7 +101,7 @@ flowchart TD
     B -- yes --> C{Signature and schema valid?}
     C -- no --> Y[Blocked]
     C -- yes --> D{Issuer enrolled?}
-    D -- no --> U[Unverified or signed unknown issuer]
+    D -- no --> U[Unverified or signed unaccepted issuer]
     D -- yes --> E{Destination still issuer-approved?}
     E -- no --> V[Destination changed]
     E -- yes --> F{Runtime safety clear?}

@@ -24,11 +24,14 @@ Suggested UX:
 - show normalized destination
 - do not imply malware unless there is evidence
 
-## State 2: Signed, Unknown Issuer
+## State 2: Signed, Unaccepted Issuer
 
 Meaning:
 - signature present and valid
-- issuer not in trusted program
+- issuer not accepted by the active trust policy
+
+Note:
+- this state was previously named `signed, unknown issuer`; the wire label `signed_unknown_issuer` is retained for compatibility
 
 Suggested UX:
 - caution state

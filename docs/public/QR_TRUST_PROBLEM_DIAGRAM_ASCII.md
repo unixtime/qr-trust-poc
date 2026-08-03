@@ -38,7 +38,7 @@ Required trust stack
 | Who is authorized to      |     | Is the QR still bound to |     | Is the destination safe   |     | User-visible outcomes       |
 | issue this QR under a     |     | the issuer-approved      |     | now?                      |     | should separate:            |
 | trusted program?          |     | destination?             |     | Compromise can happen     |     | - unverified                |
-|                           |     |                          |     | after issuance.           |     | - signed unknown issuer     |
+|                           |     |                          |     | after issuance.           |     | - signed unaccepted issuer  |
 | Examples: verified        |     | Checks: exact URL,       |     | Inputs: redirects,        |     | - verified issuer           |
 | individual, business,     |     | normalization, subdomain |     | reputation, malware,      |     | - risky destination         |
 | institution, payment op   |     | policy, post-issuance    |     | phishing, injected        |     | - blocked                   |
