@@ -89,6 +89,7 @@ nav:
       - Open-source direction: public/OPEN_SOURCE_DIRECTION.md
   - Decision model:
       - Trust model: public/TRUST_MODEL.md
+      - Trust-residual decision semantics: public/TRUST_RESIDUALS_DECISION_SEMANTICS.md
       - Trust-model graph: public/TRUST_MODEL_GRAPH.md
       - Trust layers: public/TRUST_LAYERS.md
       - Trust tiers: public/TRUST_TIERS.md
