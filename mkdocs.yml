@@ -1,5 +1,8 @@
 site_name: QR Trust PoC
 site_description: Reference documentation for navigation QR trust decisions
+# Canonical base for the deployed docs; the social plugin needs it to emit
+# absolute og:image URLs, and MkDocs uses it for canonical links + sitemap.
+site_url: https://qrtrust.unixtime.com/docs/
 docs_dir: docs
 site_dir: site
 use_directory_urls: true
@@ -20,11 +23,23 @@ hooks:
 plugins:
   - search
   - mermaid2:
-      # Pin the browser renderer so a documentation review is reproducible.
-      # The plugin emits a versioned unpkg URL only on pages with diagrams.
-      version: "11.16.0"
+      # Pin the renderer via an explicit UMD .js URL: the plugin then emits a
+      # <script src=...> tag (instead of an inline ESM import), which the
+      # privacy plugin can rewrite to a self-hosted copy. Only pages with
+      # diagrams get the tag.
+      javascript: https://unpkg.com/mermaid@11.16.0/dist/mermaid.min.js
       arguments:
         securityLevel: strict
+  # Generate og-preview card images so docs deep links unfurl with a real
+  # preview. Build needs Pillow + CairoSVG (mkdocs-material[imaging]).
+  - social
+  # Recompress the served copies of PNG/JPG media at build time (pngquant +
+  # Pillow). Checked-in originals are untouched; only site output shrinks.
+  - optimize
+  # Keep privacy last so it rewrites the final HTML: it downloads every
+  # external asset (mermaid's unpkg script, theme fonts) into the site
+  # output, leaving zero third-party requests in served pages.
+  - privacy
 
 markdown_extensions:
   - admonition

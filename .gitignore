@@ -70,6 +70,8 @@ htmlcov/
 .tox/
 .playwright-cli/
 site/
+# MkDocs plugin cache (social cards, optimized images, privacy assets)
+.cache/
 
 # Docker
 docker-compose.override.yml
