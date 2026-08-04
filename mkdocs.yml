@@ -5,7 +5,14 @@ site_dir: site
 use_directory_urls: true
 
 theme:
-  name: readthedocs
+  name: material
+  palette:
+    scheme: slate
+  features:
+    - navigation.top
+    - navigation.sections
+    - content.code.copy
+    - search.highlight
 
 hooks:
   - backend/scripts/mkdocs_source_pages.py
@@ -30,6 +37,7 @@ markdown_extensions:
 
 extra_css:
   - public/assets/stylesheets/diagram-explorer.css
+  - public/assets/stylesheets/qrtrust-theme.css
 
 extra_javascript:
   - public/assets/javascripts/diagram-explorer.js

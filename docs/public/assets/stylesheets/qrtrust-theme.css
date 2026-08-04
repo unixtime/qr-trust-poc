@@ -1,0 +1,9 @@
+/* QR Trust brand overrides for the Material slate scheme.
+   Palette source: qrtrust-site src/styles/tokens.css (dark security-console). */
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #081018;
+  --md-code-bg-color: #0D1622;
+  --md-primary-fg-color: #0D1622;
+  --md-accent-fg-color: #45D483;
+  --md-typeset-a-color: #45D483;
+}
