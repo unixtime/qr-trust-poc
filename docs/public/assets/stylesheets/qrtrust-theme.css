@@ -7,3 +7,10 @@
   --md-accent-fg-color: #45D483;
   --md-typeset-a-color: #45D483;
 }
+
+/* Material stamps data-md-color-primary on <body> and sets the link color
+   with a two-attribute selector per primary, which outranks the block
+   above at any load order. Match that specificity for every primary. */
+[data-md-color-scheme="slate"][data-md-color-primary] {
+  --md-typeset-a-color: #45D483;
+}
