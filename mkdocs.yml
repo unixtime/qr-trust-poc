@@ -9,6 +9,9 @@ use_directory_urls: true
 
 theme:
   name: material
+  # Brand mark + favicon, shared with the qrtrust.unixtime.com landing page.
+  logo: public/assets/images/logo.svg
+  favicon: public/assets/images/favicon.svg
   palette:
     scheme: slate
   features:
@@ -32,7 +35,11 @@ plugins:
         securityLevel: strict
   # Generate og-preview card images so docs deep links unfurl with a real
   # preview. Build needs Pillow + CairoSVG (mkdocs-material[imaging]).
-  - social
+  # The default layout picks up theme.logo; colors match the landing brand.
+  - social:
+      cards_layout_options:
+        background_color: "#081018"
+        color: "#FFFFFF"
   # Recompress the served copies of PNG/JPG media at build time (pngquant +
   # Pillow). Checked-in originals are untouched; only site output shrinks.
   - optimize
