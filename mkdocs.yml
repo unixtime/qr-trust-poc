@@ -36,8 +36,10 @@ markdown_extensions:
       permalink: true
 
 extra_css:
-  - public/assets/stylesheets/diagram-explorer.css
-  - public/assets/stylesheets/qrtrust-theme.css
+  # ?v= busts the Cloudflare CDN cache (keyed on full URL, 4h TTL for .css);
+  # bump the number whenever either stylesheet changes.
+  - public/assets/stylesheets/diagram-explorer.css?v=2
+  - public/assets/stylesheets/qrtrust-theme.css?v=2
 
 extra_javascript:
   - public/assets/javascripts/diagram-explorer.js
