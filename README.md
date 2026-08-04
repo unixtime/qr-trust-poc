@@ -190,6 +190,11 @@ The complete curated index is [docs/README.md](docs/README.md).
 - Report suspected vulnerabilities privately as described in
   [SECURITY.md](SECURITY.md).
 
+## Community
+
+Questions, ideas, and feedback are welcome in
+[GitHub Discussions](https://github.com/unixtime/qr-trust-poc/discussions).
+
 ## License
 
 Licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE) for attribution
