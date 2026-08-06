@@ -871,18 +871,45 @@ const applyKeyStatusEvent = (
   registry: TrustKeyRegistryWriterShape,
   body: RevocationStatusArtifactBody,
 ): Effect.Effect<boolean, NetworkError> => {
+  const keyId = body.target.key_id
+  const status = body.status
+
   if (
     body.target.target_type !== "trust_key" ||
-    typeof body.target.key_id !== "string" ||
-    !isTrustKeyStatus(body.status)
+    typeof keyId !== "string" ||
+    !isTrustKeyStatus(status)
   ) {
     return Effect.succeed(false)
   }
 
-  return registry.updateTrustKeyStatus({
-    root_program_id: body.root_program_id,
-    key_id: body.target.key_id,
-    status: body.status,
+  // Every sibling status event writes through the namespace the signature gate
+  // already bound the signing key to, so none of them can reach outside it.
+  // This one addresses its target by key id instead, so the namespace has to be
+  // re-applied here: otherwise any delegated authority under a root program
+  // could revoke a peer authority's key, or the root program's own, with a
+  // perfectly valid signature.
+  return Effect.gen(function* () {
+    const signer = yield* registry.lookupSignerKey({
+      signed_by: body.signed_by,
+      root_program_id: body.root_program_id,
+      delegated_authority_id: body.delegated_authority_id,
+      accepted_algorithm_ids: [body.signature_algorithm_id],
+    })
+
+    if (!signer.key || signer.reason) {
+      return false
+    }
+
+    return yield* registry.updateTrustKeyStatus({
+      root_program_id: body.root_program_id,
+      key_id: keyId,
+      status,
+      // A root-program signer governs every key in its program. A delegated
+      // authority governs only the keys issued under it.
+      ...(signer.key.scope === "root_program"
+        ? {}
+        : { delegated_authority_id: body.delegated_authority_id }),
+    })
   })
 }
 

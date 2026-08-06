@@ -208,9 +208,25 @@ def _extract_cv_qr_symbols(
     return decoded_payloads, polygons
 
 
+# zxing-cpp scans every supported symbology by default, including 1D linear
+# formats. A dense QR symbol contains long runs of alternating modules that a
+# linear decoder can read as a valid EAN-13 or DataBar barcode, so an
+# unrestricted scan intermittently reports a second "barcode" inside a single
+# clean QR. That phantom inflates the symbol count and, because its text
+# differs from the QR text, also trips the conflicting-payload check. This
+# module only ever analyses QR artifacts, so restrict the scan to QR families.
+# Passed as a tuple rather than OR-ed flags: zxing-cpp deprecated the bitwise
+# form, and a tuple keeps each format individually visible.
+_QR_BARCODE_FORMATS = (
+    zxingcpp.BarcodeFormat.QRCode,
+    zxingcpp.BarcodeFormat.MicroQRCode,
+    zxingcpp.BarcodeFormat.RMQRCode,
+)
+
+
 def _extract_zxing_payloads(image: Image.Image) -> list[str]:
     try:
-        results = zxingcpp.read_barcodes(image)
+        results = zxingcpp.read_barcodes(image, formats=_QR_BARCODE_FORMATS)
     except Exception:
         return []
     return [result.text for result in results if getattr(result, "text", None)]
@@ -333,6 +349,79 @@ def _summarize_dark_pixel_bounds(image: Image.Image) -> QRArtifactBounds | None:
         quiet_zone_ratio=float(min_margin / qr_extent),
         edge_length_variation=0.0,
     )
+
+
+# Share of dark pixels allowed to fall outside a corner quad that is still
+# treated as trustworthy. Anti-aliased symbol edges put a thin perimeter of
+# faint pixels just outside an otherwise perfect quad, so the floor is not
+# zero; measured over 704 well-formed quads that leakage peaked at 0.6%.
+# Malformed quads sit an order of magnitude higher, the lowest observed being
+# 10.7%, so this threshold splits a gap rather than trimming a distribution.
+_MAX_INK_OUTSIDE_QUAD = 0.02
+
+
+def _fraction_of_ink_outside_quad(image: Image.Image, quad: np.ndarray) -> float:
+    grayscale = np.array(image.convert("L"))
+    dark = grayscale < 245
+    total_dark = int(dark.sum())
+    if total_dark == 0:
+        return 0.0
+
+    covered = np.zeros(grayscale.shape, dtype=np.uint8)
+    cv2.fillPoly(covered, [np.round(quad).astype(np.int32)], 1)
+    return float(np.count_nonzero(dark & (covered == 0)) / total_dark)
+
+
+def _quad_corroborates_ink(
+    bounds: QRArtifactBounds,
+    ink_bounds: QRArtifactBounds | None,
+    *,
+    image: Image.Image,
+    quad: np.ndarray,
+) -> bool:
+    """Report whether a detector corner quad is trustworthy enough for geometry.
+
+    ``cv2.QRCodeDetector.detectAndDecodeMulti`` intermittently returns a
+    malformed corner quad while still decoding the payload correctly: a corner
+    lands outside the image, slides along an edge, or collapses toward the
+    symbol centre. Such a quad yields large edge-length variation on a
+    perfectly square render, which reads as perspective distortion.
+
+    The pixels are the arbiter, because they are deterministic where the
+    detector is not. Two independent things have to hold. The quad has to sit
+    inside the image and agree with the box around the ink, which rejects a
+    quad that overshoots. It also has to actually enclose that ink, which
+    rejects the opposite failure: a corner sliding *along* an edge of the true
+    bounding box leaves the box untouched while cutting a wedge out of the
+    symbol, so a box comparison alone cannot see it.
+
+    Both checks are cross-checks against the symbol, not tests of squareness,
+    so genuine perspective distortion still reports: there the quad traces the
+    skewed symbol and encloses its ink exactly. On a busy page (a rendered PDF,
+    an email screenshot) the ink spans the whole page, both checks fail, and
+    geometry-derived signals are suppressed rather than guessed at, which keeps
+    this from inventing a tamper claim it cannot support.
+    """
+    if (
+        bounds.x_min < -1.0
+        or bounds.y_min < -1.0
+        or bounds.x_max > image.width + 1.0
+        or bounds.y_max > image.height + 1.0
+    ):
+        return False
+    if ink_bounds is None:
+        return False
+
+    tolerance = max(8.0, 0.10 * max(ink_bounds.width, ink_bounds.height))
+    if (
+        abs(bounds.x_min - ink_bounds.x_min) > tolerance
+        or abs(bounds.y_min - ink_bounds.y_min) > tolerance
+        or abs(bounds.x_max - ink_bounds.x_max) > tolerance
+        or abs(bounds.y_max - ink_bounds.y_max) > tolerance
+    ):
+        return False
+
+    return _fraction_of_ink_outside_quad(image, quad) <= _MAX_INK_OUTSIDE_QUAD
 
 
 def _has_colored_overlay_frame(
@@ -471,7 +560,16 @@ def analyze_qr_artifact_from_png_bytes(png_bytes: bytes) -> QRArtifactAnalysis:
     if _has_colored_overlay_frame(image, reported_bounds):
         indicators.append("colored_overlay_frame")
         risk_score += 25
-    if bounds is not None and bounds.edge_length_variation > 0.20:
+    if (
+        bounds is not None
+        and bounds.edge_length_variation > 0.20
+        and _quad_corroborates_ink(
+            bounds,
+            dark_pixel_bounds,
+            image=image,
+            quad=np.asarray(polygons[0]).reshape(-1, 2),
+        )
+    ):
         indicators.append("perspective_distortion")
         risk_score += 20
 

@@ -474,6 +474,14 @@ port used by the signature-verification service. This keeps signed key
 revocation and rotation in durable trust state instead of treating verifier key
 lookups as local fixture data.
 
+A trust-key status update carries the authority the signer was bound to, and the
+registry matches on it: an update naming a delegated authority only reaches rows
+in that authority, while a root-program signer omits the field and governs every
+key in its program. A valid signature therefore proves who is asking, not how far
+the write travels — the target key's own namespace decides that, so one authority
+cannot revoke a peer's key or the root program's by naming it in an otherwise
+well-formed status event.
+
 `key-rotation-policy.md` defines the first operational policy for root and
 delegated-authority key rotation. It is intentionally executable in the
 TypeScript reference package so planned overlap, emergency revocation, and

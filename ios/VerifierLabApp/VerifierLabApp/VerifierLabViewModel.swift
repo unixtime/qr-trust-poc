@@ -849,24 +849,11 @@ final class VerifierLabViewModel: ObservableObject {
             return verifierProfileTrustLayers(for: decision, tone: tone)
         }
 
-        let governanceCacheStale = decision.verifierStage == "governance_cache"
-        let issuerBlocked = decision.verifierStage == "certificate_status"
-        let issuerUnknown = decision.decisionState == "signed_unknown_issuer" || decision.decisionState == "unverified"
-        let issuerTone: TrustTone = issuerBlocked
-            ? .blocked
-            : (issuerUnknown || governanceCacheStale ? tone : .trusted)
-        let issuerState = issuerBlocked
-            ? String(localized: "Not trusted")
-            : (issuerUnknown ? String(localized: "Unknown") : (governanceCacheStale ? String(localized: "Stale") : String(localized: "Recognized")))
+        let issuerTone = issuerLayerTone(for: decision, overallTone: tone)
+        let issuerState = issuerLayerState(for: decision)
 
-        let redirectBlocked = decision.verifierStage == "redirect_policy"
-        let destinationBlocked = decision.verifierStage == "payload_revalidation" || redirectBlocked
-        let destinationTone: TrustTone = destinationBlocked
-            ? .blocked
-            : (issuerUnknown || governanceCacheStale ? tone : .trusted)
-        let destinationState = destinationBlocked
-            ? (redirectBlocked ? String(localized: "Redirect mismatch") : String(localized: "Mismatch"))
-            : humanizedState(decision.destination.binding, fallback: String(localized: "Bound"))
+        let destinationTone = destinationLayerTone(for: decision, overallTone: tone)
+        let destinationState = destinationLayerState(for: decision)
 
         let runtimeState = runtimeLayerState(for: decision)
         let runtimeTone = runtimeLayerTone(for: decision, overallTone: tone)
@@ -875,7 +862,8 @@ final class VerifierLabViewModel: ObservableObject {
             TrustLayerSignal(
                 title: String(localized: "Issuer legitimacy"),
                 state: issuerState,
-                message: signalMessage(in: decision, matching: ["issuer", "certificate"])
+                message: signal(in: decision, layer: "issuer_legitimacy")?.message
+                    ?? signalMessage(in: decision, matching: ["issuer", "certificate"])
                     ?? issuerLayerMessage(for: decision, tone: issuerTone),
                 tone: issuerTone
             ),
@@ -888,7 +876,8 @@ final class VerifierLabViewModel: ObservableObject {
             TrustLayerSignal(
                 title: String(localized: "Runtime safety"),
                 state: runtimeState,
-                message: signalMessage(in: decision, matching: ["runtime", "replay", "time", "signature"])
+                message: signal(in: decision, layer: "runtime_safety")?.message
+                    ?? signalMessage(in: decision, matching: ["runtime", "replay", "time", "signature"])
                     ?? runtimeLayerMessage(for: decision),
                 tone: runtimeTone
             ),
@@ -903,12 +892,131 @@ final class VerifierLabViewModel: ObservableObject {
         ]
     }
 
+    /// The only per-layer states the verifier emits for a layer it actually reached
+    /// and passed. Everything else — `not_evaluated`, `not_opened`, `revoked`,
+    /// `mismatch`, `replay_blocked`, `risky`, `stale`, `unavailable` — means the
+    /// layer was skipped or failed, and must never be presented as trusted.
+    private static let passingLayerStates: Set<String> = ["recognized", "bound", "clean"]
+
+    private func layerPassed(_ state: String?) -> Bool {
+        guard let state else {
+            return false
+        }
+
+        return Self.passingLayerStates.contains(
+            state.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        )
+    }
+
+    /// States that mean the layer itself is blocking, not merely unconfirmed. A layer
+    /// reporting one of these must never be softened to a caution by a shared tone.
+    private static let blockingLayerStates: Set<String> = [
+        "revoked",
+        "blocked",
+        "replay_blocked",
+        "mismatch",
+        "redirect_mismatch",
+        "not_opened",
+    ]
+
+    private func layerBlocked(_ state: String?) -> Bool {
+        guard let state else {
+            return false
+        }
+
+        return Self.blockingLayerStates.contains(
+            state.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        )
+    }
+
+    /// Trust is granted by evidence, never by the absence of a matching stage case.
+    /// A layer the verifier short-circuited past carries no positive evidence, so an
+    /// optimistic `.trusted` candidate is downgraded rather than rendered green.
+    private func clamped(_ candidate: TrustTone, evidence: String?) -> TrustTone {
+        guard candidate == .trusted, !layerPassed(evidence) else {
+            return candidate
+        }
+
+        return .caution
+    }
+
+    private func issuerLayerEvidence(for decision: ScannerDecisionResponse) -> String {
+        signal(in: decision, layer: "issuer_legitimacy")?.state ?? decision.issuer.status
+    }
+
+    private func destinationLayerEvidence(for decision: ScannerDecisionResponse) -> String {
+        signal(in: decision, layer: "destination_binding")?.state ?? decision.destination.binding
+    }
+
+    private func issuerNotEstablished(for decision: ScannerDecisionResponse) -> Bool {
+        decision.decisionState == "signed_unknown_issuer" || decision.decisionState == "unverified"
+    }
+
+    private func issuerLayerTone(for decision: ScannerDecisionResponse, overallTone: TrustTone) -> TrustTone {
+        if decision.verifierStage == "certificate_status" {
+            return .blocked
+        }
+        if issuerNotEstablished(for: decision) || decision.verifierStage == "governance_cache" {
+            return overallTone
+        }
+
+        return clamped(.trusted, evidence: issuerLayerEvidence(for: decision))
+    }
+
+    private func issuerLayerState(for decision: ScannerDecisionResponse) -> String {
+        if decision.verifierStage == "certificate_status" {
+            return String(localized: "Not trusted")
+        }
+        if issuerNotEstablished(for: decision) {
+            return String(localized: "Unknown")
+        }
+        if decision.verifierStage == "governance_cache" {
+            return String(localized: "Stale")
+        }
+
+        let evidence = issuerLayerEvidence(for: decision)
+        return layerPassed(evidence)
+            ? String(localized: "Recognized")
+            : humanizedState(evidence, fallback: String(localized: "Not evaluated"))
+    }
+
+    private func destinationLayerTone(for decision: ScannerDecisionResponse, overallTone: TrustTone) -> TrustTone {
+        if decision.verifierStage == "payload_revalidation" || decision.verifierStage == "redirect_policy" {
+            return .blocked
+        }
+        if issuerNotEstablished(for: decision) || decision.verifierStage == "governance_cache" {
+            return overallTone
+        }
+
+        return clamped(.trusted, evidence: destinationLayerEvidence(for: decision))
+    }
+
+    private func destinationLayerState(for decision: ScannerDecisionResponse) -> String {
+        if decision.verifierStage == "redirect_policy" {
+            return String(localized: "Redirect mismatch")
+        }
+        if decision.verifierStage == "payload_revalidation" {
+            return String(localized: "Mismatch")
+        }
+
+        let evidence = destinationLayerEvidence(for: decision)
+        return layerPassed(evidence)
+            ? String(localized: "Bound")
+            : humanizedState(evidence, fallback: String(localized: "Not evaluated"))
+    }
+
     private func verifierProfileTrustLayers(
         for decision: ScannerDecisionResponse,
         tone: TrustTone
     ) -> [TrustLayerSignal] {
         let isRevoked = decision.decisionState == "profile_revoked"
         let cautionOrBlocked: TrustTone = isRevoked ? .blocked : .caution
+
+        // A stale or revoked verifier profile means no layer can be trusted, but an
+        // individual layer may still report a harder verdict than the shared tone.
+        func profileLayerTone(_ layer: String) -> TrustTone {
+            layerBlocked(signal(in: decision, layer: layer)?.state) ? .blocked : cautionOrBlocked
+        }
 
         return [
             TrustLayerSignal(
@@ -921,7 +1029,7 @@ final class VerifierLabViewModel: ObservableObject {
                     ?? (isRevoked
                         ? String(localized: "The verifier profile is revoked, so issuer enrollment cannot be trusted.")
                         : String(localized: "The verifier profile is stale, so issuer enrollment was not confirmed.")),
-                tone: cautionOrBlocked
+                tone: profileLayerTone("issuer_legitimacy")
             ),
             TrustLayerSignal(
                 title: String(localized: "Destination binding"),
@@ -933,7 +1041,7 @@ final class VerifierLabViewModel: ObservableObject {
                     ?? (isRevoked
                         ? String(localized: "Destination binding was not evaluated because the verifier profile is revoked.")
                         : String(localized: "A destination was read from the QR, but it was not checked against current issuer policy.")),
-                tone: cautionOrBlocked
+                tone: profileLayerTone("destination_binding")
             ),
             TrustLayerSignal(
                 title: String(localized: "Runtime safety"),
@@ -945,7 +1053,7 @@ final class VerifierLabViewModel: ObservableObject {
                     ?? (isRevoked
                         ? String(localized: "Runtime safety is not evaluated with a revoked verifier profile.")
                         : String(localized: "Current destination safety was not evaluated because the verifier profile is stale.")),
-                tone: cautionOrBlocked
+                tone: profileLayerTone("runtime_safety")
             ),
             TrustLayerSignal(
                 title: String(localized: "Scanner decision"),
@@ -1065,7 +1173,10 @@ final class VerifierLabViewModel: ObservableObject {
         case "certificate_status":
             return String(localized: "Issuer blocked")
         default:
-            return String(localized: "Clear")
+            let evidence = signal(in: decision, layer: "runtime_safety")?.state
+            return layerPassed(evidence)
+                ? String(localized: "Clear")
+                : humanizedState(evidence, fallback: String(localized: "Not evaluated"))
         }
     }
 
@@ -1078,7 +1189,10 @@ final class VerifierLabViewModel: ObservableObject {
         case "replay_guard", "time_window", "signed_schema", "payload_revalidation", "redirect_policy", "certificate_status":
             return .blocked
         default:
-            return overallTone == .caution ? .caution : .trusted
+            return clamped(
+                overallTone == .caution ? .caution : .trusted,
+                evidence: signal(in: decision, layer: "runtime_safety")?.state
+            )
         }
     }
 
@@ -1105,7 +1219,9 @@ final class VerifierLabViewModel: ObservableObject {
                 ? String(localized: "Runtime safety changed the final scanner decision.")
                 : decision.primaryMessage
         default:
-            return String(localized: "No runtime block condition was reported by the verifier.")
+            return layerPassed(signal(in: decision, layer: "runtime_safety")?.state)
+                ? String(localized: "No runtime block condition was reported by the verifier.")
+                : String(localized: "Runtime safety was not confirmed for this scan.")
         }
     }
 

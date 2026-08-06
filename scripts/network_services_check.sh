@@ -75,7 +75,8 @@ run_after_runtime() {
     nats:live-publisher-smoke \
     runtime:safety-smoke \
     runtime:observation-report-smoke \
-    signature:smoke
+    signature:smoke \
+    verifier-sync:signature-gate-smoke
   do
     run_npm_script "$script_name"
   done

@@ -217,7 +217,7 @@ export const assertScannerFleetEvidencePacket = (
     }
 
     assertFingerprint(row.profile_fingerprint, "evidence row profile fingerprint")
-    assertReasonCodes(row.reason_codes, row.fixture_id)
+    assertReasonCodes(row.reason_codes, row.fixture_id, row.decision_state)
     assertDomainFingerprint(row.domain_fingerprint, row.fixture_id)
     assertEvidenceRef(row.screenshot_ref, "screenshot", ".png", row.fixture_id)
     assertEvidenceRef(
@@ -320,13 +320,44 @@ const assertFingerprint = (value: string, label: string): void => {
   }
 }
 
+// Decision states whose path returns before destination binding is ever
+// evaluated, so an evidence row in one of these states cannot attest to it:
+//   one_time_replay  - narrowed verifier returns at the replay_guard stage
+//                      before match_payload_to_verified_domains runs
+//   expired          - the time_window stage returns before any payload match
+//   profile_revoked  - the certificate_status stage returns first
+//   plain_url_unrecognized / verifier_unavailable_visible_destination
+//                    - no verified issuer profile to bind a destination against
+// The verifier reports destination_binding as "not_evaluated" for each of
+// them. profile_stale is deliberately absent: a stale cache still binds the
+// destination against the cached profile and does emit destination_bound.
+const DESTINATION_BINDING_NOT_EVALUATED_STATES: ReadonlySet<string> = new Set([
+  "one_time_replay",
+  "expired",
+  "profile_revoked",
+  "plain_url_unrecognized",
+  "verifier_unavailable_visible_destination",
+])
+
+const DESTINATION_BINDING_REASON_CODE = "destination_bound"
+
 const assertReasonCodes = (
   reasonCodes: ReadonlyArray<string>,
   fixtureId: string,
+  decisionState: string,
 ): void => {
   if (reasonCodes.length === 0 || reasonCodes.some((code) => code.trim() === "")) {
     throw new Error(
       `Scanner fleet evidence row must include non-empty reason codes: ${fixtureId}`,
+    )
+  }
+  if (
+    DESTINATION_BINDING_NOT_EVALUATED_STATES.has(decisionState) &&
+    reasonCodes.includes(DESTINATION_BINDING_REASON_CODE)
+  ) {
+    throw new Error(
+      `Scanner fleet evidence row claims ${DESTINATION_BINDING_REASON_CODE} but decision state ` +
+        `${decisionState} stops before destination binding is evaluated: ${fixtureId}`,
     )
   }
 }

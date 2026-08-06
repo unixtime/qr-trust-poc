@@ -46,6 +46,16 @@ export interface TrustKeyStatusUpdateInput {
   readonly root_program_id: string
   readonly key_id: string
   readonly status: TrustKeyStatus
+  /**
+   * Confines the update to keys issued under this delegated authority.
+   *
+   * Callers acting with delegated authority MUST set it. Without it,
+   * `root_program_id` is the only guard, and every authority under a root
+   * program shares that value — so holding any one key would be enough to
+   * suspend a peer authority's key, or the root program's own. Callers acting
+   * with root-program authority omit it, which leaves the write unconfined.
+   */
+  readonly delegated_authority_id?: string
 }
 
 export interface TrustKeyRegistryWriterShape extends TrustKeyRegistryShape {
@@ -156,7 +166,7 @@ export const makeInMemoryTrustKeyRegistry = (
     updateTrustKeyStatus: (input) =>
       Effect.sync(() => {
         const key = records.get(input.key_id)
-        if (!key || key.root_program_id !== input.root_program_id) {
+        if (!key || !trustKeyIsWithinUpdateScope(key, input)) {
           return false
         }
 
@@ -183,4 +193,24 @@ const keyMatchesScope = (
     key.delegated_authority_id === input.delegated_authority_id &&
     key.signer_id === input.delegated_authority_id
   )
+}
+
+/**
+ * Mirrors the `where` clause of `trustKeyStatusUpdateCommand`, so an update
+ * authorized against the in-memory registry is authorized against Postgres too.
+ * Change one and the other has to move with it.
+ */
+const trustKeyIsWithinUpdateScope = (
+  key: TrustKeyRecord,
+  input: TrustKeyStatusUpdateInput,
+): boolean => {
+  if (key.root_program_id !== input.root_program_id) {
+    return false
+  }
+
+  if (typeof input.delegated_authority_id !== "string") {
+    return true
+  }
+
+  return key.delegated_authority_id === input.delegated_authority_id
 }

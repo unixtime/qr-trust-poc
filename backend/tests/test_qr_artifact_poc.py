@@ -373,3 +373,108 @@ def test_render_qr_png_rejects_oversized_payload() -> None:
 
     with pytest.raises(QRArtifactError, match="maximum supported size"):
         render_qr_png_bytes(oversized_payload)
+
+
+def test_zxing_extraction_ignores_linear_barcode_formats() -> None:
+    """A linear symbology must never be reported as a QR symbol.
+
+    zxing-cpp scans every format by default, and the dense module runs inside a
+    QR symbol intermittently satisfy a 1D decoder. That phantom inflated the
+    symbol count and conflicted with the real payload, so a clean signed QR
+    scored 80 for tamper. Reading a genuine EAN-13 pins the restriction: the
+    barcode is unambiguously present, and the extractor must still ignore it.
+    """
+    import zxingcpp
+
+    barcode = zxingcpp.create_barcode("5901234123457", zxingcpp.BarcodeFormat.EAN13)
+    rendered = zxingcpp.write_barcode_to_image(barcode, scale=4)
+    image = Image.fromarray(np.array(rendered)).convert("RGB")
+
+    assert [result.text for result in zxingcpp.read_barcodes(image)] == [
+        "5901234123457"
+    ], "fixture must be a decodable EAN-13, otherwise this test proves nothing"
+    assert qr_artifact_poc._extract_zxing_payloads(image) == []
+
+
+def _ink_corner_quad(ink) -> np.ndarray:
+    return np.array(
+        [
+            [ink.x_min, ink.y_min],
+            [ink.x_max, ink.y_min],
+            [ink.x_max, ink.y_max],
+            [ink.x_min, ink.y_max],
+        ],
+        dtype=np.float64,
+    )
+
+
+def _slide_corner_along_edge(quad: np.ndarray, ink, image: Image.Image) -> np.ndarray:
+    """Slide the bottom-left corner right along the bottom edge.
+
+    The quad's bounding box stays identical to the ink's, so only the ink
+    coverage check can reject this one.
+    """
+    quad[3][0] += 0.22 * ink.width
+    return quad
+
+
+def _collapse_corner_inward(quad: np.ndarray, ink, image: Image.Image) -> np.ndarray:
+    """Pull the bottom-left corner toward the symbol centre."""
+    quad[3] += np.array([0.35 * ink.width, -0.30 * ink.height])
+    return quad
+
+
+def _push_corner_outside_image(quad: np.ndarray, ink, image: Image.Image) -> np.ndarray:
+    """Push the top-right corner clear of the image, which no symbol can be."""
+    quad[1][0] = image.width + 20.0
+    return quad
+
+
+@pytest.mark.parametrize(
+    ("label", "degrade"),
+    [
+        ("corner_slid_along_edge", _slide_corner_along_edge),
+        ("corner_collapsed_inward", _collapse_corner_inward),
+        ("corner_outside_image", _push_corner_outside_image),
+    ],
+    ids=lambda value: value if isinstance(value, str) else "",
+)
+def test_malformed_detector_quad_does_not_corroborate_ink(label: str, degrade) -> None:
+    """Reject the corner quads OpenCV returns alongside a correct decode.
+
+    ``detectAndDecodeMulti`` intermittently reports a malformed quad while
+    decoding the payload correctly. On a perfectly square render those quads
+    produce lopsided edges, which read as perspective distortion. Each shape
+    here was captured from a real detector run on a clean signed envelope.
+    """
+    image = qr_artifact_poc._load_image_for_decode(render_qr_png_bytes("regression"))
+    ink = qr_artifact_poc._summarize_dark_pixel_bounds(image)
+    assert ink is not None
+
+    quad = degrade(_ink_corner_quad(ink), ink, image)
+    bounds = qr_artifact_poc._summarize_bounds(
+        quad, image_width=image.width, image_height=image.height
+    )
+    assert bounds is not None
+    assert bounds.edge_length_variation > 0.20, (
+        f"{label} must be lopsided enough to trip the perspective gate"
+    )
+
+    assert not qr_artifact_poc._quad_corroborates_ink(
+        bounds, ink, image=image, quad=quad
+    )
+
+
+def test_well_formed_detector_quad_corroborates_ink() -> None:
+    """The guard must not suppress geometry on a quad that traces the symbol."""
+    image = qr_artifact_poc._load_image_for_decode(render_qr_png_bytes("regression"))
+    ink = qr_artifact_poc._summarize_dark_pixel_bounds(image)
+    assert ink is not None
+
+    quad = _ink_corner_quad(ink)
+    bounds = qr_artifact_poc._summarize_bounds(
+        quad, image_width=image.width, image_height=image.height
+    )
+    assert bounds is not None
+
+    assert qr_artifact_poc._quad_corroborates_ink(bounds, ink, image=image, quad=quad)

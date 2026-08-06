@@ -148,6 +148,11 @@ export function useOperatorController() {
 
   const pollRuntimeStatus = useEffectEvent(loadRuntimeStatus)
 
+  // Mount-only on purpose. `pollRuntimeStatus` is an Effect Event, so it already
+  // reads the current adminToken/adminHeader on every tick. Listing those here
+  // instead re-subscribed the poller on each keystroke of the admin token field,
+  // and every re-subscribe fired the immediate timer below — one /verifier/status
+  // request per character, each carrying a partial token.
   useEffect(() => {
     const initialPollTimer = window.setTimeout(() => {
       void pollRuntimeStatus()
@@ -159,7 +164,7 @@ export function useOperatorController() {
       window.clearTimeout(initialPollTimer)
       window.clearInterval(timer)
     }
-  }, [adminHeader, adminToken])
+  }, [])
 
   async function refreshKeys() {
     if (!adminToken.trim()) {

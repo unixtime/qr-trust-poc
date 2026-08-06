@@ -12,6 +12,11 @@ import {
 import type { ScannerDecisionResponse } from "@/lib/verifier-client"
 import { HistorySection } from "@/routes/lab/components/HistorySection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
+import {
+  decisionStateTone,
+  trustStatusTone,
+  type TrustTone,
+} from "@/routes/lab/trust-tone"
 
 type TrustRow = {
   status: string
@@ -19,8 +24,6 @@ type TrustRow = {
   message: string | null
   reason_codes: string[]
 }
-
-type RowTone = "green" | "amber" | "red"
 
 function trustPathRows(decision: ScannerDecisionResponse): TrustRow[] {
   if (decision.contract) {
@@ -40,41 +43,8 @@ function trustPathRows(decision: ScannerDecisionResponse): TrustRow[] {
   }))
 }
 
-function statusTone(status: string): RowTone {
-  const value = status.toLowerCase()
-  if (
-    value.includes("blocked") ||
-    value.includes("mismatch") ||
-    value.includes("revoked") ||
-    value.includes("expired") ||
-    value.includes("risky")
-  ) {
-    return "red"
-  }
-  if (
-    value.includes("unknown") ||
-    value.includes("unverified") ||
-    value.includes("not") ||
-    value.includes("secondary")
-  ) {
-    return "amber"
-  }
-  if (
-    value.includes("verified") ||
-    value.includes("pass") ||
-    value.includes("ok") ||
-    value.includes("allowed") ||
-    value.includes("green") ||
-    value.includes("fresh") ||
-    value.includes("valid")
-  ) {
-    return "green"
-  }
-  return "amber"
-}
-
 const toneStyles: Record<
-  RowTone,
+  TrustTone,
   { icon: typeof CheckCircle2; surface: string; text: string }
 > = {
   green: {
@@ -105,14 +75,14 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
   const reasonCodes = decision
     ? (decision.contract?.reason_codes ?? decision.scanner_ux?.reason_codes ?? [])
     : []
-  const decisionTone: RowTone = decision
+  const decisionTone: TrustTone = decision
     ? decision.contract
       ? decision.contract.decision_color === "green"
         ? "green"
         : decision.contract.decision_color === "red"
           ? "red"
           : "amber"
-      : statusTone(decision.decision_state)
+      : decisionStateTone(decision.decision_state)
     : "amber"
 
   return (
@@ -197,7 +167,7 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
 
           <ul className="flex flex-col gap-3">
             {rows.map((row, index) => {
-              const tone = toneStyles[statusTone(row.status)]
+              const tone = toneStyles[trustStatusTone(row.status)]
               const Icon = tone.icon
               return (
                 <li

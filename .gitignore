@@ -28,6 +28,9 @@ venv/
 ENV/
 env/
 node_modules/
+# Node module compile cache; tsx enables it programmatically, and the directory
+# name is keyed to node version + arch + uid, so it is never shareable.
+/node-compile-cache/
 
 # IDE
 .vscode/

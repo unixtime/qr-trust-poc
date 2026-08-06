@@ -2,6 +2,7 @@ import { Console, Effect } from "effect"
 
 import {
   demoDelegatedAuthorityTrustKey,
+  demoRootTrustKey,
   makePostgresTrustKeyRegistry,
   makeRecordingPostgresTrustKeyRegistryExecutor,
   type PostgresTrustKeyRow,
@@ -17,9 +18,18 @@ const lookupInput = {
   accepted_algorithm_ids: ["ed25519"],
 }
 
+// The root program's own signing key, reachable through the same lookup path
+// because a root-scoped key matches on `signer_id === root_program_id`.
+const rootLookupInput = {
+  signed_by: demoRootTrustKey.signer_id,
+  root_program_id: demoRootTrustKey.root_program_id,
+  accepted_algorithm_ids: ["ed25519"],
+}
+
 const program = Effect.gen(function* () {
   const executor = makeRecordingPostgresTrustKeyRegistryExecutor([
     rowFromTrustKey(demoDelegatedAuthorityTrustKey),
+    rowFromTrustKey(demoRootTrustKey),
   ])
   const registry = makePostgresTrustKeyRegistry(executor)
 
@@ -29,10 +39,24 @@ const program = Effect.gen(function* () {
     key_id: "key:missing",
     status: "revoked",
   })
+  // A delegated authority must not reach the root program's key. Both fixtures
+  // share a root_program_id, so that column alone confines nothing — only the
+  // delegated-authority predicate does.
+  const crossAuthorityUpdate = yield* registry.updateTrustKeyStatus({
+    root_program_id: lookupInput.root_program_id,
+    key_id: demoRootTrustKey.key_id,
+    status: "revoked",
+    delegated_authority_id: lookupInput.delegated_authority_id,
+  })
+  const rootAfterCrossAuthority =
+    yield* registry.lookupSignerKey(rootLookupInput)
+
   const revoked = yield* registry.updateTrustKeyStatus({
     root_program_id: lookupInput.root_program_id,
     key_id: demoDelegatedAuthorityTrustKey.key_id,
     status: "revoked",
+    // Revoking its own key keeps the authority inside its own scope.
+    delegated_authority_id: lookupInput.delegated_authority_id,
   })
   const afterRevocation = yield* registry.lookupSignerKey(lookupInput)
   const unsupportedAlgorithm = yield* registry.lookupSignerKey({
@@ -48,9 +72,21 @@ const program = Effect.gen(function* () {
       "pem://fixture/authority/qrtrust-demo-merchant-web-v2",
   })
   const afterRotation = yield* registry.lookupSignerKey(lookupInput)
+
+  // Root-program authority omits the predicate and keeps its full reach.
+  const rootAuthorityUpdate = yield* registry.updateTrustKeyStatus({
+    root_program_id: rootLookupInput.root_program_id,
+    key_id: demoRootTrustKey.key_id,
+    status: "suspended",
+  })
+
   const snapshot = yield* registry.snapshot()
   const recorded = executor.recorded()
 
+  yield* assertSmoke(
+    demoRootTrustKey.root_program_id === lookupInput.root_program_id,
+    "fixtures drifted: the root and delegated keys no longer share a root program, so the cross-authority case proves nothing",
+  )
   yield* assertSmoke(
     initialLookup.key?.key_id === demoDelegatedAuthorityTrustKey.key_id,
     "initial delegated authority key was not found",
@@ -58,6 +94,19 @@ const program = Effect.gen(function* () {
   yield* assertSmoke(
     missingUpdate === false,
     "status update for a missing key should report false",
+  )
+  yield* assertSmoke(
+    crossAuthorityUpdate === false,
+    "a delegated authority revoked the root program's trust key",
+  )
+  yield* assertSmoke(
+    rootAfterCrossAuthority.key?.key_id === demoRootTrustKey.key_id &&
+      rootAfterCrossAuthority.reason === undefined,
+    "root program key did not survive a cross-authority revocation attempt",
+  )
+  yield* assertSmoke(
+    rootAuthorityUpdate,
+    "root-program authority could not update a key in its own program",
   )
   yield* assertSmoke(revoked, "status update did not report revoked key")
   yield* assertSmoke(
@@ -77,8 +126,8 @@ const program = Effect.gen(function* () {
     "active rotated key was not selected after revocation",
   )
   yield* assertSmoke(
-    snapshot.length === 2,
-    "snapshot did not include revoked and rotated trust keys",
+    snapshot.length === 3,
+    "snapshot did not include the root, revoked, and rotated trust keys",
   )
 
   yield* Console.log(
@@ -86,6 +135,9 @@ const program = Effect.gen(function* () {
       {
         initial_lookup: initialLookup.key?.key_id,
         missing_update: missingUpdate,
+        cross_authority_update: crossAuthorityUpdate,
+        root_key_after_cross_authority: rootAfterCrossAuthority.key?.status,
+        root_authority_update: rootAuthorityUpdate,
         after_revocation: afterRevocation.reason,
         unsupported_algorithm: unsupportedAlgorithm.reason,
         after_rotation: afterRotation.key?.key_id,

@@ -78,6 +78,10 @@ const program = Effect.gen(function* () {
     "packet should fail closed when a row has no reason codes",
   )
   yield* assertSmoke(
+    throwsDestinationBoundOnUnevaluatedBinding(),
+    "packet should fail closed when a row claims binding the verifier never evaluated",
+  )
+  yield* assertSmoke(
     throwsRawDomainFingerprint(),
     "packet should fail closed when a row exposes a raw URL fingerprint",
   )
@@ -270,6 +274,23 @@ const throwsMissingReasonCodes = (): boolean => {
     return false
   } catch (error) {
     return isExpectedError(error, "non-empty reason codes")
+  }
+}
+
+const throwsDestinationBoundOnUnevaluatedBinding = (): boolean => {
+  const rows = SCANNER_FLEET_REQUIRED_FIXTURES.map((fixture, index) => {
+    const row = makeEvidenceRow(fixture, index)
+    if (fixture.fixture_id === "red_one_time_replay") {
+      return { ...row, reason_codes: [...row.reason_codes, "destination_bound"] }
+    }
+    return row
+  })
+
+  try {
+    makeReferencePacket({ evidenceRows: rows })
+    return false
+  } catch (error) {
+    return isExpectedError(error, "stops before destination binding")
   }
 }
 

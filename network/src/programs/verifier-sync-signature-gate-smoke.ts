@@ -4,6 +4,7 @@ import {
   makeArtifactPublicationService,
   makeInMemoryArtifactStore,
   makeInMemoryEventBus,
+  makeInMemoryTrustKeyRegistry,
   makeInMemoryVerifierCache,
   makeFixtureSignatureVerifier,
   makeFixtureTrustArtifactSigner,
@@ -11,8 +12,14 @@ import {
   referenceDelegatedAuthorityBody,
   referenceDestinationPolicyBody,
   referenceRootManifestBody,
+  type ArtifactPublicationServiceShape,
   type SignatureVerifierShape,
+  type TrustArtifactSignerShape,
 } from "../index.js"
+import {
+  demoDelegatedAuthorityTrustKey,
+  demoRootTrustKey,
+} from "../services/trust-key-registry.js"
 import {
   demoDestinationPolicyProjection,
   demoIssuerProjection,
@@ -36,6 +43,9 @@ const program = Effect.gen(function* () {
   const rootAuthorityGate = yield* runRootAuthorityGateFixture()
   const malformedDestinationPolicy =
     yield* runMalformedDestinationPolicyFixture()
+  const crossAuthorityKeyRevocation =
+    yield* runCrossAuthorityKeyRevocationFixture()
+  const rootAuthorityKeyRevocation = yield* runRootAuthorityKeyRevocationFixture()
 
   yield* Console.log(
     JSON.stringify(
@@ -44,6 +54,8 @@ const program = Effect.gen(function* () {
         namespace_binding: namespaceBinding,
         root_authority_gate: rootAuthorityGate,
         malformed_destination_policy: malformedDestinationPolicy,
+        cross_authority_key_revocation: crossAuthorityKeyRevocation,
+        root_authority_key_revocation: rootAuthorityKeyRevocation,
       },
       null,
       2,
@@ -278,6 +290,174 @@ const runMalformedDestinationPolicyFixture = () =>
       projected_destination_policies: report.projected_destination_policies,
       rejected_status_events: report.rejected_status_events,
     }
+  })
+
+/**
+ * A trust-key revocation names its target by key id, not by the namespace the
+ * signature gate bound the signer to. An honestly signed event from a
+ * delegated authority therefore reaches the whole root program unless the
+ * authority bind is re-applied when the write lands.
+ */
+const runCrossAuthorityKeyRevocationFixture = () =>
+  Effect.gen(function* () {
+    const artifactStore = makeInMemoryArtifactStore()
+    const eventBus = makeInMemoryEventBus()
+    const publisher = makeArtifactPublicationService(artifactStore, eventBus)
+    const signer = makeFixtureTrustArtifactSigner()
+    const trustKeyRegistry = makeInMemoryTrustKeyRegistry()
+    const verifierSync = makeVerifierSyncService(
+      artifactStore,
+      eventBus,
+      makeInMemoryVerifierCache(),
+      makeFixtureSignatureVerifier(),
+      // Omit the registry and `applyKeyStatusEvent` never runs, so every
+      // assertion below would hold vacuously.
+      trustKeyRegistry,
+    )
+
+    const published = yield* publishTrustKeyRevocation(publisher, signer, {
+      artifact_id: "art_status_cross_authority_key_revocation_v1",
+      signed_by: demoIssuerProjection.namespace.delegated_authority_id,
+      key_id: demoRootTrustKey.key_id,
+      reason: "delegated authority must not revoke the root program's key",
+    })
+
+    const report = yield* verifierSync.syncRecent()
+    const rootKey = yield* trustKeyRegistry.lookupSignerKey(rootKeyLookupInput)
+
+    yield* assertSmoke(
+      demoRootTrustKey.root_program_id ===
+        demoDelegatedAuthorityTrustKey.root_program_id,
+      "fixtures drifted: the root and delegated keys no longer share a root program, so this fixture proves nothing",
+    )
+    yield* assertSmoke(
+      report.rejected_status_events.length === 0,
+      "the cross-authority revocation should pass the signature gate — it is honestly signed — and be stopped by the authority bind instead",
+    )
+    yield* assertSmoke(
+      report.applied_key_status_events === 0,
+      "a delegated authority revoked the root program's trust key through verifier sync",
+    )
+    yield* assertSmoke(
+      rootKey.key?.status === "active" && rootKey.reason === undefined,
+      "root program key did not survive a cross-authority revocation event",
+    )
+
+    return {
+      published_artifact: published.artifact.artifact_id,
+      rejected_status_events: report.rejected_status_events,
+      applied_key_status_events: report.applied_key_status_events,
+      root_key_status: rootKey.key?.status,
+    }
+  })
+
+const runRootAuthorityKeyRevocationFixture = () =>
+  Effect.gen(function* () {
+    const artifactStore = makeInMemoryArtifactStore()
+    const eventBus = makeInMemoryEventBus()
+    const publisher = makeArtifactPublicationService(artifactStore, eventBus)
+    const signer = makeFixtureTrustArtifactSigner()
+    const trustKeyRegistry = makeInMemoryTrustKeyRegistry()
+    const verifierSync = makeVerifierSyncService(
+      artifactStore,
+      eventBus,
+      makeInMemoryVerifierCache(),
+      makeFixtureSignatureVerifier(),
+      trustKeyRegistry,
+    )
+
+    const published = yield* publishTrustKeyRevocation(publisher, signer, {
+      artifact_id: "art_status_root_authority_key_revocation_v1",
+      signed_by: demoIssuerProjection.namespace.root_program_id,
+      key_id: demoDelegatedAuthorityTrustKey.key_id,
+      reason: "root program governs every key issued under it",
+    })
+
+    const report = yield* verifierSync.syncRecent()
+    const delegatedKey = yield* trustKeyRegistry.lookupSignerKey(
+      delegatedKeyLookupInput,
+    )
+
+    yield* assertSmoke(
+      report.applied_key_status_events === 1,
+      "the root program could not revoke a key issued under its own program",
+    )
+    yield* assertSmoke(
+      delegatedKey.reason === "key_not_active",
+      "revoked delegated authority key still resolved as a usable signer",
+    )
+
+    return {
+      published_artifact: published.artifact.artifact_id,
+      applied_key_status_events: report.applied_key_status_events,
+      delegated_key_lookup: delegatedKey.reason,
+    }
+  })
+
+const rootKeyLookupInput = {
+  signed_by: demoRootTrustKey.signer_id,
+  root_program_id: demoRootTrustKey.root_program_id,
+  accepted_algorithm_ids: [demoRootTrustKey.algorithm_id],
+}
+
+const delegatedKeyLookupInput = {
+  signed_by: demoDelegatedAuthorityTrustKey.signer_id,
+  root_program_id: demoDelegatedAuthorityTrustKey.root_program_id,
+  delegated_authority_id:
+    demoDelegatedAuthorityTrustKey.delegated_authority_id ?? "",
+  accepted_algorithm_ids: [demoDelegatedAuthorityTrustKey.algorithm_id],
+}
+
+const publishTrustKeyRevocation = (
+  publisher: ArtifactPublicationServiceShape,
+  signer: TrustArtifactSignerShape,
+  input: {
+    readonly artifact_id: string
+    readonly signed_by: string
+    readonly key_id: string
+    readonly reason: string
+  },
+) =>
+  Effect.gen(function* () {
+    const signed = yield* signer.signTrustArtifact({
+      body: {
+        artifact_type: "revocation_status_event",
+        schema_version: "0.1.0",
+        status_event_id: `evt_${input.artifact_id}`,
+        root_program_id: demoIssuerProjection.namespace.root_program_id,
+        // Present even when the root program signs: the body contract requires
+        // the field, and it is the signer's own key scope — not this value —
+        // that decides how far the write reaches.
+        delegated_authority_id:
+          demoIssuerProjection.namespace.delegated_authority_id,
+        target: {
+          target_type: "trust_key",
+          key_id: input.key_id,
+        },
+        status: "revoked",
+        reason: input.reason,
+        effective_at: observedAt.toISOString(),
+        signed_by: input.signed_by,
+      },
+      signed_by: input.signed_by,
+      root_program_id: demoIssuerProjection.namespace.root_program_id,
+      delegated_authority_id:
+        demoIssuerProjection.namespace.delegated_authority_id,
+    })
+
+    return yield* publisher.publishArtifact({
+      artifact_type: "revocation_status_event",
+      artifact_id: input.artifact_id,
+      version: 1,
+      root_program_id: demoIssuerProjection.namespace.root_program_id,
+      delegated_authority_id:
+        demoIssuerProjection.namespace.delegated_authority_id,
+      issuer_id: demoIssuerProjection.namespace.issuer_id,
+      body: signed.body,
+      occurredAt: observedAt,
+      eventType: "issuer.status.changed",
+      reason: input.reason,
+    })
   })
 
 const unsignedIssuerRecordBody = (issuer: IssuerProjection) => ({

@@ -835,6 +835,22 @@ def validate_verifier_profile_semantics(
         )
 
 
+# Decision states whose path returns before destination binding is evaluated,
+# so an evidence row in one of these states cannot attest to it. The verifier
+# reports destination_binding as "not_evaluated" for each. profile_stale is
+# deliberately absent: a stale cache still binds against the cached profile.
+DESTINATION_BINDING_NOT_EVALUATED_STATES = frozenset(
+    {
+        "one_time_replay",
+        "expired",
+        "profile_revoked",
+        "plain_url_unrecognized",
+        "verifier_unavailable_visible_destination",
+    }
+)
+DESTINATION_BINDING_REASON_CODE = "destination_bound"
+
+
 def validate_scanner_fleet_evidence_semantics(
     instance_path: Path,
     packet: dict[str, Any],
@@ -936,6 +952,18 @@ def validate_scanner_fleet_evidence_semantics(
             raise ContractError(
                 f"{instance_path.relative_to(ROOT)} evidence row {row['fixture_id']} "
                 "does not match fixture expected_state"
+            )
+
+        row_reason_codes = row.get("reason_codes")
+        if (
+            row.get("decision_state") in DESTINATION_BINDING_NOT_EVALUATED_STATES
+            and isinstance(row_reason_codes, list)
+            and DESTINATION_BINDING_REASON_CODE in row_reason_codes
+        ):
+            raise ContractError(
+                f"{instance_path.relative_to(ROOT)} evidence row {row['fixture_id']} "
+                f"claims {DESTINATION_BINDING_REASON_CODE} but decision state "
+                f"{row['decision_state']} stops before destination binding is evaluated"
             )
 
         color = row.get("decision_color")

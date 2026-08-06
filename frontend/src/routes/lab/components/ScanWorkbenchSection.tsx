@@ -40,6 +40,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 import DecisionPanel from "@/routes/lab/components/DecisionPanel"
 import StatusPanel from "@/routes/lab/components/StatusPanel"
+import { trustStatusTone } from "@/routes/lab/trust-tone"
 import type { ScanWorkbenchSectionProps } from "@/routes/lab/types"
 
 type ScanDecision = NonNullable<
@@ -216,39 +217,6 @@ function riskPillClass(level: "green" | "amber" | "red"): string {
   }
   if (level === "red") {
     return "border-(--trust-red)/25 bg-(--trust-red)/10 text-(--trust-red)"
-  }
-  return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
-}
-
-function signalClasses(state: string): string {
-  const value = state.toLowerCase()
-  if (
-    value.includes("blocked") ||
-    value.includes("mismatch") ||
-    value.includes("revoked") ||
-    value.includes("expired") ||
-    value.includes("risky")
-  ) {
-    return "border-(--trust-red)/25 bg-(--trust-red)/10 text-(--trust-red)"
-  }
-  if (
-    value.includes("unknown") ||
-    value.includes("unverified") ||
-    value.includes("not") ||
-    value.includes("secondary")
-  ) {
-    return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
-  }
-  if (
-    value.includes("verified") ||
-    value.includes("pass") ||
-    value.includes("ok") ||
-    value.includes("allowed") ||
-    value.includes("green") ||
-    value.includes("fresh") ||
-    value.includes("valid")
-  ) {
-    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
   }
   return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
 }
@@ -538,7 +506,7 @@ function ScannerDecisionPanel({
               {trustPath.map((step, index) => (
                 <div
                   key={`${step.label}:${step.status}`}
-                  className={`rounded-[1rem] border p-3 ${signalClasses(step.status)}`}
+                  className={`rounded-[1rem] border p-3 ${riskPillClass(trustStatusTone(step.status))}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>

@@ -130,6 +130,7 @@ update qr_trust.trust_keys
 set key_status = $3
 where root_program_id = $1
   and key_id = $2
+  and ($4::text is null or delegated_authority_id = $4)
 returning
   key_id,
   root_program_id,
@@ -141,7 +142,14 @@ returning
   scope,
   key_status
 `.trim(),
-  values: [input.root_program_id, input.key_id, input.status],
+  values: [
+    input.root_program_id,
+    input.key_id,
+    input.status,
+    // Null for a root-program caller, which leaves the authority predicate
+    // satisfied and the update unconfined.
+    input.delegated_authority_id ?? null,
+  ],
 })
 
 export const makeRecordingPostgresTrustKeyRegistryExecutor = (
@@ -279,6 +287,7 @@ const rowFromStatusUpdateCommand = (
   const rootProgramId = stringCommandValue(command, 0)
   const keyId = stringCommandValue(command, 1)
   const keyStatus = statusCommandValue(command, 2)
+  const delegatedAuthorityId = stringCommandValue(command, 3)
 
   if (!rootProgramId || !keyId || !keyStatus) {
     return undefined
@@ -286,6 +295,16 @@ const rowFromStatusUpdateCommand = (
 
   const row = rows.get(keyId)
   if (!row || row.root_program_id !== rootProgramId) {
+    return undefined
+  }
+
+  // Mirrors `($4::text is null or delegated_authority_id = $4)`. Without it the
+  // fake would accept cross-authority updates the database rejects, and the
+  // smoke programs would pass vacuously.
+  if (
+    delegatedAuthorityId &&
+    row.delegated_authority_id !== delegatedAuthorityId
+  ) {
     return undefined
   }
 

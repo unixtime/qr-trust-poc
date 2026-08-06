@@ -70,7 +70,10 @@ Implemented now:
   state can change
 - a trust-key lifecycle projection path where signed status events can suspend,
   revoke, or expire root or delegated-authority signing keys before subsequent
-  status events are accepted
+  status events are accepted, confined to the authority that signed them: a
+  root-program signer reaches every key in its program, a delegated authority
+  reaches only the keys issued under it, so a valid signature on one authority's
+  key cannot revoke a peer authority's key or the root program's own
 - a driverless Postgres trust-key registry adapter that persists key material
   references, public verification material, signer scope, and key lifecycle
   status behind the same lookup/update port used by signature verification
@@ -252,7 +255,12 @@ authorization by default before it materializes externally supplied cache work
 items. The worker uses:
 
 - `published_artifacts` as the immutable artifact source
-- `trust_keys` as the signer lookup table
+- `trust_keys` as the signer lookup table. Status writes against this table are
+  confined to the authority that signed them: an update carrying a
+  `delegated_authority_id` only matches rows in that authority, so a
+  delegated-authority signer cannot suspend or revoke the root program's key or
+  a peer authority's. Root-program signers omit the predicate and keep their
+  full reach over the program.
 - inline `public_key_material_pem`, `env://VAR_NAME`, `file://path`, or fixture
   key-material refs through the default key-material provider
 - Ed25519 verification over canonical status-event JSON bytes
@@ -370,6 +378,7 @@ npm run nats:live-publisher-smoke
 npm run runtime:observation-report-smoke
 npm run runtime:safety-smoke
 npm run signature:smoke
+npm run verifier-sync:signature-gate-smoke
 ```
 
 `npm run deployment:readiness-report` writes local operator handoff artifacts to

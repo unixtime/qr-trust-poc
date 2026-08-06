@@ -123,7 +123,6 @@
       "decision_state": "one_time_replay",
       "reason_codes": [
         "issuer_recognized",
-        "destination_bound",
         "nonce_replayed"
       ],
       "domain_fingerprint": "acm...ple.example",
@@ -145,7 +144,6 @@
       "decision_state": "expired",
       "reason_codes": [
         "issuer_recognized",
-        "destination_bound",
         "qr_expired"
       ],
       "domain_fingerprint": "acm...ple.example",

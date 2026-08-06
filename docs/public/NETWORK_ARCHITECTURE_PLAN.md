@@ -625,6 +625,11 @@ Success criteria:
   are rejected before verifier-cache mutation
 - accepted trust-key lifecycle events prevent the affected key from authorizing
   subsequent status events
+- a trust-key lifecycle event reaches only the authority that signed it: a
+  delegated authority can revoke, suspend, or expire the keys issued under it and
+  nothing else, so an honestly signed event cannot disable a peer authority's key
+  or the root program's own, while a root-program signer still governs every key
+  in its program
 - short rotation overlap fails closed, stale verifier caches refresh before
   green, and emergency key revocation cannot leave compromised keys active
 - signer recovery fixtures reject post-recovery root and delegated-authority

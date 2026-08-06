@@ -132,6 +132,48 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Check frontend trust-row colour mapping
+        working-directory: frontend
+        run: npm run trust-tone:smoke
+
+  verifier-lab-stability:
+    name: Verifier Lab Stability Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # Umbrella target: runs the verifier and lab pytest slice, then chains
+      # check-frontend-vite-config, check-frontend-trust-tone,
+      # check-frontend-scanner-contract and
+      # check-frontend-scanner-open-contract. Targets added to that chain
+      # are covered here without editing this workflow.
+      - name: Run verifier lab stability checks
+        run: make check-python-verifier-lab-stability
+
   compose-workbench-smoke:
     name: Compose Workbench Smoke
     runs-on: ubuntu-latest
