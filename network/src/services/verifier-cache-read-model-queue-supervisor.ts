@@ -102,9 +102,11 @@ export const makeVerifierCacheReadModelQueueSupervisor = (
           yield* supervisorSleep(nextPollDelayMs, options.shutdown_signal)
         }
 
-        if (options.shutdown_signal?.aborted) {
-          stopReason = "shutdown_signal"
-        }
+        // `stopReason` is settled by whichever exit the loop actually took, so
+        // it is not re-derived from the signal here. A shutdown that arrives
+        // while the final iteration is in flight leaves the signal aborted even
+        // though the loop stopped for its own reason, and overwriting on that
+        // basis reports a drained queue as work cut short.
 
         return buildSupervisorReport({
           workerId: options.worker_id,
@@ -130,15 +132,20 @@ const supervisorSleep = (
           return
         }
 
-        const timeout = setTimeout(resolve, delayMs)
-        shutdownSignal?.addEventListener(
-          "abort",
-          () => {
-            clearTimeout(timeout)
-            resolve()
-          },
-          { once: true },
-        )
+        // The listener has to come off on both exits, not just on abort:
+        // `{ once: true }` self-removes only when the event fires, and the
+        // default configuration polls forever against a caller-owned signal,
+        // so the timeout path would accrue one dead listener per iteration.
+        const onAbort = () => {
+          clearTimeout(timeout)
+          resolve()
+        }
+        const timeout = setTimeout(() => {
+          shutdownSignal?.removeEventListener("abort", onAbort)
+          resolve()
+        }, delayMs)
+
+        shutdownSignal?.addEventListener("abort", onAbort, { once: true })
       }),
   )
 

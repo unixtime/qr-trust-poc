@@ -763,12 +763,20 @@ const cacheEntryId = (
     sourceArtifactHashes,
   }).slice(0, 16)}`
 
+/**
+ * Raised when an entry is materialized past the expiry it carries. Consumers
+ * key persisted freshness off this code, so it is exported rather than left as
+ * a bare string the caller has to spell correctly.
+ */
+export const CACHE_MATERIALIZED_AFTER_EXPIRY_WARNING =
+  "cache_materialized_after_expiry"
+
 const materializationWarnings = (
   materializedAt: Date,
   cacheExpiresAt: string,
 ): ReadonlyArray<string> =>
   materializedAt.toISOString() > cacheExpiresAt
-    ? ["cache_materialized_after_expiry"]
+    ? [CACHE_MATERIALIZED_AFTER_EXPIRY_WARNING]
     : []
 
 const requireRefMatchesArtifact = (

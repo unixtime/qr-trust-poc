@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
@@ -18,6 +19,14 @@ struct ContentView: View {
     @State private var pendingOpenResult: ScanResult?
     @State private var evidenceExportPackage: EvidenceExportPackage?
     @State private var evidenceExportError: String?
+
+    // Scanner sheet chrome. Torch availability is reported up from the capture
+    // controller rather than assumed — the front camera and the Simulator both
+    // have none, and a dead button is worse than an absent one.
+    @State private var isTorchOn = false
+    @State private var isTorchAvailable = false
+    @State private var scannerPhotoItem: PhotosPickerItem?
+    @State private var scannerImportError: String?
 
     var body: some View {
         TabView(selection: $selectedSection) {
@@ -186,48 +195,12 @@ struct ContentView: View {
 
     private var idleScanState: some View {
         VStack(spacing: 18) {
-            VStack(spacing: 10) {
-                Image("BrandMark")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 74, height: 74)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .shadow(color: AppTheme.trust.opacity(0.14), radius: 14, x: 0, y: 8)
-                    .accessibilityLabel("QR Trust logo")
-
-                Text("QR Trust")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(AppTheme.ink)
-
-                Text("A managed trust signal before you open a QR link.")
-                    .font(.callout)
-                    .foregroundStyle(AppTheme.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 6)
-
-            ContentUnavailableView {
-                Label("Ready to scan", systemImage: "qrcode.viewfinder")
-                    .symbolRenderingMode(.hierarchical)
-            } description: {
-                Text("Point the camera at a QR code. The app checks issuer trust, destination binding, and current safety before you decide.")
-            } actions: {
-                Button {
-                    viewModel.resetForNewScan()
-                    showingScanner = true
-                } label: {
-                    Label("Scan QR Code", systemImage: "camera.viewfinder")
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.roundedRectangle(radius: 14))
-                .controlSize(.large)
-                .tint(AppTheme.trust)
-                .disabled(viewModel.isChecking)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 32)
+            // `ContentUnavailableView` used to sit here. It is the platform's
+            // empty-and-error primitive — "No Results", "No Internet" — and
+            // using it as the first-run call to action told the reader in
+            // Apple's own vocabulary that nothing was here, on the one screen
+            // whose job is to invite the first scan.
+            scanHero
 
             VStack(alignment: .leading, spacing: 12) {
                 Label("Simple signal, managed trust", systemImage: "shield.checkered")
@@ -246,11 +219,12 @@ struct ContentView: View {
     private var scanHero: some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(spacing: 12) {
-                Image(systemName: "shield.lefthalf.filled.badge.checkmark")
-                    .font(.title3.weight(.bold))
-                    .foregroundStyle(AppTheme.trust)
+                Image("BrandMark")
+                    .resizable()
+                    .scaledToFit()
                     .frame(width: 42, height: 42)
-                    .background(AppTheme.trust.opacity(0.12), in: Circle())
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    .accessibilityLabel("QR Trust logo")
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Protected QR Scanner")
@@ -1357,9 +1331,14 @@ struct ContentView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Side of the scan window, shared by the drawn reticle, the scrim cutout,
+    /// and the capture controller's `rectOfInterest`. One number so the three
+    /// cannot drift apart — the frame is now load-bearing, not decoration.
+    private var scannerReticleSide: CGFloat { 260 }
+
     private var scannerSheet: some View {
         NavigationStack {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 ScannerView(
                     onPayload: { payload in
                         showingScanner = false
@@ -1370,45 +1349,153 @@ struct ContentView: View {
                     onFailure: { reason in
                         showingScanner = false
                         viewModel.handleCameraFailure(reason)
-                    }
+                    },
+                    reticleSide: scannerReticleSide,
+                    isTorchOn: isTorchOn,
+                    onTorchAvailabilityChange: { isTorchAvailable = $0 }
                 )
-                .ignoresSafeArea()
 
-                VStack(spacing: 22) {
-                    RoundedRectangle(cornerRadius: 28)
-                        .strokeBorder(Color.white, lineWidth: 4)
-                        .frame(width: 260, height: 260)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 28)
-                                .strokeBorder(AppTheme.scanLine, lineWidth: 2)
-                                .padding(8)
-                        }
-                        .shadow(color: AppTheme.scanLine.opacity(0.45), radius: 18, x: 0, y: 0)
-                        .accessibilityHidden(true)
+                scannerScrim
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Place the QR inside the frame")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                        Text("The app will close the camera automatically once it reads the QR.")
-                            .font(.subheadline)
-                            .foregroundStyle(Color.white.opacity(0.76))
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(AppTheme.cameraChrome, lineWidth: 4)
+                    .frame(width: scannerReticleSide, height: scannerReticleSide)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .strokeBorder(AppTheme.scanLine, lineWidth: 2)
+                            .padding(8)
                     }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
-                    .padding(.horizontal, 18)
-                }
-                .padding(.bottom, 28)
+                    .shadow(color: AppTheme.scanLine.opacity(0.45), radius: 18, x: 0, y: 0)
+                    .accessibilityHidden(true)
+            }
+            // Applied to the whole stack rather than to `ScannerView` alone.
+            // Otherwise the preview fills the sheet while the reticle centres
+            // inside the safe area, and the drawn frame sits roughly half the
+            // navigation bar's height below the region the camera is reading.
+            .ignoresSafeArea()
+            .overlay(alignment: .bottom) { scannerChrome }
+            .onChange(of: scannerPhotoItem) { _, newItem in
+                guard let newItem else { return }
+                scannerImportError = nil
+                Task { await importScannedImage(newItem) }
+            }
+            .onDisappear {
+                isTorchOn = false
+                scannerPhotoItem = nil
+                scannerImportError = nil
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Close") {
                         showingScanner = false
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppTheme.cameraChrome)
                 }
             }
+        }
+    }
+
+    /// Dims everything outside the reticle.
+    ///
+    /// The dimming is a statement of fact, not atmosphere: detection really is
+    /// confined to the cutout now, so the scrim shows the reader's field of
+    /// view. `.destinationOut` punches the hole, and `.compositingGroup()` is
+    /// what keeps that erasure inside this stack instead of taking the camera
+    /// preview with it.
+    private var scannerScrim: some View {
+        ZStack {
+            Rectangle()
+                .fill(AppTheme.cameraScrim)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .frame(width: scannerReticleSide, height: scannerReticleSide)
+                .blendMode(.destinationOut)
+        }
+        .compositingGroup()
+        .accessibilityHidden(true)
+    }
+
+    private var scannerChrome: some View {
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Place the QR inside the frame")
+                    .font(.headline)
+                    .foregroundStyle(AppTheme.cameraChrome)
+                Text("Only codes inside the frame are read. The camera closes automatically once one is found.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.cameraChrome.opacity(0.76))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            if let scannerImportError {
+                Label(scannerImportError, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(AppTheme.cameraChrome)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.red.opacity(0.92), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 12) {
+                // Only offered where the hardware answered yes — a torch button
+                // that does nothing teaches the user to distrust the chrome.
+                if isTorchAvailable {
+                    Button {
+                        isTorchOn.toggle()
+                    } label: {
+                        Label(
+                            isTorchOn ? "Torch on" : "Torch",
+                            systemImage: isTorchOn ? "bolt.fill" : "bolt.slash.fill"
+                        )
+                    }
+                    .buttonStyle(ScannerChromeButtonStyle(isOn: isTorchOn))
+                    .accessibilityHint("Lights the scene for scanning in low light.")
+                }
+
+                PhotosPicker(selection: $scannerPhotoItem, matching: .images, photoLibrary: .shared()) {
+                    Label("Import image", systemImage: "photo.on.rectangle")
+                }
+                .buttonStyle(ScannerChromeButtonStyle())
+                .accessibilityHint("Reads a QR code out of a screenshot or a saved photo.")
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 34)
+        .animation(.easeInOut(duration: 0.18), value: scannerImportError)
+    }
+
+    /// Runs a picked image through the same verification path as the camera.
+    ///
+    /// A multi-code image is reported as a miss rather than resolved by taking
+    /// the first hit. Choosing between two destinations on the user's behalf is
+    /// precisely the decision this app exists to leave with them.
+    @MainActor
+    private func importScannedImage(_ item: PhotosPickerItem) async {
+        // Clearing the selection lets the same photo be picked again after a
+        // miss; `onChange` would otherwise see no change and stay silent.
+        defer { scannerPhotoItem = nil }
+
+        guard let data = try? await item.loadTransferable(type: Data.self) else {
+            scannerImportError = "That image could not be read."
+            return
+        }
+
+        switch QRImageDecoder.payloads(in: data) {
+        case let payloads where payloads.count == 1:
+            scannerImportError = nil
+            showingScanner = false
+            await viewModel.handleScannedPayload(payloads[0])
+        case let payloads where payloads.isEmpty:
+            scannerImportError = "No QR code found in that image."
+        default:
+            scannerImportError = "That image has more than one QR code. Crop it to a single code and try again."
         }
     }
 
@@ -1515,62 +1602,92 @@ private struct ResultIndicator: View {
             Circle()
                 .fill(visualColor.opacity(0.14))
                 .frame(width: size, height: size)
-            Circle()
-                .fill(visualColor)
-                .frame(width: size * 0.63, height: size * 0.63)
-            Image(systemName: symbol)
-                .font(.system(size: size * 0.24, weight: .bold))
-                .foregroundStyle(.white)
+
+            if isHollow {
+                Circle()
+                    .strokeBorder(
+                        visualColor,
+                        style: StrokeStyle(
+                            lineWidth: max(size * 0.05, 2),
+                            dash: [size * 0.10, size * 0.07]
+                        )
+                    )
+                    .frame(width: size * 0.63, height: size * 0.63)
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.24, weight: .bold))
+                    .foregroundStyle(visualColor)
+            } else {
+                Circle()
+                    .fill(visualColor)
+                    .frame(width: size * 0.63, height: size * 0.63)
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.24, weight: .bold))
+                    .foregroundStyle(.white)
+            }
         }
         .accessibilityLabel(accessibilityLabel)
     }
 
+    /// `.unavailable` is the only tone drawn as an outline.
+    ///
+    /// Color cannot separate it from `.caution`: both are warnings and both
+    /// have to stay orange, because downgrading "we could not check" to grey
+    /// would quietly demote a warning to an absence. So shape carries the
+    /// difference — a broken ring for the check that never completed, a solid
+    /// disc for the verdict we actually reached.
+    private var isHollow: Bool { tone == .unavailable }
+
+    // The switches below are deliberately exhaustive rather than falling
+    // through a `default:`. A `default:` is how `.checking` and `.idle` came to
+    // render in the verified green — the compiler should refuse to build the
+    // next tone someone adds until it has been given a distinct signal.
+
     private var visualColor: Color {
         switch tone {
+        case .idle:
+            return AppTheme.neutral
+        case .checking:
+            return AppTheme.securityBlue
         case .trusted:
             return AppTheme.green
-        case .caution:
+        case .caution, .unavailable:
             return AppTheme.orange
         case .blocked:
             return AppTheme.red
-        case .unavailable:
-            return AppTheme.orange
-        default:
-            return AppTheme.trust
         }
     }
 
     private var symbol: String {
         switch tone {
-        case .trusted:
-            return "checkmark"
-        case .caution:
-            return "exclamationmark"
-        case .blocked:
-            return "xmark"
-        case .unavailable:
-            return "exclamationmark"
-        case .checking:
-            return "ellipsis"
         case .idle:
             return "qrcode.viewfinder"
+        case .checking:
+            return "hourglass"
+        case .trusted:
+            return "checkmark.shield.fill"
+        case .caution:
+            return "exclamationmark.triangle.fill"
+        case .unavailable:
+            return "wifi.exclamationmark"
+        case .blocked:
+            return "xmark.octagon.fill"
         }
     }
 
     private var accessibilityLabel: String {
         switch tone {
+        case .idle:
+            return "Ready to scan"
+        case .checking:
+            return "Blue, checking"
         case .trusted:
             return "Green, verified"
         case .caution:
             return "Orange, not fully verified"
+        case .unavailable:
+            return "Orange outline, protection service unavailable"
         case .blocked:
             return "Red, high-risk warning"
-        case .unavailable:
-            return "Orange, protection service unavailable"
-        case .checking:
-            return "Checking"
-        case .idle:
-            return "Ready to scan"
         }
     }
 }
@@ -1779,11 +1896,18 @@ private struct OpenDestinationReviewSheet: View {
                 .textCase(.uppercase)
                 .tracking(1.2)
 
-            Text(destinationFingerprint)
-                .font(.title3.weight(.bold))
-                .foregroundStyle(AppTheme.ink)
-                .lineLimit(2)
-                .minimumScaleFactor(0.82)
+            Text(
+                DomainEmphasis.emphasized(
+                    destinationFingerprint,
+                    host: destinationDisplayHost,
+                    strongFont: .title3.weight(.heavy),
+                    strong: AppTheme.ink,
+                    muted: AppTheme.muted
+                )
+            )
+            .font(.title3.weight(.bold))
+            .lineLimit(2)
+            .minimumScaleFactor(0.82)
 
             if destinationFingerprint != destinationDisplayHost {
                 Text("Domain: \(destinationDisplayHost)")
@@ -1791,12 +1915,19 @@ private struct OpenDestinationReviewSheet: View {
                     .foregroundStyle(AppTheme.muted)
             }
 
-            Text(destinationURL.absoluteString)
-                .font(.footnote)
-                .foregroundStyle(AppTheme.muted)
-                .textSelection(.enabled)
-                .lineLimit(4)
-                .fixedSize(horizontal: false, vertical: true)
+            Text(
+                DomainEmphasis.emphasized(
+                    destinationURL.absoluteString,
+                    host: destinationURL.host,
+                    strongFont: .footnote.weight(.bold),
+                    strong: AppTheme.ink,
+                    muted: AppTheme.muted
+                )
+            )
+            .font(.footnote)
+            .textSelection(.enabled)
+            .lineLimit(4)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2029,7 +2160,18 @@ private struct HoldToOpenButton: View {
         )
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(title)
-        .accessibilityHint("Press and hold for less than one second to open the destination.")
+        .accessibilityHint(holdHint)
+    }
+
+    /// VoiceOver users cannot see the fill animation, so the hint has to carry
+    /// the actual required duration — an upper bound ("less than one second")
+    /// makes a deliberate interlock sound like an accident of timing.
+    private var holdHint: String {
+        let seconds = (duration * 10).rounded() / 10
+        let formatted = seconds == seconds.rounded()
+            ? String(format: "%.0f", seconds)
+            : String(format: "%.1f", seconds)
+        return "Press and hold for \(formatted) second\(seconds == 1 ? "" : "s") to open the destination."
     }
 }
 
@@ -2100,11 +2242,17 @@ private struct DestinationReviewCard: View {
                         .foregroundStyle(AppTheme.muted)
                         .textCase(.uppercase)
                         .tracking(1.1)
-                    Text(host)
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(AppTheme.ink)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.82)
+                    Text(
+                        DomainEmphasis.emphasized(
+                            host,
+                            strongFont: .title3.weight(.heavy),
+                            strong: AppTheme.ink,
+                            muted: AppTheme.muted
+                        )
+                    )
+                    .font(.title3.weight(.bold))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
                     Text(destinationMessage)
                         .font(.footnote)
                         .foregroundStyle(AppTheme.muted)
@@ -2238,17 +2386,30 @@ private struct DestinationReviewCard: View {
                     .foregroundStyle(AppTheme.muted)
                     .textCase(.uppercase)
                     .tracking(0.7)
-                Text(hostForURL(value) ?? value)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(AppTheme.ink)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.85)
-                Text(value)
-                    .font(.caption)
-                    .foregroundStyle(AppTheme.muted)
-                    .textSelection(.enabled)
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    DomainEmphasis.emphasized(
+                        hostForURL(value) ?? value,
+                        strongFont: .subheadline.weight(.heavy),
+                        strong: AppTheme.ink,
+                        muted: AppTheme.muted
+                    )
+                )
+                .font(.subheadline.weight(.bold))
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+                Text(
+                    DomainEmphasis.emphasized(
+                        value,
+                        host: hostForURL(value),
+                        strongFont: .caption.weight(.bold),
+                        strong: AppTheme.ink,
+                        muted: AppTheme.muted
+                    )
+                )
+                .font(.caption)
+                .textSelection(.enabled)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -2827,18 +2988,93 @@ private struct OutlineCapsuleButtonStyle: ButtonStyle {
     }
 }
 
-private enum AppTheme {
-    static let background = Color(uiColor: .systemGroupedBackground)
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
-    static let surfaceAlt = Color(uiColor: .tertiarySystemGroupedBackground)
-    static let ink = Color(uiColor: .label)
-    static let muted = Color(uiColor: .secondaryLabel)
-    static let trust = Color(uiColor: .systemGreen)
-    static let green = Color(uiColor: .systemGreen)
-    static let orange = Color(uiColor: .systemOrange)
-    static let red = Color(uiColor: .systemRed)
-    static let securityBlue = Color(uiColor: .systemBlue)
-    static let separator = Color(uiColor: .separator).opacity(0.50)
-    static let gold = Color(red: 0.82, green: 0.68, blue: 0.44)
-    static let scanLine = Color(red: 0.52, green: 1.00, blue: 0.76)
+/// Controls drawn on top of the live camera preview.
+///
+/// `minHeight: 44` is Apple's minimum target, and it is not cosmetic here: a
+/// missed tap over a running preview costs the user the framing they were
+/// holding, not just a second attempt.
+private struct ScannerChromeButtonStyle: ButtonStyle {
+    var isOn = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(isOn ? AppTheme.cameraBackdrop : AppTheme.cameraChrome)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .background(
+                isOn ? AnyShapeStyle(AppTheme.cameraChrome) : AnyShapeStyle(.ultraThinMaterial),
+                in: Capsule()
+            )
+            .opacity(configuration.isPressed ? 0.72 : 1)
+    }
+}
+
+/// Renders a host or URL with its registrable domain set apart from the rest.
+///
+/// The attack this defends against is `paypal.com.evil.ru`: every label before
+/// the last two is attacker-controlled, and a flat single-color string invites
+/// the reader to stop at the first familiar word. Emphasising only the
+/// registrable domain puts the weight on the part that actually decides who is
+/// answering.
+private enum DomainEmphasis {
+    /// Suffixes that take a third label to reach a registrable name
+    /// (`bbc.co.uk`, not `co.uk`).
+    ///
+    /// A deliberate heuristic, not the Public Suffix List — shipping and
+    /// refreshing the full list is out of scope for the lab app. It is tuned so
+    /// that misses *under*-emphasise (showing `uk.com` for `something.uk.com`)
+    /// and never emphasise a label the registrant does not control, which would
+    /// be the only failure mode that misleads.
+    private static let secondLevelSuffixes: Set<String> = [
+        "co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "mil"
+    ]
+
+    static func registrableDomain(of host: String) -> String? {
+        let cleaned = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ". "))
+        guard !cleaned.isEmpty else { return nil }
+
+        let labels = cleaned.split(separator: ".").map(String.init)
+        guard labels.count > 1 else { return labels.first }
+
+        // A bare IP address has no registrable domain; splitting it would
+        // emphasise "1.5" out of "192.168.1.5", which reads as a domain and
+        // isn't one.
+        if labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) { return cleaned }
+
+        if labels.count >= 3, secondLevelSuffixes.contains(labels[labels.count - 2]) {
+            return labels.suffix(3).joined(separator: ".")
+        }
+        return labels.suffix(2).joined(separator: ".")
+    }
+
+    /// `text` rendered in `muted`, with its registrable domain in `strong`.
+    ///
+    /// Pass `host` when `text` is a full URL — the domain is located inside the
+    /// displayed string, so the caller's host is what decides which run to lift.
+    static func emphasized(
+        _ text: String,
+        host: String? = nil,
+        strongFont: Font,
+        strong: Color,
+        muted: Color
+    ) -> AttributedString {
+        var attributed = AttributedString(text)
+        attributed.foregroundColor = muted
+
+        guard
+            let domain = registrableDomain(of: host ?? text),
+            let range = attributed.range(of: domain, options: [.caseInsensitive])
+        else {
+            // Nothing we can isolate — show the whole string at full weight
+            // rather than leaving the destination uniformly de-emphasised.
+            attributed.foregroundColor = strong
+            attributed.font = strongFont
+            return attributed
+        }
+
+        attributed[range].foregroundColor = strong
+        attributed[range].font = strongFont
+        return attributed
+    }
 }

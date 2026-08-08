@@ -84,6 +84,7 @@ nav:
   - Home: README.md
   - Project:
       - Overview: public/PROJECT_OVERVIEW.md
+      - Quishing threat evidence: public/QUISHING_THREAT_EVIDENCE.md
       - Run guide: public/RUN_GUIDE.md
       - Citing this work: public/CITING.md
       - Open-source direction: public/OPEN_SOURCE_DIRECTION.md

@@ -14,6 +14,7 @@ import {
 import { demoIssuerProjection } from "../services/verifier-cache.js"
 
 const observedAt = new Date("2026-05-17T00:00:00Z")
+const expiredAt = new Date("2027-05-17T00:00:00Z")
 
 const program = Effect.gen(function* () {
   const eventBus = yield* EventBus
@@ -88,8 +89,27 @@ const program = Effect.gen(function* () {
     ],
   })
 
+  // Same artifacts, materialized after the cache entry's own expiry — the
+  // freshness the row advertises has to follow the data, not the happy path.
+  const staleReport = yield* worker.process({
+    verifier_id: "verifier:local-demo",
+    artifacts: {
+      root_manifest_artifact_id: publishedGovernance.root_manifest_artifact_id,
+      delegated_authority_manifest_artifact_id:
+        publishedGovernance.delegated_authority_artifact_id,
+      issuer_record_artifact_id: publishedGovernance.issuer_record_artifact_id,
+      destination_policy_artifact_id:
+        publishedGovernance.destination_policy_artifact_id,
+      status_event_artifact_id: publishedIssuerStatus.artifact.artifact_id,
+    },
+    materialized_at: expiredAt,
+  })
+
   const recorded = sink.recorded()
   const commandNames = recorded.map((command) => command.name)
+  const upserts = recorded.filter(
+    (command) => command.name === "verifier_cache_entries.upsert",
+  )
 
   yield* assertSmoke(
     report.cache_entry_id.startsWith("cache:acme-demo:acme-demo:web-payments:v1:"),
@@ -119,6 +139,16 @@ const program = Effect.gen(function* () {
     commandNames[0] === "verifier_cache_entries.upsert" &&
       commandNames[1] === "scanner_decisions.insert",
     "worker persistence commands were not emitted in read-model order",
+  )
+  yield* assertSmoke(
+    staleReport.materialization_warnings.includes(
+      "cache_materialized_after_expiry",
+    ),
+    "materializing past the cache expiry should raise the expiry warning",
+  )
+  yield* assertSmoke(
+    upserts[0]?.values[9] === "fresh" && upserts[1]?.values[9] === "expired",
+    "persisted freshness_status should follow the materialization warnings, not default to fresh",
   )
 
   yield* Console.log(

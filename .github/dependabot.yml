@@ -32,7 +32,12 @@ updates:
       - "dependencies"
       - "backend"
 
-  - package-ecosystem: "docker"
+  # The root holds compose.yml, compose.nats.yml and compose.shared-infra.yml
+  # but no Dockerfile. The "docker" ecosystem scans only Dockerfiles and
+  # Kubernetes manifests, so it fails this directory with
+  # "No Dockerfiles nor Kubernetes YAML found in /". Compose files are the
+  # separate "docker-compose" ecosystem.
+  - package-ecosystem: "docker-compose"
     directory: "/"
     schedule:
       interval: "weekly"

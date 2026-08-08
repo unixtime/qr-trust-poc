@@ -82,10 +82,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install ripgrep
+      # pngquant and libcairo2 are for `make docs-build` below, not the tests:
+      # mkdocs-material's optimize plugin shells out to the pngquant binary,
+      # and the social plugin's cairosvg resolves libcairo through ctypes. uv
+      # can supply neither — one is not a Python package, the other is a
+      # native library. Under `mkdocs build --strict` a missing pngquant is a
+      # hard error, so the job fails before it ever reaches pytest.
+      - name: Install ripgrep and documentation build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ripgrep
+          sudo apt-get install -y ripgrep pngquant libcairo2
 
       - name: Set up Python
         uses: actions/setup-python@v5

@@ -1,3 +1,5 @@
+import { getEventListeners } from "node:events"
+
 import { Console, Effect } from "effect"
 
 import {
@@ -84,6 +86,45 @@ const program = Effect.gen(function* () {
     "supervisor should honor an already-requested graceful shutdown",
   )
 
+  const drainedController = new AbortController()
+  const drainedReport = yield* makeVerifierCacheReadModelQueueSupervisor(
+    new AbortingQueueWorker(drainedController, workerReport({ claimed: 0 })),
+    {
+      worker_id: "verifier-cache-supervised-drained",
+      max_iterations: 5,
+      idle_iteration_limit: 1,
+      poll_interval_ms: 0,
+      idle_poll_interval_ms: 0,
+      shutdown_signal: drainedController.signal,
+      now: deterministicClock(observedAt, new Date("2026-05-19T00:00:01Z")),
+    },
+  ).run()
+
+  yield* assertSmoke(
+    drainedReport.stop_reason === "idle_limit" && drainedReport.iterations === 1,
+    "supervisor should report why the loop actually stopped, not a shutdown that arrived alongside it",
+  )
+
+  const pollingController = new AbortController()
+  const pollingReport = yield* makeVerifierCacheReadModelQueueSupervisor(
+    new SequencedQueueWorker([
+      workerReport({ claimed: 1, completed: 1, marked_completed: 1 }),
+    ]),
+    {
+      worker_id: "verifier-cache-supervised-polling",
+      max_iterations: 3,
+      poll_interval_ms: 1,
+      shutdown_signal: pollingController.signal,
+      now: deterministicClock(observedAt, new Date("2026-05-19T00:00:01Z")),
+    },
+  ).run()
+
+  yield* assertSmoke(
+    pollingReport.iterations === 3 &&
+      getEventListeners(pollingController.signal, "abort").length === 0,
+    "supervisor should not retain one abort listener per completed poll interval",
+  )
+
   yield* Console.log(
     JSON.stringify(
       {
@@ -102,6 +143,18 @@ const program = Effect.gen(function* () {
         shutdown_report: {
           stop_reason: shutdownReport.stop_reason,
           iterations: shutdownReport.iterations,
+        },
+        drained_report: {
+          stop_reason: drainedReport.stop_reason,
+          iterations: drainedReport.iterations,
+        },
+        polling_report: {
+          stop_reason: pollingReport.stop_reason,
+          iterations: pollingReport.iterations,
+          retained_abort_listeners: getEventListeners(
+            pollingController.signal,
+            "abort",
+          ).length,
         },
       },
       null,
@@ -127,6 +180,22 @@ class SequencedQueueWorker implements VerifierCacheReadModelQueueWorkerShape {
       }
 
       return report
+    })
+  }
+}
+
+class AbortingQueueWorker implements VerifierCacheReadModelQueueWorkerShape {
+  constructor(
+    private readonly controller: AbortController,
+    private readonly report: VerifierCacheReadModelQueueWorkerReport,
+  ) {}
+
+  processOnce() {
+    return Effect.sync(() => {
+      // Shutdown lands while this batch is in flight. The iteration still
+      // finishes, so the shutdown is not what stopped the loop.
+      this.controller.abort()
+      return this.report
     })
   }
 }

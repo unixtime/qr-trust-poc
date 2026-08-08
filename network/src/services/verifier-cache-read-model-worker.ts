@@ -14,7 +14,10 @@ import {
   type DestinationPolicyProjection,
   type IssuerProjection,
 } from "./verifier-cache.js"
-import { makeVerifierCacheMaterializationService } from "./verifier-cache-materialization.js"
+import {
+  CACHE_MATERIALIZED_AFTER_EXPIRY_WARNING,
+  makeVerifierCacheMaterializationService,
+} from "./verifier-cache-materialization.js"
 
 export interface VerifierCacheReadModelArtifactRefs {
   readonly root_manifest_artifact_id: string
@@ -80,6 +83,14 @@ export const makeVerifierCacheReadModelWorker = (
         materialized.destination_policy_projection,
         eventBus,
       )
+      // The row has to advertise the freshness the materializer actually
+      // observed. Persisting "fresh" unconditionally means an entry
+      // materialized past its own expiry looks current to every reader, and
+      // the "expired" state the schema defines is never written by anything.
+      const materializedAfterExpiry =
+        materialized.materialization_warnings.includes(
+          CACHE_MATERIALIZED_AFTER_EXPIRY_WARNING,
+        )
       const persistenceReport = yield* persistence.persistBatch({
         verifier_cache_entries: [
           {
@@ -87,7 +98,7 @@ export const makeVerifierCacheReadModelWorker = (
             issuer: materialized.issuer_projection,
             policy: materialized.destination_policy_projection,
             source_artifact_hashes: materialized.source_artifact_hashes,
-            freshness_status: "fresh",
+            freshness_status: materializedAfterExpiry ? "expired" : "fresh",
           },
         ],
         scanner_decisions: scannerDecisions.map((decision) => ({
