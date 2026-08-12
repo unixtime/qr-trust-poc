@@ -29,19 +29,19 @@ const TIMESTAMP_FORMATTER = new Intl.DateTimeFormat(undefined, {
 const OPERATOR_STATUS_COPY = {
   healthy: {
     label: "healthy",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    className: "border-trust-green/40 bg-trust-green/10 text-trust-green",
   },
   degraded: {
     label: "degraded",
-    className: "border-amber-200 bg-amber-50 text-amber-800",
+    className: "border-trust-amber/40 bg-trust-amber/10 text-trust-amber",
   },
   blocked: {
     label: "blocked",
-    className: "border-red-200 bg-red-50 text-red-800",
+    className: "border-trust-red/40 bg-trust-red/10 text-trust-red",
   },
   unavailable: {
     label: "unavailable",
-    className: "border-stone-200 bg-stone-100 text-stone-700",
+    className: "border-border bg-muted text-muted-foreground",
   },
 } as const
 
@@ -108,32 +108,32 @@ function formatTimestamp(value: string) {
 }
 
 function hostVerdictClassName(verdict: string) {
-  if (verdict === "blocked") return "border-red-200 bg-red-50 text-red-800"
-  if (verdict === "risky") return "border-amber-200 bg-amber-50 text-amber-800"
-  if (verdict === "unavailable") return "border-stone-200 bg-stone-100 text-stone-700"
-  return "border-emerald-200 bg-emerald-50 text-emerald-800"
+  if (verdict === "blocked") return "border-trust-red/40 bg-trust-red/10 text-trust-red"
+  if (verdict === "risky") return "border-trust-amber/40 bg-trust-amber/10 text-trust-amber"
+  if (verdict === "unavailable") return "border-border bg-muted text-muted-foreground"
+  return "border-trust-green/40 bg-trust-green/10 text-trust-green"
 }
 
 function decisionColorClassName(color: string) {
-  if (color === "red") return "border-red-200 bg-red-50 text-red-800"
-  if (color === "orange") return "border-amber-200 bg-amber-50 text-amber-800"
-  return "border-emerald-200 bg-emerald-50 text-emerald-800"
+  if (color === "red") return "border-trust-red/40 bg-trust-red/10 text-trust-red"
+  if (color === "orange") return "border-trust-amber/40 bg-trust-amber/10 text-trust-amber"
+  return "border-trust-green/40 bg-trust-green/10 text-trust-green"
 }
 
 function evidenceTabClassName(isActive: boolean) {
   return [
     "min-w-0 rounded-[1.15rem] border p-3 text-left transition",
     isActive
-      ? "border-emerald-300 bg-emerald-50/85 shadow-[0_10px_28px_rgba(22,101,52,0.10)]"
-      : "border-border/70 bg-card/75 hover:border-emerald-200 hover:bg-card/95",
+      ? "border-(--border-accent) bg-card shadow-(--glow)"
+      : "border-border/70 bg-card/75 hover:border-primary/40 hover:bg-card/95",
   ].join(" ")
 }
 
 function observationPanelClassName(status: RuntimeObservationStatus) {
-  if (status === "blocked") return "border-red-200 bg-red-50/70 text-red-950"
-  if (status === "degraded") return "border-amber-200 bg-amber-50/75 text-amber-950"
-  if (status === "unavailable") return "border-stone-200 bg-stone-100/80 text-stone-800"
-  return "border-emerald-200 bg-emerald-50/75 text-emerald-950"
+  if (status === "blocked") return "border-trust-red/30 bg-trust-red/10 text-foreground"
+  if (status === "degraded") return "border-trust-amber/30 bg-trust-amber/10 text-foreground"
+  if (status === "unavailable") return "border-border/70 bg-muted/40 text-foreground"
+  return "border-trust-green/30 bg-trust-green/10 text-foreground"
 }
 
 const OPERATOR_ACTION_TONE_CLASS: Record<
@@ -141,24 +141,24 @@ const OPERATOR_ACTION_TONE_CLASS: Record<
   { box: string; eyebrow: string; chip: string }
 > = {
   amber: {
-    box: "border-amber-200 bg-amber-50/80 text-amber-950",
-    eyebrow: "text-amber-700",
-    chip: "border-amber-200 bg-amber-100/80 text-amber-900",
+    box: "border-trust-amber/30 bg-trust-amber/10 text-foreground",
+    eyebrow: "text-trust-amber",
+    chip: "border-trust-amber/40 bg-trust-amber/20 text-trust-amber",
   },
   green: {
-    box: "border-emerald-200 bg-emerald-50/80 text-emerald-950",
-    eyebrow: "text-emerald-700",
-    chip: "border-emerald-200 bg-emerald-100/80 text-emerald-900",
+    box: "border-trust-green/30 bg-trust-green/10 text-foreground",
+    eyebrow: "text-trust-green",
+    chip: "border-trust-green/40 bg-trust-green/20 text-trust-green",
   },
   red: {
-    box: "border-red-200 bg-red-50/80 text-red-950",
-    eyebrow: "text-red-700",
-    chip: "border-red-200 bg-red-100/80 text-red-900",
+    box: "border-trust-red/30 bg-trust-red/10 text-foreground",
+    eyebrow: "text-trust-red",
+    chip: "border-trust-red/40 bg-trust-red/20 text-trust-red",
   },
   stone: {
-    box: "border-stone-200 bg-stone-100/80 text-stone-900",
-    eyebrow: "text-stone-600",
-    chip: "border-stone-200 bg-stone-200/70 text-stone-800",
+    box: "border-border/70 bg-muted/40 text-foreground",
+    eyebrow: "text-muted-foreground",
+    chip: "border-border bg-muted text-muted-foreground",
   },
 }
 
@@ -204,10 +204,10 @@ function OperatorActionNote({
 }
 
 function scannerDecisionPanelClassName(status: ScannerDecisionStatus) {
-  if (status === "blocked") return "border-red-200 bg-red-50/70 text-red-950"
-  if (status === "degraded") return "border-amber-200 bg-amber-50/75 text-amber-950"
-  if (status === "unavailable") return "border-stone-200 bg-stone-100/80 text-stone-800"
-  return "border-emerald-200 bg-emerald-50/75 text-emerald-950"
+  if (status === "blocked") return "border-trust-red/30 bg-trust-red/10 text-foreground"
+  if (status === "degraded") return "border-trust-amber/30 bg-trust-amber/10 text-foreground"
+  if (status === "unavailable") return "border-border/70 bg-muted/40 text-foreground"
+  return "border-trust-green/30 bg-trust-green/10 text-foreground"
 }
 
 function hasReason(reasons: string[], reason: string) {
@@ -399,7 +399,7 @@ function NetworkOutboxPanel({ runtimeStatus }: { runtimeStatus: VerifierStatus |
   const actionNote = networkOutboxActionNote(outbox)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-[linear-gradient(135deg,rgba(240,248,241,0.95),rgba(255,252,245,0.92))] p-4 shadow-[0_12px_34px_rgba(22,29,24,0.06)]">
+    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -490,7 +490,7 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
   const actionNote = scannerDecisionActionNote(decisions)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-[linear-gradient(135deg,rgba(240,248,241,0.96),rgba(255,250,239,0.94))] p-4 shadow-[0_12px_34px_rgba(22,29,24,0.06)]">
+    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
@@ -669,7 +669,7 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
   const actionNote = runtimeObservationActionNote(observations)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-[linear-gradient(135deg,rgba(255,252,245,0.98),rgba(240,248,241,0.9))] p-4 shadow-[0_12px_34px_rgba(22,29,24,0.06)]">
+    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
@@ -820,13 +820,13 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
                   Last observed {formatTimestamp(provider.last_observed_at)}
                 </p>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-800">
+                  <div className="rounded-xl border border-trust-amber/40 bg-trust-amber/10 px-2 py-1.5 text-trust-amber">
                     {provider.risky_count} risky
                   </div>
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-2 py-1.5 text-red-800">
+                  <div className="rounded-xl border border-trust-red/40 bg-trust-red/10 px-2 py-1.5 text-trust-red">
                     {provider.blocked_count} blocked
                   </div>
-                  <div className="rounded-xl border border-stone-200 bg-stone-100 px-2 py-1.5 text-stone-700">
+                  <div className="rounded-xl border border-border bg-muted px-2 py-1.5 text-muted-foreground">
                     {provider.unavailable_count} unavailable
                   </div>
                 </div>
@@ -969,7 +969,7 @@ function RuntimePostureSection({
   onRefresh,
 }: RuntimePostureSectionProps) {
   return (
-    <Card className="overflow-hidden border-border/70 bg-[linear-gradient(180deg,rgba(255,253,247,0.96),rgba(247,252,246,0.92))] shadow-[0_18px_60px_rgba(22,29,24,0.08)]">
+    <Card className="overflow-hidden border-border/70">
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">

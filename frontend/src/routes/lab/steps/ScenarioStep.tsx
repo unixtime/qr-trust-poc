@@ -1,6 +1,9 @@
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { ConsoleChip } from "@/components/ui/console-chip"
+import { Eyebrow } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils"
 import {
   scenarioGroups,
@@ -47,9 +50,9 @@ export default function ScenarioStep({
 
       {groupOrder.map((group) => (
         <section key={group}>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Eyebrow as="h2" className="mb-2">
             {group}
-          </h2>
+          </Eyebrow>
           <div className="grid gap-2 sm:grid-cols-2">
             {scenarioGroups[group].map((key) => {
               const selected = key === scenario
@@ -60,19 +63,25 @@ export default function ScenarioStep({
                   data-testid={`scenario-${key}`}
                   aria-pressed={selected}
                   onClick={() => onSelectScenario(key)}
-                  className={cn(
-                    "rounded-md border p-3 text-left transition-colors",
-                    selected
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/40",
-                  )}
+                  className="text-left"
                 >
-                  <span className="block text-sm font-medium">
-                    {scenarioLabels[key]}
-                  </span>
-                  <span className="mt-1 block text-xs text-muted-foreground">
-                    {scenarioMeta[key].note}
-                  </span>
+                  <Card
+                    interactive
+                    size="sm"
+                    className={cn(
+                      "h-full",
+                      selected && "border-(--border-accent) shadow-(--glow)",
+                    )}
+                  >
+                    <CardContent className="grid gap-1">
+                      <span className="block text-sm font-medium">
+                        {scenarioLabels[key]}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {scenarioMeta[key].note}
+                      </span>
+                    </CardContent>
+                  </Card>
                 </button>
               )
             })}
@@ -91,36 +100,24 @@ export default function ScenarioStep({
         </button>
         {compareOpen ? (
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
+            <ConsoleChip
               data-testid="compare-none"
+              pressed={compareScenario === null}
               aria-pressed={compareScenario === null}
               onClick={() => onSelectCompare(null)}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs transition-colors",
-                compareScenario === null
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:text-foreground",
-              )}
             >
               None
-            </button>
+            </ConsoleChip>
             {scenarioKeys.map((key) => (
-              <button
+              <ConsoleChip
                 key={key}
-                type="button"
                 data-testid={`compare-${key}`}
+                pressed={compareScenario === key}
                 aria-pressed={compareScenario === key}
                 onClick={() => onSelectCompare(key)}
-                className={cn(
-                  "rounded-full border px-3 py-1 text-xs transition-colors",
-                  compareScenario === key
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:text-foreground",
-                )}
               >
                 {scenarioLabels[key]}
-              </button>
+              </ConsoleChip>
             ))}
           </div>
         ) : null}

@@ -1,7 +1,7 @@
 import { VerifierApiError, type VerifierDecision } from "@/lib/verifier-client"
 import type { HistoryEntry, Tone } from "@/routes/lab/types"
 
-function isoTimestamp() {
+function clockTimestamp() {
   return new Date().toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -15,7 +15,7 @@ export function toneForDecision(result: VerifierDecision): Tone {
 
 export function toneClasses(tone: Tone) {
   if (tone === "success") {
-    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
+    return "border-trust-green/25 bg-trust-green/10 text-trust-green"
   }
   if (tone === "blocked") {
     return "border-destructive/20 bg-destructive/10 text-destructive"
@@ -37,7 +37,7 @@ export function toHistoryEntry(title: string, body: string, tone: Tone): History
     title,
     body,
     tone,
-    timestamp: isoTimestamp(),
+    timestamp: clockTimestamp(),
   }
 }
 

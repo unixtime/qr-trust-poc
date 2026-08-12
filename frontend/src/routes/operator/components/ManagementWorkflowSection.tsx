@@ -419,7 +419,7 @@ function ManagementWorkflowSection({
                 onClick={() => setSelectedId(workflow.id)}
                 className={`grid min-h-32 gap-3 rounded-2xl border p-4 text-left transition-colors ${
                   isSelected
-                    ? "border-emerald-300 bg-emerald-50/70 text-emerald-950"
+                    ? "border-(--border-accent) bg-card shadow-(--glow)"
                     : "border-border/70 bg-background/75 hover:bg-muted/50"
                 }`}
               >

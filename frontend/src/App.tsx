@@ -1,6 +1,7 @@
 import { lazy, Suspense, useSyncExternalStore } from "react"
 
 import AppShell from "@/app/AppShell"
+import { Eyebrow } from "@/components/ui/eyebrow"
 
 const FlowPage = lazy(() => import("@/routes/lab/FlowPage"))
 const OperatorPage = lazy(() => import("@/routes/operator/OperatorPage"))
@@ -67,9 +68,9 @@ function normalizedNavigationTarget(path: string) {
 function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16 md:px-6">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+      <Eyebrow as="p">
         Route not found
-      </p>
+      </Eyebrow>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
         There is no page at this address.
       </h1>
@@ -98,9 +99,9 @@ function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
 function RouteLoadingFallback() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16 md:px-6">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+      <Eyebrow as="p">
         Loading
-      </p>
+      </Eyebrow>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
         Preparing this page.
       </h1>

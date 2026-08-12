@@ -74,6 +74,21 @@ def live_verifier_server() -> LiveVerifierServer:
             "Use backend/scripts/verifier_live_http_smoke.py against docker compose."
         )
 
+    # A port nothing is listening on, deliberately. This server is supposed to
+    # have no management database: the admin API-key endpoints answer 503
+    # "management persistence unavailable" when asyncpg cannot connect, and the
+    # live HTTP test asserts that 503. The assertion used to hold only because
+    # CI happens to run no Postgres -- an unstated precondition. Locally the
+    # demo stack publishes qr_admin/qr_db on 5432, which is exactly the
+    # credentials below, so the connect succeeded, a key was genuinely issued,
+    # and the test failed on a 200 against anyone who had run
+    # `make up-https-admin-nats` first. Pinning the DSN at a closed port makes
+    # unavailability something this fixture guarantees rather than something
+    # the host is trusted to lack.
+    db_port = _pick_unused_port()
+    while db_port == port:
+        db_port = _pick_unused_port()
+
     base_url = f"http://127.0.0.1:{port}"
     admin_token = "live-http-admin"
     verifier_key = "live-http-verifier-key"
@@ -84,6 +99,8 @@ def live_verifier_server() -> LiveVerifierServer:
             "DB_USER": "qr_admin",
             "DB_PASSWORD": "qr_dev_password",
             "DB_NAME": "qr_db",
+            "DB_HOST": "127.0.0.1",
+            "DB_PORT": str(db_port),
             "REDIS_STARTUP_ENABLED": "false",
             "VERIFIER_ADMIN_TOKENS": f'["{admin_token}"]',
             "VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED": "true",

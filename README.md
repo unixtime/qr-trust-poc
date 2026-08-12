@@ -18,7 +18,9 @@ and explicit green/orange/red scanner states.
 
 ## Published research
 
-The current conceptual foundation is the published SSRN working paper:
+The conceptual foundation is two published SSRN working papers. The first
+argues why navigation QR security is a trust-model problem; the second defines
+the decision semantics this PoC implements.
 
 > Hassan El-Masri, “QR Navigation Security Is Not Primarily a Cryptography
 > Problem: A Trust-Model Framework for Managed Issuer Verification,
@@ -26,9 +28,16 @@ The current conceptual foundation is the published SSRN working paper:
 > 6577478. [Paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478) ·
 > [DOI](https://doi.org/10.2139/ssrn.6577478)
 
+> Hassan El-Masri, “Trust Residuals for Navigation QR Codes: Decision Semantics
+> for Issuer, Destination, and Runtime Safety State” (August 3, 2026), SSRN
+> Abstract
+> 7225699. [Paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699) ·
+> [DOI](https://doi.org/10.2139/ssrn.7225699)
+
 If you use, evaluate, or extend this PoC in academic or technical work, please
-cite the paper. Copy-ready formats are in [Citing this work](docs/public/CITING.md),
-and machine-readable metadata is in [CITATION.cff](CITATION.cff).
+cite the papers — [Citing this work](docs/public/CITING.md) says which covers
+what and carries copy-ready formats, and machine-readable metadata is in
+[CITATION.cff](CITATION.cff).
 
 ## What the PoC demonstrates
 

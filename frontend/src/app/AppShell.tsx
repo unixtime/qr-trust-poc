@@ -1,8 +1,6 @@
-import { useState, type ReactNode } from "react"
-import { Moon, Sun } from "lucide-react"
+import { type ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
-import { resolveTheme, setTheme, type ThemePreference } from "@/lib/theme"
 
 type NavItem = {
   path: string
@@ -23,23 +21,14 @@ type AppShellProps = {
 }
 
 export function AppShell({ activePath, onNavigate, children }: AppShellProps) {
-  const [theme, setThemeState] = useState<ThemePreference>(() => resolveTheme())
-
-  function toggleTheme() {
-    const next = theme === "dark" ? "light" : "dark"
-    setTheme(next)
-    setThemeState(next)
-  }
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-6 px-4">
           <div className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">
-              QR
-            </span>
-            <span className="text-sm font-semibold tracking-tight">
+            {/* Same file the browser tab uses, so the two marks cannot drift. */}
+            <img src="/brand-mark.svg" alt="" width={28} height={28} className="size-7" />
+            <span className="text-sm font-semibold font-mono tracking-[0.14em]">
               QR Trust PoC
             </span>
           </div>
@@ -64,21 +53,6 @@ export function AppShell({ activePath, onNavigate, children }: AppShellProps) {
               )
             })}
           </nav>
-          <button
-            type="button"
-            data-testid="theme-toggle"
-            aria-label={
-              theme === "dark" ? "Switch to light mode" : "Switch to dark mode"
-            }
-            onClick={toggleTheme}
-            className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {theme === "dark" ? (
-              <Sun className="size-4" />
-            ) : (
-              <Moon className="size-4" />
-            )}
-          </button>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-4 py-8">{children}</main>

@@ -1,3 +1,16 @@
+# Points every service at a Postgres and Redis this file does not start: the
+# postgres and redis services below are moved into the local-infra profile, so a
+# plain `up` with this overlay skips them.
+#
+# That is the whole point of the overlay, and also its one trap -- it needs a
+# server already listening at EXTERNAL_DB_HOST:EXTERNAL_DB_PORT. This machine no
+# longer has a Homebrew Postgres to be that server, so the defaults below now
+# name the stack's own postgres container, reached back through its published
+# host port. Bring the base stack up first (make up-https-admin-nats), or
+# override EXTERNAL_DB_* to point somewhere else entirely.
+#
+# For a self-contained run, skip this overlay: compose.nats.yml already defaults
+# every worker to the in-network postgres:5432.
 services:
   postgres:
     profiles:
@@ -14,10 +27,10 @@ services:
     environment:
       DB_HOST: ${EXTERNAL_DB_HOST:-host.docker.internal}
       DB_PORT: ${EXTERNAL_DB_PORT:-5432}
-      DB_USER: ${EXTERNAL_DB_USER:-publisher}
-      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-publisher}
-      DB_NAME: ${EXTERNAL_DB_NAME:-qr_trust_poc}
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      DB_USER: ${EXTERNAL_DB_USER:-qr_admin}
+      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-qr_dev_password}
+      DB_NAME: ${EXTERNAL_DB_NAME:-qr_db}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
       REDIS_HOSTNAME: ${EXTERNAL_REDIS_HOSTNAME:-host.docker.internal}
       REDIS_PORT: ${EXTERNAL_REDIS_PORT:-6379}
       REDIS_DB: ${EXTERNAL_REDIS_DB:-5}
@@ -29,10 +42,10 @@ services:
     environment:
       DB_HOST: ${EXTERNAL_DB_HOST:-host.docker.internal}
       DB_PORT: ${EXTERNAL_DB_PORT:-5432}
-      DB_USER: ${EXTERNAL_DB_USER:-publisher}
-      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-publisher}
-      DB_NAME: ${EXTERNAL_DB_NAME:-qr_trust_poc}
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      DB_USER: ${EXTERNAL_DB_USER:-qr_admin}
+      DB_PASSWORD: ${EXTERNAL_DB_PASSWORD:-qr_dev_password}
+      DB_NAME: ${EXTERNAL_DB_NAME:-qr_db}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
       REDIS_HOSTNAME: ${EXTERNAL_REDIS_HOSTNAME:-host.docker.internal}
       REDIS_PORT: ${EXTERNAL_REDIS_PORT:-6379}
       REDIS_DB: ${SECONDARY_VERIFIER_REDIS_DB:-6}
@@ -42,29 +55,29 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
 
   network-verifier-cache-worker:
     depends_on: !reset []
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
 
   network-outbox-worker:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
 
   network-governance-subscriber-worker:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}
 
   network-runtime-subscriber-worker:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}:${EXTERNAL_DB_PASSWORD:-publisher}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_trust_poc}
+      QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}/${EXTERNAL_DB_NAME:-qr_db}

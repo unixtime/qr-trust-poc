@@ -8,7 +8,6 @@ from pathlib import Path
 FRONTEND_SRC = Path("frontend/src")
 CONTROLLER_PATH = FRONTEND_SRC / "routes/lab/useLabController.ts"
 WORKBENCH_PATH = FRONTEND_SRC / "routes/lab/components/ScanWorkbenchSection.tsx"
-VERIFIER_CLIENT_PATH = FRONTEND_SRC / "lib/verifier-client.ts"
 
 
 def fail(message: str) -> None:
@@ -87,10 +86,13 @@ def require_count(body: str, needle: str, count: int, label: str) -> None:
 
 
 def check_no_unapproved_navigation() -> None:
-    allowed_window_open_files = {
-        CONTROLLER_PATH,
-        VERIFIER_CLIENT_PATH,
-    }
+    # One file, deliberately. openScannerDestination is the only sanctioned way
+    # to leave the app, because it is the only place the hold gate and the UX
+    # telemetry are wired in. verifier-client.ts used to be allowed here too,
+    # for a QR-display popup that turned out to have no callers at all; it was
+    # removed rather than kept on the allowlist, since an entry nothing needs is
+    # just a hole a future window.open can slip through unreviewed.
+    allowed_window_open_files = {CONTROLLER_PATH}
 
     for path in FRONTEND_SRC.rglob("*"):
         if path.suffix not in {".ts", ".tsx"}:
@@ -170,24 +172,10 @@ def check_workbench_hold_gate_contract() -> None:
     )
 
 
-def check_qr_display_escape_hatch() -> None:
-    source = read(VERIFIER_CLIENT_PATH)
-    require_count(source, "window.open(", 1, str(VERIFIER_CLIENT_PATH))
-    qr_display_body = extract_function(source, "openQrDisplayWindow")
-    require_ordered(
-        qr_display_body,
-        "openQrDisplayWindow",
-        "window.localStorage.setItem(storageKey, JSON.stringify(payload))",
-        "window.open(",
-        'throw new Error("The browser blocked the QR display window.")',
-    )
-
-
 def main() -> None:
     check_no_unapproved_navigation()
     check_open_controller_contract()
     check_workbench_hold_gate_contract()
-    check_qr_display_escape_hatch()
     print("React lab scanner open contract passed")
 
 

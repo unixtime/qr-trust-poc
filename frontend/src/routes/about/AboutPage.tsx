@@ -2,6 +2,7 @@ import { ArrowRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Eyebrow } from "@/components/ui/eyebrow"
 
 const trustChecks = [
   {
@@ -52,9 +53,9 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
           {trustChecks.map((check, index) => (
             <div key={check.label} className="flex flex-1 items-center gap-2">
               <div className="flex flex-1 flex-col gap-1 rounded-md border border-border bg-muted/40 p-3">
-                <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                <Eyebrow tone="primary">
                   {index + 1}
-                </span>
+                </Eyebrow>
                 <span className="text-sm font-medium">{check.label}</span>
                 <span className="text-xs text-muted-foreground">
                   {check.detail}

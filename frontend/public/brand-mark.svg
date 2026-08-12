@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="QR Trust">
+  <defs>
+    <!-- One QR finder pattern, instantiated at three corners below. -->
+    <g id="finder">
+      <rect width="9" height="9" rx="2.25" fill="#06130C" />
+      <rect x="2" y="2" width="5" height="5" rx="1.25" fill="#45D483" />
+      <rect x="3" y="3" width="3" height="3" rx=".75" fill="#06130C" />
+    </g>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="#45D483" />
+
+  <use href="#finder" x="4" y="4" />
+  <use href="#finder" x="19" y="4" />
+  <use href="#finder" x="4" y="19" />
+
+  <!-- Data modules, filling the quadrant a real QR code leaves for payload. -->
+  <g fill="#06130C">
+    <rect x="17" y="17" width="3" height="3" rx=".75" />
+    <rect x="25" y="17" width="3" height="3" rx=".75" />
+    <rect x="21" y="21" width="3" height="3" rx=".75" />
+    <rect x="17" y="25" width="3" height="3" rx=".75" />
+    <rect x="25" y="25" width="3" height="3" rx=".75" />
+  </g>
+</svg>

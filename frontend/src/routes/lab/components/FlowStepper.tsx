@@ -53,7 +53,7 @@ export function FlowStepper({
           >
             <span
               className={cn(
-                "flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+                "flex size-6 shrink-0 items-center justify-center rounded-full border font-mono text-xs font-semibold",
                 active
                   ? "border-primary bg-primary text-primary-foreground"
                   : flow.completed[step]

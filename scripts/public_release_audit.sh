@@ -122,6 +122,30 @@ fail() {
   printf "FAIL: %s\n" "$1"
 }
 
+# Every leak scan below asks the same question -- "does this string appear in
+# anything that ships?" -- so they must agree on what ships. They used to carry
+# three hand-copied glob lists with nothing keeping them in sync, and the lists
+# drifted: a tree listed in the allowlist's [exclude] section never reaches the
+# public cut, but the workspace-path scan still read it and failed the audit
+# over maintainer paths in planning notes that cannot leak.
+#
+# release/public_release_allowlist.txt's [exclude] section is the authority for
+# what does not ship. These globs mirror the entries of it that exist in the
+# maintainer workspace; a public clone simply has no such paths to skip.
+# Exit status is rg's own, so callers keep inspecting it: 0 = matched,
+# 1 = clean, >1 = the scan itself failed and must never read as clean.
+scan_shipping_tree() {
+  rg --hidden \
+    --glob '!archive/**' \
+    --glob '!private/**' \
+    --glob '!local/**' \
+    --glob '!.claude/**' \
+    --glob '!backend/.venv/**' \
+    --glob '!backend/.env' \
+    "$@" \
+    .
+}
+
 require_file() {
   if [ -f "$1" ]; then
     pass "found $1"
@@ -249,15 +273,7 @@ fi
 # must never be reported as clean.
 local_workspace_scan_status=0
 local_workspace_matches="$(
-  rg -n --hidden \
-    --glob '!archive/**' \
-    --glob '!private/**' \
-    --glob '!local/**' \
-    --glob '!.claude/**' \
-    --glob '!backend/.venv/**' \
-    --glob '!backend/.env' \
-    "$local_workspace_pattern" \
-    .
+  scan_shipping_tree -n "$local_workspace_pattern"
 )" || local_workspace_scan_status=$?
 
 if [ "$local_workspace_scan_status" -gt 1 ]; then
@@ -508,15 +524,7 @@ case "$sensitive_scan_state" in
     # must never be reported as clean.
     sensitive_scan_status=0
     sensitive_matches="$(
-      rg -n --hidden \
-        --glob '!archive/**' \
-        --glob '!private/**' \
-        --glob '!local/**' \
-        --glob '!.claude/**' \
-        --glob '!backend/.venv/**' \
-        --glob '!backend/.env' \
-        "$sensitive_pattern" \
-        .
+      scan_shipping_tree -n "$sensitive_pattern"
     )" || sensitive_scan_status=$?
 
     if [ "$sensitive_scan_status" -gt 1 ]; then
@@ -555,15 +563,7 @@ fixture_private_key_file="network/src/fixtures/demo-signing-private-keys.ts"
 # match list flows into the sed|sort post-processing.
 private_key_scan_status=0
 private_key_scan_raw="$(
-  rg -l --hidden \
-    --glob '!archive/**' \
-    --glob '!private/**' \
-    --glob '!local/**' \
-    --glob '!.claude/**' \
-    --glob '!backend/.venv/**' \
-    --glob '!backend/.env' \
-    '^-----BEGIN PRIVATE KEY-----$|^-----END PRIVATE KEY-----$' \
-    .
+  scan_shipping_tree -l '^-----BEGIN PRIVATE KEY-----$|^-----END PRIVATE KEY-----$'
 )" || private_key_scan_status=$?
 
 if [ "$private_key_scan_status" -gt 1 ]; then

@@ -2,42 +2,48 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
 
-@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.21 0.006 285.885);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.21 0.006 285.885);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.21 0.006 285.885);
-  --primary: oklch(0.596 0.145 163.225);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.596 0.145 163.225);
-  --radius: 0.5rem;
+  --background: #081018;
+  --foreground: #E6EDF5;
+  --card: #0D1622;
+  --card-foreground: #E6EDF5;
+  --popover: #111C2B;
+  --popover-foreground: #E6EDF5;
+  --primary: #45D483;
+  --primary-foreground: #06130C;
+  --secondary: #111C2B;
+  --secondary-foreground: #E6EDF5;
+  --muted: #111C2B;
+  --muted-foreground: #8FA0B5;
+  --accent: #111C2B;
+  --accent-foreground: #E6EDF5;
+  --destructive: #F25F5C;
+  --destructive-foreground: #1A0707;
+  --border: #1C2A3A;
+  --input: #1C2A3A;
+  --ring: #45D483;
+  --radius: 0.75rem;
+  --border-accent: rgba(69, 212, 131, 0.35);
+  --glow: 0 0 24px rgba(69, 212, 131, 0.15);
 
   /* Verdict semantics (fixed, three colors): emerald = accepted,
      red = rejected/tampered, amber = policy-gated or runtime-degraded. */
-  --trust-green: oklch(0.596 0.145 163.225);
-  --trust-amber: oklch(0.666 0.179 58.318);
-  --trust-red: oklch(0.577 0.245 27.325);
+  --trust-green: #45D483;
+  --trust-amber: #F5A524;
+  --trust-red: #F25F5C;
 }
 
 html,
 body,
 #root {
   min-height: 100%;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -51,6 +57,12 @@ body {
     "Segoe UI",
     system-ui,
     sans-serif;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 button,
@@ -63,6 +75,7 @@ textarea {
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -81,6 +94,9 @@ textarea {
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-trust-green: var(--trust-green);
+  --color-trust-amber: var(--trust-amber);
+  --color-trust-red: var(--trust-red);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -90,31 +106,6 @@ textarea {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-.dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.696 0.17 162.48);
-  --primary-foreground: oklch(0.141 0.005 285.823);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.637 0.237 25.331);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.274 0.006 286.033);
-  --input: oklch(0.274 0.006 286.033);
-  --ring: oklch(0.696 0.17 162.48);
-
-  --trust-green: oklch(0.696 0.17 162.48);
-  --trust-amber: oklch(0.769 0.188 70.08);
-  --trust-red: oklch(0.637 0.237 25.331);
-}
 
 @layer base {
   * {

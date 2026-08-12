@@ -18,6 +18,11 @@ keywords:
   - "destination binding"
   - "runtime safety"
   - "verifier cache"
+# Paper 1 is the preferred citation for the software as a whole: it frames the
+# trust model the whole repository rests on, and CFF permits only one
+# preferred-citation. Paper 2, which defines the decision semantics the
+# verifier implements, is listed under references below. docs/public/CITING.md
+# explains which to cite for what.
 preferred-citation:
   type: article
   title: "QR Navigation Security Is Not Primarily a Cryptography Problem: A Trust-Model Framework for Managed Issuer Verification, Destination Binding, and Runtime Safety"
@@ -30,3 +35,19 @@ preferred-citation:
   status: preprint
   doi: "10.2139/ssrn.6577478"
   url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478"
+references:
+  # date-published is deliberately absent. Paper 1's value is its SSRN posting
+  # date, not the date the paper carries; Paper 2's posting date is not on the
+  # record yet, and 2026-08-03 -- the date the submitted PDF carries -- would
+  # not mean the same thing. Fill it in from the SSRN record rather than
+  # inferring it.
+  - type: article
+    title: "Trust Residuals for Navigation QR Codes: Decision Semantics for Issuer, Destination, and Runtime Safety State"
+    authors:
+      - family-names: "El-Masri"
+        given-names: "Hassan"
+        orcid: "https://orcid.org/0000-0001-6704-8605"
+    year: 2026
+    status: preprint
+    doi: "10.2139/ssrn.7225699"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699"

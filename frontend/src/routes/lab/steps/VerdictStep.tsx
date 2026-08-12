@@ -49,18 +49,18 @@ const toneStyles: Record<
 > = {
   green: {
     icon: CheckCircle2,
-    surface: "border-(--trust-green)/25 bg-(--trust-green)/10",
-    text: "text-(--trust-green)",
+    surface: "border-trust-green/25 bg-trust-green/10",
+    text: "text-trust-green",
   },
   amber: {
     icon: AlertTriangle,
-    surface: "border-(--trust-amber)/25 bg-(--trust-amber)/10",
-    text: "text-(--trust-amber)",
+    surface: "border-trust-amber/25 bg-trust-amber/10",
+    text: "text-trust-amber",
   },
   red: {
     icon: XCircle,
-    surface: "border-(--trust-red)/25 bg-(--trust-red)/10",
-    text: "text-(--trust-red)",
+    surface: "border-trust-red/25 bg-trust-red/10",
+    text: "text-trust-red",
   },
 }
 

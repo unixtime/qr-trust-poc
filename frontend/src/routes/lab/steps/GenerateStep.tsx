@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { ConsoleChip } from "@/components/ui/console-chip"
+import { Eyebrow } from "@/components/ui/eyebrow"
 import type { NonceMode } from "@/domain/scenarios"
 import {
   qrImageDataUrl,
@@ -161,50 +162,38 @@ export default function GenerateStep({
         </summary>
         <div className="mt-3 flex flex-col gap-4">
           <fieldset>
-            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Eyebrow as="legend" className="mb-1.5">
               Nonce mode
-            </legend>
+            </Eyebrow>
             <div className="flex flex-wrap gap-2">
               {nonceModes.map(({ value, label }) => (
-                <button
+                <ConsoleChip
                   key={value}
-                  type="button"
                   data-testid={`nonce-${value}`}
+                  pressed={nonceMode === value}
                   aria-pressed={nonceMode === value}
                   onClick={() => onNonceModeChange(value)}
-                  className={cn(
-                    "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                    nonceMode === value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
                 >
                   {label}
-                </button>
+                </ConsoleChip>
               ))}
             </div>
           </fieldset>
           <fieldset>
-            <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <Eyebrow as="legend" className="mb-1.5">
               Usage policy
-            </legend>
+            </Eyebrow>
             <div className="flex flex-wrap gap-2">
               {usagePolicies.map(({ value, label }) => (
-                <button
+                <ConsoleChip
                   key={value}
-                  type="button"
                   data-testid={`usage-${value}`}
+                  pressed={usagePolicy === value}
                   aria-pressed={usagePolicy === value}
                   onClick={() => onUsagePolicyChange(value)}
-                  className={cn(
-                    "rounded-md border px-3 py-1.5 text-sm transition-colors",
-                    usagePolicy === value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
                 >
                   {label}
-                </button>
+                </ConsoleChip>
               ))}
             </div>
           </fieldset>

@@ -23,6 +23,17 @@ jobs:
           sudo apt-get install -y poppler-utils ripgrep file
 
       - name: Run public release audit
+        # The audit's `auto` role detection keys on release/export_public_repo.sh,
+        # which is tracked here, so a CI clone of this repo reads as a maintainer
+        # workspace. It is not one: the maintainer scans need
+        # local/release_audit_private_patterns.txt and network/node_modules, and
+        # neither is in git, so four checks fail on any runner. CI is the public
+        # role the script documents. This job had never actually run -- the
+        # workflow fires only on pull_request and push to main, and this repo's
+        # remote is GitLab -- so the breakage surfaced the moment .gitlab-ci.yml
+        # gave the audit a runner for the first time.
+        env:
+          RELEASE_AUDIT_ROLE: public
         run: make release-audit
 
   release-readiness-report:
@@ -211,6 +222,73 @@ jobs:
       - name: Stop compose stack
         if: always()
         run: docker compose down -v
+
+  network-services-offline:
+    name: Reference Network Offline Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: network/package-lock.json
+
+      - name: Install reference network dependencies
+        working-directory: network
+        run: npm ci
+
+      # scripts/network_services_check.sh splits the reference-network suite by
+      # what infrastructure it needs. `offline` is the 57 scripts that need
+      # none; the one it holds back, scanner-decision:http-runtime-smoke, needs
+      # a live HTTP service. "Offline" here means "does not need the HTTP
+      # runtime" and is easy to misread, because eight of these are named
+      # postgres:* and two nats:* -- but none of them opens a connection. Every
+      # Postgres and NATS port has an in-memory double, postgres-driver.ts and
+      # nats-js-publisher.ts export factories that nothing invokes at import
+      # time, and the variants that do talk to real services are separate make
+      # targets that inject QRTRUST_NETWORK_DATABASE_URL explicitly. This job
+      # needs no services.
+      #
+      # Worth more than its 30s: the suite opens with `tsc --noEmit` over the
+      # whole network package, which nothing else here type-checks.
+      - name: Run reference network offline suite
+        run: make check-network-services-offline
+
+  static-fixture-checks:
+    name: Static Fixture And Artifact Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Check governance fixtures
+        run: make check-governance-fixtures
+
+      - name: Check network contracts
+        run: make check-network-contracts
+
+      # The slow one, ~5s: replays the trust-residuals corpus and re-derives
+      # the formal table over 2.2M sweep comparisons, then asserts the
+      # committed docs/public/evaluation/trust_residuals_results.v1.json still
+      # matches. It writes no files.
+      - name: Check trust residuals evaluation
+        run: make check-trust-residuals-evaluation
 
   route-navigation-smoke:
     name: Route Navigation Smoke

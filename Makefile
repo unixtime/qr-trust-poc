@@ -1,5 +1,6 @@
 .PHONY: help up up-admin up-lan up-lan-admin up-https-admin ensure-shared-infra-db check-shared-infra-network apply-backend-migrations check-backend-migrations apply-network-reference-schema apply-network-migrations check-network-migrations check-network-stack-ready check-network-worker-drill up-nats up-network-outbox-worker logs-network-outbox-worker up-network-governance-subscriber-worker logs-network-governance-subscriber-worker up-network-runtime-subscriber-worker logs-network-runtime-subscriber-worker qrtrustctl-container-help up-secondary-verifier-node up-secondary-verifier-node-shared-infra logs-secondary-verifier-node up-network-artifact-publication-worker logs-network-artifact-publication-worker up-network-verifier-cache-worker logs-network-verifier-cache-worker down-nats up-https-admin-shared-infra up-https-admin-shared-infra-nats down logs status smoke-compose smoke-compose-https dev-frontend dev-frontend-https check-route-navigation check-frontend-vite-config check-frontend-trust-tone check-frontend-scanner-contract check-frontend-scanner-open-contract check-python-verifier-lab-stability capture-browser-evidence check-browser-evidence smoke-ios ios-provider-config check-ios-provider-config ios-provider-profile-fixture check-ios-provider-profile-fixture ios-provider-profile-evidence-packet ios-provider-profile-evidence-status import-ios-provider-profile-evidence check-ios-provider-profile-evidence iphone-evidence-preflight iphone-evidence-packet iphone-evidence-status import-iphone-evidence check-iphone-evidence scanner-release-evidence-packet scanner-release-evidence-export-status scanner-release-evidence-downloads-status import-scanner-release-evidence-export import-scanner-release-evidence-downloads scanner-release-evidence-status check-trust-residuals-evaluation check-governance-fixtures check-network-contracts check-network-services check-network-services-offline check-network-services-runtime check-network-signing-custody-audit-export check-network-signing-custody-publication-audit check-network-artifact-publication-supervisor check-network-outbox-supervisor check-network-runtime-observations check-network-verifier-cache-supervisor check-network-verifier-cache-read-model check-network-scanner-decision-http-runtime check-network-scanner-fleet-evidence check-network-cross-surface-evidence check-network-worker-operations-evidence check-network-restore-automation-evidence check-network-packaged-deployment-approval-evidence check-network-operator-evidence-index check-network-production-evidence-requirements check-network-production-evidence-collection-template check-network-production-evidence-closure-bundle check-network-production-evidence-gap-report check-network-production-evidence-intake check-network-production-evidence-private-index check-network-adoption-stage check-network-reference-handoff-bundle scanner-fleet-evidence-artifacts-status scanner-fleet-capture-drill check-network-scanner-fleet-evidence-artifacts check-network-verifier-profile network-verifier-profile-distribution-report network-production-evidence-collection-template network-production-evidence-gap-report network-production-evidence-intake network-production-evidence-closure-bundle network-production-evidence-private-template check-network-live-postgres check-network-live-outbox-metrics check-network-live-nats check-network-live-outbox-worker check-network-live-authority-outbox check-network-live-outbox-retry check-network-live-verifier-cache check-network-live-scanner-decision network-adoption-stage-report network-adoption-stage-production-drill network-readiness-report network-readiness-bundle network-readiness-report-production network-readiness-report-production-drill network-readiness-bundle-production-drill network-reference-handoff-bundle network-reference-handoff-production-drill network-deployed-scanner-readiness-report release-readiness-report check-release-readiness-report release-audit release-audit-strict docs-build docs-serve test-backend build-frontend lint-frontend build-ios
 .PHONY: generate-trust-residuals-fixtures
+.PHONY: up-https-admin-nats demo-bootstrap check-stack-settled
 
 VERIFIER_ADMIN_TOKENS ?= ["local-lab-admin"]
 VERIFIER_SMOKE_ADMIN_TOKEN ?= local-lab-admin
@@ -32,12 +33,26 @@ POSTGRES_PUBLISH_HOST ?= 127.0.0.1
 POSTGRES_PUBLISH_PORT ?= 5432
 REDIS_PUBLISH_HOST ?= 127.0.0.1
 REDIS_PUBLISH_PORT ?= 6379
+# "External" means "not started by this overlay" -- it does not mean "not a
+# container". These now default to the stack's own postgres service, so a bare
+# `make check-network-stack-ready` works from a clean clone.
+#
+# They previously said publisher/publisher/qr_trust_poc, describing a Homebrew
+# server that no longer exists: every postgresql@N formula is uninstalled and
+# Postgres runs only in Docker here. That made an unqualified
+# `make ensure-shared-infra-db` die with "password authentication failed for
+# user publisher" -- which reads like a stale password rather than a server
+# that was never running.
+#
+# SETUP_HOST is the address from the host (psql, in
+# scripts/ensure_external_database.sh); HOST is the address from inside a
+# container. Both reach the same postgres service.
 EXTERNAL_DB_HOST ?= host.docker.internal
 EXTERNAL_DB_SETUP_HOST ?= 127.0.0.1
 EXTERNAL_DB_PORT ?= 5432
-EXTERNAL_DB_USER ?= publisher
-EXTERNAL_DB_PASSWORD ?= publisher
-EXTERNAL_DB_NAME ?= qr_trust_poc
+EXTERNAL_DB_USER ?= qr_admin
+EXTERNAL_DB_PASSWORD ?= qr_dev_password
+EXTERNAL_DB_NAME ?= qr_db
 EXTERNAL_REDIS_HOSTNAME ?= host.docker.internal
 EXTERNAL_REDIS_SETUP_HOST ?= 127.0.0.1
 EXTERNAL_REDIS_PORT ?= 6379
@@ -288,6 +303,7 @@ up-https-admin:
 	FRONTEND_TLS_ENABLED='true' \
 	VITE_BACKEND_TARGET='https://api:8000' \
 	docker compose up -d --build
+	@$(MAKE) --no-print-directory check-stack-settled
 
 ensure-shared-infra-db:
 	@EXTERNAL_DB_HOST='$(EXTERNAL_DB_HOST)' \
@@ -350,6 +366,11 @@ up-nats:
 	NATS_MONITOR_PUBLISH_PORT='$(NATS_MONITOR_PUBLISH_PORT)' \
 	docker compose -f compose.nats.yml up -d nats
 
+# Every compose.shared-infra.yml invocation below must also name
+# compose.nats.yml: the override patches services drawn from both base files,
+# and compose merges overrides by service name across the whole project, so
+# omitting it leaves the NATS services carrying an environment but no image --
+# which invalidates the project even for a target that wants neither.
 up-network-outbox-worker: ensure-shared-infra-db
 	@QRTRUST_NETWORK_DATABASE_URL='postgres://$(EXTERNAL_DB_USER):$(EXTERNAL_DB_PASSWORD)@$(EXTERNAL_DB_HOST):$(EXTERNAL_DB_PORT)/$(EXTERNAL_DB_NAME)' \
 	QRTRUST_NETWORK_NATS_URL='nats://nats:4222' \
@@ -448,10 +469,10 @@ up-network-artifact-publication-worker: ensure-shared-infra-db
 	QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS='$(QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS)' \
 	QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS='$(QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS)' \
 	QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT='$(QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT)' \
-	docker compose -f compose.yml -f compose.shared-infra.yml up -d --build network-artifact-publication-worker
+	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml up -d --build network-artifact-publication-worker
 
 logs-network-artifact-publication-worker:
-	docker compose -f compose.yml -f compose.shared-infra.yml logs --tail=80 -f network-artifact-publication-worker
+	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml logs --tail=80 -f network-artifact-publication-worker
 
 up-network-verifier-cache-worker: ensure-shared-infra-db
 	@QRTRUST_NETWORK_DATABASE_URL='postgres://$(EXTERNAL_DB_USER):$(EXTERNAL_DB_PASSWORD)@$(EXTERNAL_DB_HOST):$(EXTERNAL_DB_PORT)/$(EXTERNAL_DB_NAME)' \
@@ -460,10 +481,10 @@ up-network-verifier-cache-worker: ensure-shared-infra-db
 	QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS='$(QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS)' \
 	QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS='$(QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS)' \
 	QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT='$(QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT)' \
-	docker compose -f compose.yml -f compose.shared-infra.yml up -d --build network-verifier-cache-worker
+	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml up -d --build network-verifier-cache-worker
 
 logs-network-verifier-cache-worker:
-	docker compose -f compose.yml -f compose.shared-infra.yml logs --tail=80 -f network-verifier-cache-worker
+	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml logs --tail=80 -f network-verifier-cache-worker
 
 down-nats:
 	docker compose -f compose.nats.yml down
@@ -488,7 +509,8 @@ up-https-admin-shared-infra: ensure-shared-infra-db
 	EXTERNAL_REDIS_HOSTNAME='$(EXTERNAL_REDIS_HOSTNAME)' \
 	EXTERNAL_REDIS_PORT='$(EXTERNAL_REDIS_PORT)' \
 	EXTERNAL_REDIS_DB='$(EXTERNAL_REDIS_DB)' \
-	docker compose -f compose.yml -f compose.shared-infra.yml up -d --build --remove-orphans api frontend
+	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml up -d --build --remove-orphans api frontend
+	@$(MAKE) --no-print-directory check-stack-settled COMPOSE_STACK_FILES='-f compose.yml -f compose.nats.yml -f compose.shared-infra.yml'
 
 up-https-admin-shared-infra-nats: ensure-shared-infra-db
 	@docker compose stop postgres redis >/dev/null 2>&1 || true
@@ -540,6 +562,145 @@ up-https-admin-shared-infra-nats: ensure-shared-infra-db
 	QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES='$(QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES)' \
 	QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS='$(QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS)' \
 	docker compose -f compose.yml -f compose.nats.yml -f compose.shared-infra.yml up -d --build --remove-orphans api frontend nats network-outbox-worker network-governance-subscriber-worker network-runtime-subscriber-worker
+	@$(MAKE) --no-print-directory check-stack-settled COMPOSE_STACK_FILES='-f compose.yml -f compose.nats.yml -f compose.shared-infra.yml'
+
+# Self-contained counterpart to up-https-admin-shared-infra-nats: Postgres and
+# Redis run as containers from compose.yml (postgres:18-alpine) rather than
+# being reused from the developer's machine, so a fresh clone needs no local
+# database server at all. This is the demo default; the shared-infra targets
+# exist for the case where an external server is already the source of truth.
+#
+# QRTRUST_NETWORK_DATABASE_URL is deliberately NOT set here. compose.nats.yml
+# already defaults every worker to the in-compose postgres service, and
+# restating those credentials in the Makefile would let the two drift apart.
+#
+# No --remove-orphans, unlike the shared-infra sibling: this file set leaves
+# api-verifier-b (profile verifier-federation) unselected, and orphan removal
+# is what deletes unselected services' containers. Nothing here needs it --
+# the target only ever adds services.
+up-https-admin-nats:
+	@VERIFIER_ADMIN_TOKENS='$(VERIFIER_ADMIN_TOKENS)' \
+	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
+	VERIFIER_TLS_ENABLED='true' \
+	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
+	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
+	FRONTEND_PUBLISH_HOST='0.0.0.0' \
+	FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)' \
+	FRONTEND_TLS_ENABLED='true' \
+	VITE_BACKEND_TARGET='https://api:8000' \
+	POSTGRES_PUBLISH_HOST='$(POSTGRES_PUBLISH_HOST)' \
+	POSTGRES_PUBLISH_PORT='$(POSTGRES_PUBLISH_PORT)' \
+	REDIS_PUBLISH_HOST='$(REDIS_PUBLISH_HOST)' \
+	REDIS_PUBLISH_PORT='$(REDIS_PUBLISH_PORT)' \
+	NATS_PUBLISH_HOST='$(NATS_PUBLISH_HOST)' \
+	NATS_PUBLISH_PORT='$(NATS_PUBLISH_PORT)' \
+	NATS_MONITOR_PUBLISH_HOST='$(NATS_MONITOR_PUBLISH_HOST)' \
+	NATS_MONITOR_PUBLISH_PORT='$(NATS_MONITOR_PUBLISH_PORT)' \
+	QRTRUST_NETWORK_NATS_URL='nats://nats:4222' \
+	QRTRUST_NETWORK_NATS_USER='$(QRTRUST_OUTBOX_NATS_USER)' \
+	QRTRUST_NETWORK_NATS_PASSWORD='$(QRTRUST_OUTBOX_NATS_PASSWORD)' \
+	QRTRUST_OUTBOX_WORKER_ID='$(QRTRUST_OUTBOX_WORKER_ID)' \
+	QRTRUST_OUTBOX_BATCH_SIZE='$(QRTRUST_OUTBOX_BATCH_SIZE)' \
+	QRTRUST_OUTBOX_POLL_INTERVAL_MS='$(QRTRUST_OUTBOX_POLL_INTERVAL_MS)' \
+	QRTRUST_OUTBOX_IDLE_POLL_INTERVAL_MS='$(QRTRUST_OUTBOX_IDLE_POLL_INTERVAL_MS)' \
+	QRTRUST_OUTBOX_IDLE_ITERATION_LIMIT='$(QRTRUST_OUTBOX_IDLE_ITERATION_LIMIT)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_USER='$(QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_USER)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_PASSWORD='$(QRTRUST_GOVERNANCE_SUBSCRIBER_NATS_PASSWORD)' \
+	QRTRUST_ACCEPTED_ROOT_PROGRAM_IDS='$(QRTRUST_ACCEPTED_ROOT_PROGRAM_IDS)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_ID='$(QRTRUST_GOVERNANCE_SUBSCRIBER_ID)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_WORKER_ID='$(QRTRUST_GOVERNANCE_SUBSCRIBER_WORKER_ID)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_DURABLE='$(QRTRUST_GOVERNANCE_SUBSCRIBER_DURABLE)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_VERIFIER_ID='$(QRTRUST_GOVERNANCE_SUBSCRIBER_VERIFIER_ID)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_MAX_MESSAGES='$(QRTRUST_GOVERNANCE_SUBSCRIBER_MAX_MESSAGES)' \
+	QRTRUST_GOVERNANCE_SUBSCRIBER_EXPIRES_MS='$(QRTRUST_GOVERNANCE_SUBSCRIBER_EXPIRES_MS)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_NATS_USER='$(QRTRUST_RUNTIME_SUBSCRIBER_NATS_USER)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_NATS_PASSWORD='$(QRTRUST_RUNTIME_SUBSCRIBER_NATS_PASSWORD)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_ID='$(QRTRUST_RUNTIME_SUBSCRIBER_ID)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_WORKER_ID='$(QRTRUST_RUNTIME_SUBSCRIBER_WORKER_ID)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_DURABLE='$(QRTRUST_RUNTIME_SUBSCRIBER_DURABLE)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES='$(QRTRUST_RUNTIME_SUBSCRIBER_MAX_MESSAGES)' \
+	QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS='$(QRTRUST_RUNTIME_SUBSCRIBER_EXPIRES_MS)' \
+	QRTRUST_ARTIFACT_PUBLICATION_WORKER_ID='$(QRTRUST_ARTIFACT_PUBLICATION_WORKER_ID)' \
+	QRTRUST_ARTIFACT_PUBLICATION_BATCH_SIZE='$(QRTRUST_ARTIFACT_PUBLICATION_BATCH_SIZE)' \
+	QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS='$(QRTRUST_ARTIFACT_PUBLICATION_POLL_INTERVAL_MS)' \
+	QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS='$(QRTRUST_ARTIFACT_PUBLICATION_IDLE_POLL_INTERVAL_MS)' \
+	QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT='$(QRTRUST_ARTIFACT_PUBLICATION_IDLE_ITERATION_LIMIT)' \
+	QRTRUST_VERIFIER_CACHE_WORKER_ID='$(QRTRUST_VERIFIER_CACHE_WORKER_ID)' \
+	QRTRUST_VERIFIER_CACHE_BATCH_SIZE='$(QRTRUST_VERIFIER_CACHE_BATCH_SIZE)' \
+	QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS='$(QRTRUST_VERIFIER_CACHE_POLL_INTERVAL_MS)' \
+	QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS='$(QRTRUST_VERIFIER_CACHE_IDLE_POLL_INTERVAL_MS)' \
+	QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT='$(QRTRUST_VERIFIER_CACHE_IDLE_ITERATION_LIMIT)' \
+	docker compose -f compose.yml -f compose.nats.yml up -d --build postgres redis api frontend nats network-outbox-worker network-governance-subscriber-worker network-runtime-subscriber-worker network-artifact-publication-worker network-verifier-cache-worker
+	@$(MAKE) --no-print-directory check-stack-settled COMPOSE_STACK_FILES='-f compose.yml -f compose.nats.yml'
+
+# The gate every bring-up target ends with. `docker compose up -d` exits 0 once
+# containers have been *started*, so a worker that boots, fails its
+# authorization check and exits still leaves the target green -- and then
+# crash-loops in the background under `restart: unless-stopped`. That is exactly
+# how the stack came to report success while the governance and runtime
+# subscribers were dying on "NATS subscriber is not active or authorized",
+# which is only discoverable by reading logs nobody thinks to read after a
+# successful build.
+#
+# Pass the same -f set the target brought the stack up with: `compose ps -q`
+# resolves the service list from those files, and a narrower set would silently
+# skip the very workers most likely to be broken.
+COMPOSE_STACK_FILES ?= -f compose.yml
+check-stack-settled:
+	@sh scripts/wait_for_stack_settled.sh $(COMPOSE_STACK_FILES)
+
+# Every variable the api, postgres and redis services interpolate, carrying the
+# same values up-https-admin-nats starts them with.
+#
+# This block is load-bearing, not decoration. `docker compose run` re-resolves
+# the services it touches from the files and environment on its own command
+# line, so any variable missing here falls back to its compose default. That
+# changes the api service's config hash, and compose then recreates the running
+# api -- quietly dropping the TLS and admin tokens the stack was brought up
+# with, while the frontend goes on proxying to https://api:8000. Keep it in step
+# with up-https-admin-nats.
+DEMO_BOOTSTRAP_STACK_ENV = \
+	VERIFIER_ADMIN_TOKENS='$(VERIFIER_ADMIN_TOKENS)' \
+	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
+	VERIFIER_TLS_ENABLED='true' \
+	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
+	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
+	POSTGRES_PUBLISH_HOST='$(POSTGRES_PUBLISH_HOST)' \
+	POSTGRES_PUBLISH_PORT='$(POSTGRES_PUBLISH_PORT)' \
+	REDIS_PUBLISH_HOST='$(REDIS_PUBLISH_HOST)' \
+	REDIS_PUBLISH_PORT='$(REDIS_PUBLISH_PORT)'
+
+# Seeds qr_trust.nats_subscribers and its subject allowlist. Until those rows
+# exist the governance and runtime subscriber workers exit fatally with "NATS
+# subscriber is not active or authorized", so every fresh database needs this
+# before the stack can go green.
+#
+# The wait is the other half of the fix: management-cli declares depends_on api
+# with no health condition, so compose will start the api and run the CLI
+# against it in the same breath. Without waiting, the CLI dials the port before
+# uvicorn binds it and fails with "Connection refused" -- which reads like a
+# broken stack rather than a race.
+#
+# QRTRUSTCTL_BASE_URL names https because this target's env turns TLS on; the
+# certificate is the local self-signed lab pair, hence insecure-tls.
+demo-bootstrap:
+	@$(DEMO_BOOTSTRAP_STACK_ENV) docker compose -f compose.yml -f compose.nats.yml up -d api
+	@printf 'Waiting for the api container to report healthy...\n'
+	@cid=$$($(DEMO_BOOTSTRAP_STACK_ENV) docker compose -f compose.yml -f compose.nats.yml ps -q api); \
+	for i in $$(seq 1 90); do \
+	  health=$$(docker inspect -f '{{.State.Health.Status}}' "$$cid" 2>/dev/null || echo missing); \
+	  if [ "$$health" = healthy ]; then exit 0; fi; \
+	  sleep 1; \
+	done; \
+	printf 'api did not report healthy within 90s (last state: %s)\n' "$$health" >&2; \
+	exit 1
+	@$(DEMO_BOOTSTRAP_STACK_ENV) \
+	QRTRUSTCTL_BASE_URL='https://api:8000' \
+	QRTRUSTCTL_INSECURE_TLS='true' \
+	QRTRUSTCTL_ADMIN_TOKEN='$(VERIFIER_SMOKE_ADMIN_TOKEN)' \
+	docker compose -f compose.yml -f compose.nats.yml --profile management-tools run --rm management-cli demo-bootstrap
 
 down:
 	docker compose down

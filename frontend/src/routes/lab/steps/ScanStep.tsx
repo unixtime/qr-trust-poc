@@ -53,7 +53,7 @@ export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
             </p>
           ) : null}
           {lab.scannerDecisionError ? (
-            <p className="text-sm text-(--trust-red)" role="alert">
+            <p className="text-sm text-trust-red" role="alert">
               {lab.scannerDecisionError}
             </p>
           ) : null}

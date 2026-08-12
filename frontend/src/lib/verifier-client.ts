@@ -571,14 +571,6 @@ export type VerifierApiKeyListResponse = {
   records: VerifierApiKeyRecord[]
 }
 
-export type QrDisplayPayload = {
-  scenarioLabel: string
-  nonce: string
-  payload: string
-  qrPngBase64: string
-  createdAt: number
-}
-
 export class VerifierApiError extends Error {
   status: number
   retryAfterSeconds: number | null
@@ -719,7 +711,6 @@ export function fileToBase64(file: File) {
 }
 
 const verifierApiKeyStorageKey = "verifier.lab.api-key"
-const qrDisplayStoragePrefix = "verifier.qr-display:"
 
 export function readStoredVerifierApiKey() {
   if (typeof window === "undefined") return ""
@@ -739,42 +730,4 @@ export function storeVerifierApiKey(key: string) {
 export function clearStoredVerifierApiKey() {
   if (typeof window === "undefined") return
   window.localStorage.removeItem(verifierApiKeyStorageKey)
-}
-
-export function openQrDisplayWindow(options: {
-  qrPngBase64: string
-  scenarioLabel: string
-  nonce: string
-  payload: string
-}) {
-  const displayId = crypto.randomUUID()
-  const storageKey = `${qrDisplayStoragePrefix}${displayId}`
-  const payload: QrDisplayPayload = {
-    scenarioLabel: options.scenarioLabel,
-    nonce: options.nonce,
-    payload: options.payload,
-    qrPngBase64: options.qrPngBase64,
-    createdAt: Date.now(),
-  }
-  window.localStorage.setItem(storageKey, JSON.stringify(payload))
-
-  const popup = window.open(
-    `${window.location.origin}${window.location.pathname}?view=qr-display&id=${encodeURIComponent(displayId)}`,
-    "_blank",
-    "noopener,noreferrer"
-  )
-  if (!popup) {
-    window.localStorage.removeItem(storageKey)
-    throw new Error("The browser blocked the QR display window.")
-  }
-}
-
-export function readQrDisplayPayload(id: string) {
-  const raw = window.localStorage.getItem(`${qrDisplayStoragePrefix}${id}`)
-  if (!raw) return null
-  try {
-    return JSON.parse(raw) as QrDisplayPayload
-  } catch {
-    return null
-  }
 }

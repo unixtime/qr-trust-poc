@@ -99,4 +99,24 @@ dump.rdb
 
 # Browser-session scratch
 /.playwright-mcp/
-/lab-artifact-quiet-zone-result.png
+# Review screenshots get dropped at the repo root and never belong in a commit,
+# but each one used to be ignored by name, so every new capture re-dirtied the
+# tree until someone noticed and added another line. Nothing tracked is an image
+# at the root -- real assets live under frontend/public, docs, and ios -- so
+# anchoring the pattern here catches the next one without hiding a real asset.
+/*.png
+/*.jpg
+/*.jpeg
+
+# GitLab CI job caches. GitLab only archives cache paths under CI_PROJECT_DIR,
+# so npm and uv are pointed inside the repo rather than at their defaults in
+# $HOME. A restored cache would otherwise show up as untracked files and make
+# release-audit report an uncommitted working tree on every run.
+/.npm/
+/.uv-cache/
+/.uv-python/
+# Emitted by route-navigation-smoke and compose-workbench-smoke as failure
+# artifacts; *.log already covers them, listed here so their origin is obvious.
+/api.log
+/vite.log
+/compose.log

@@ -112,10 +112,23 @@ def test_nats_worker_compose_defaults_match_local_stack_and_shared_infra_overrid
         "    extra_hosts:\n"
         '      - "host.docker.internal:host-gateway"'
     ) in compose_shared_infra
+    # The whole DSN, not just its user prefix: every default in it is part of
+    # the contract. These used to be publisher/publisher/qr_trust_poc, which
+    # aimed the workers at the research-publisher role on a host Postgres this
+    # project no longer runs. The stack owns its database now, so an unset
+    # EXTERNAL_DB_* has to land on the same credentials compose.nats.yml
+    # defaults to above; the host is the only thing this override file changes,
+    # which is the entire reason it exists.
     assert (
-        "QRTRUST_NETWORK_DATABASE_URL: postgres://${EXTERNAL_DB_USER:-publisher}"
-        in compose_shared_infra
-    )
+        "QRTRUST_NETWORK_DATABASE_URL: postgres://"
+        "${EXTERNAL_DB_USER:-qr_admin}:${EXTERNAL_DB_PASSWORD:-qr_dev_password}"
+        "@${EXTERNAL_DB_HOST:-host.docker.internal}:${EXTERNAL_DB_PORT:-5432}"
+        "/${EXTERNAL_DB_NAME:-qr_db}"
+    ) in compose_shared_infra
+    # publisher is another project's role, and reaching it from here is what
+    # made the shared-infra bring-up fail authentication. Nothing in this file
+    # should name it again, in a default or anywhere else.
+    assert "publisher" not in compose_shared_infra
 
 
 def test_runtime_subscriber_worker_uses_db_authorized_durable_name() -> None:

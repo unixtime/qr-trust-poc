@@ -23,18 +23,18 @@ const toastToneClass: Record<
   { frame: string; icon: string; Icon: LucideIcon }
 > = {
   success: {
-    frame: "border-emerald-200 bg-emerald-50 text-emerald-950 shadow-emerald-950/10",
-    icon: "bg-emerald-100 text-emerald-700",
+    frame: "border-trust-green/30 bg-trust-green/10 text-foreground shadow-foreground/10",
+    icon: "bg-trust-green/15 text-trust-green",
     Icon: CheckCircle2,
   },
   warning: {
-    frame: "border-amber-200 bg-amber-50 text-amber-950 shadow-amber-950/10",
-    icon: "bg-amber-100 text-amber-700",
+    frame: "border-trust-amber/30 bg-trust-amber/10 text-foreground shadow-foreground/10",
+    icon: "bg-trust-amber/15 text-trust-amber",
     Icon: AlertTriangle,
   },
   blocked: {
-    frame: "border-rose-200 bg-rose-50 text-rose-950 shadow-rose-950/10",
-    icon: "bg-rose-100 text-rose-700",
+    frame: "border-trust-red/30 bg-trust-red/10 text-foreground shadow-foreground/10",
+    icon: "bg-trust-red/15 text-trust-red",
     Icon: ShieldX,
   },
   neutral: {

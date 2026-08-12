@@ -460,7 +460,7 @@ function ManagementKeyHeader() {
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="grid gap-1">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="size-4 text-emerald-700" />
+          <ShieldCheck className="size-4 text-trust-green" />
           <h3 className="text-sm font-semibold text-foreground">
             Management API keys
           </h3>
@@ -557,7 +557,7 @@ function ManagementPlaintextNotice({ plaintextKey }: { plaintextKey: string }) {
   if (!plaintextKey) return null
 
   return (
-    <div className="min-w-0 rounded-[1.2rem] border border-emerald-200 bg-emerald-50/70 p-3 text-xs leading-6 text-emerald-950">
+    <div className="min-w-0 rounded-[1.2rem] border border-trust-green/30 bg-trust-green/10 p-3 text-xs leading-6 text-foreground">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="text-[11px] font-medium uppercase tracking-[0.16em]">
           One-time plaintext

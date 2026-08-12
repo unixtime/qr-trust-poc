@@ -21,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Eyebrow } from "@/components/ui/eyebrow"
 import {
   Field,
   FieldDescription,
@@ -206,19 +207,19 @@ function scannerPreviewSummary(decision: ScanDecision) {
 }
 
 function riskStripeClass(level: "green" | "amber" | "red"): string {
-  if (level === "green") return "bg-(--trust-green)"
-  if (level === "red") return "bg-(--trust-red)"
-  return "bg-(--trust-amber)"
+  if (level === "green") return "bg-trust-green"
+  if (level === "red") return "bg-trust-red"
+  return "bg-trust-amber"
 }
 
 function riskPillClass(level: "green" | "amber" | "red"): string {
   if (level === "green") {
-    return "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
+    return "border-trust-green/25 bg-trust-green/10 text-trust-green"
   }
   if (level === "red") {
-    return "border-(--trust-red)/25 bg-(--trust-red)/10 text-(--trust-red)"
+    return "border-trust-red/25 bg-trust-red/10 text-trust-red"
   }
-  return "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
+  return "border-trust-amber/25 bg-trust-amber/10 text-trust-amber"
 }
 
 function scannerDestinationUrl(decision: ScanDecision) {
@@ -373,16 +374,16 @@ function ScannerDecisionPanel({
     scannerUx?.risk_stripe !== undefined
       ? riskStripeClass(scannerUx.risk_stripe)
       : tone === "success"
-        ? "bg-emerald-500"
+        ? "bg-trust-green"
         : tone === "blocked"
-          ? "bg-red-500"
-          : "bg-amber-500"
+          ? "bg-trust-red"
+          : "bg-trust-amber"
   const cardClass =
     tone === "success"
-      ? "border-(--trust-green)/25 bg-(--trust-green)/10 text-(--trust-green)"
+      ? "border-trust-green/25 bg-trust-green/10 text-trust-green"
       : tone === "blocked"
         ? "border-destructive/20 bg-destructive/10 text-destructive"
-        : "border-(--trust-amber)/25 bg-(--trust-amber)/10 text-(--trust-amber)"
+        : "border-trust-amber/25 bg-trust-amber/10 text-trust-amber"
   const riskLevel = scannerRiskLevel(decision)
   const reasonCodes = scannerUx?.reason_codes ?? decision.contract?.reason_codes ?? []
   const fingerprint =
@@ -403,7 +404,7 @@ function ScannerDecisionPanel({
 
   return (
     <div
-      className={`overflow-hidden rounded-[1.8rem] border shadow-[0_18px_48px_rgba(28,35,30,0.08)] ${cardClass}`}
+      className={`overflow-hidden rounded-lg border ${cardClass}`}
     >
       <div
         className={cn("h-2 w-full", riskStripeClass(scannerUx?.risk_stripe ?? riskLevel))}
@@ -413,9 +414,9 @@ function ScannerDecisionPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className={`inline-flex size-2.5 rounded-full ${indicatorClass}`} />
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-current/68">
+            <Eyebrow as="div" tone="current">
               Scanner preview
-            </div>
+            </Eyebrow>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Badge
@@ -443,9 +444,9 @@ function ScannerDecisionPanel({
         <div className="rounded-[1.35rem] border border-current/10 bg-background/52 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-current/58">
+              <Eyebrow as="div" tone="current">
                 Domain fingerprint
-              </div>
+              </Eyebrow>
               <div className="mt-2 break-all text-xl font-black tracking-[-0.045em] text-current">
                 {fingerprint}
               </div>
@@ -468,9 +469,9 @@ function ScannerDecisionPanel({
 
         {reasonCodes.length ? (
           <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-current/58">
+            <Eyebrow as="div" tone="current">
               Why this result
-            </div>
+            </Eyebrow>
             <div className="mt-3 grid gap-2">
               {reasonCodes.map((code) => {
                 const copy = reasonCodeCopy(code)
@@ -495,12 +496,12 @@ function ScannerDecisionPanel({
         {trustPath.length ? (
           <div className="rounded-[1.35rem] border border-current/10 bg-background/35 p-4">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-current/58">
+              <Eyebrow as="div" tone="current">
                 Trust path
-              </div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-current/54">
+              </Eyebrow>
+              <Eyebrow as="div" tone="current">
                 first weak layer explains result
-              </div>
+              </Eyebrow>
             </div>
             <div className="mt-3 grid gap-2">
               {trustPath.map((step, index) => (
@@ -510,9 +511,9 @@ function ScannerDecisionPanel({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-current/58">
+                      <Eyebrow as="div" tone="current">
                         Layer {index + 1}
-                      </div>
+                      </Eyebrow>
                       <div className="mt-1 text-sm font-semibold">
                         {step.label}
                       </div>
@@ -545,9 +546,9 @@ function ScannerDecisionPanel({
         ) : null}
 
         <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-current/58">
+          <Eyebrow as="div" tone="current">
             User action
-          </div>
+          </Eyebrow>
           <div className="mt-2 text-sm font-semibold text-current">
             {finalAction}
           </div>
@@ -697,7 +698,7 @@ export function ScanWorkbenchSection({
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid gap-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-primary/8 p-4">
               <Button disabled={isDecodingImage} onClick={openImagePicker}>
                 <Upload data-icon="inline-start" />
                 {isDecodingImage ? "Checking…" : "Upload and check QR"}
@@ -726,7 +727,7 @@ export function ScanWorkbenchSection({
               </Field>
             </FieldGroup>
 
-            <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
+            <div className="flex flex-wrap gap-3 rounded-lg border border-border/60 bg-primary/8 p-3">
               <Button
                 onClick={verifyScannedPayload}
                 disabled={!scannedPayload.trim() || isVerifyingScanned}
@@ -764,11 +765,11 @@ export function ScanWorkbenchSection({
               <div className={isCameraPanelOpen ? "grid gap-4" : "hidden"}>
                 <div
                   className={cn(
-                    "relative overflow-hidden rounded-lg border bg-zinc-950",
+                    "relative overflow-hidden rounded-lg border bg-background",
                     frameFlashTone === "success"
-                      ? "border-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.22)]"
+                      ? "border-trust-green shadow-(--glow)"
                       : frameFlashTone === "blocked"
-                        ? "border-destructive shadow-[0_0_0_3px_rgba(239,68,68,0.18)]"
+                        ? "border-destructive shadow-[0_0_24px_rgba(242,95,92,0.15)]"
                         : "border-border/70",
                   )}
                 >
@@ -781,20 +782,29 @@ export function ScanWorkbenchSection({
                   />
                   <canvas ref={canvasRef} className="hidden" />
                   <div
-                    className={`flex aspect-video w-full items-center justify-center px-8 text-center text-sm leading-7 text-stone-200 ${
+                    className={`flex aspect-video w-full items-center justify-center px-8 text-center text-sm leading-7 text-foreground ${
                       isCameraRunning ? "absolute inset-0 bg-black/10" : ""
                     }`}
                   >
                     <div className="max-w-md">
-                      <div className="mx-auto mb-4 grid size-16 place-items-center rounded-3xl border border-stone-100/10 bg-stone-50/[0.06]">
-                        <QrCode className="size-7 text-emerald-200" />
+                      <div className="mx-auto mb-4 grid size-16 place-items-center rounded-lg border border-border bg-muted/40">
+                        <QrCode className="size-7 text-primary" />
                       </div>
                       {cameraOverlay}
                     </div>
                   </div>
+                  {/* Scanner corner brackets — decorative only. These are siblings of the
+                      <video> and the placeholder, never a new parent: the controller hook
+                      owns videoRef and requires that element to stay in the DOM. */}
+                  <div aria-hidden className="pointer-events-none absolute inset-3 z-10">
+                    <span className="absolute left-0 top-0 size-6 rounded-tl border-l-2 border-t-2 border-primary/70" />
+                    <span className="absolute right-0 top-0 size-6 rounded-tr border-r-2 border-t-2 border-primary/70" />
+                    <span className="absolute bottom-0 left-0 size-6 rounded-bl border-b-2 border-l-2 border-primary/70" />
+                    <span className="absolute bottom-0 right-0 size-6 rounded-br border-b-2 border-r-2 border-primary/70" />
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 rounded-[1rem] border border-border/60 bg-emerald-600/8 p-3">
+                <div className="flex flex-wrap gap-3 rounded-lg border border-border/60 bg-primary/8 p-3">
                   <Button
                     onClick={startCamera}
                     disabled={!cameraSupported || isStartingCamera || isCameraRunning}
@@ -883,10 +893,10 @@ export function ScanWorkbenchSection({
             ) : null}
             <StatusPanel label="Scan status" message={scanStatus} />
             <div className="rounded-[1.4rem] border border-border bg-background/80 p-4">
-              <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <Eyebrow as="div" className="flex items-center gap-2">
                 <QrCode className="size-4" />
                 Second-screen rule
-              </div>
+              </Eyebrow>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
                 Use the fullscreen QR on one device and the camera on another. Native phone camera apps still
                 open the embedded URL directly and bypass verifier behavior.
