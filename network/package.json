@@ -119,10 +119,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@types/pg": "^8.20.0",
+    "@types/pg": "^8.21.0",
     "effect": "^3.22.1",
     "nats": "^2.29.3",
-    "pg": "^8.20.0"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
