@@ -2,7 +2,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { ConsoleChip } from "@/components/ui/console-chip"
 import { Eyebrow } from "@/components/ui/eyebrow"
-import type { NonceMode } from "@/domain/scenarios"
+import { usagePolicyLabelKeys, type NonceMode } from "@/domain/scenarios"
+import { useT, type MessageKey } from "@/i18n"
+import { useTNodes } from "@/i18n/nodes"
 import {
   qrImageDataUrl,
   type DemoMaterialsResponse,
@@ -11,15 +13,19 @@ import {
 } from "@/lib/verifier-client"
 import type { HistoryEntry } from "@/routes/lab/types"
 
-const nonceModes: Array<{ value: NonceMode; label: string }> = [
-  { value: "fixed", label: "Fixed nonce" },
-  { value: "timestamped", label: "Timestamped nonce" },
-]
+const nonceModeLabelKeys: Record<NonceMode, MessageKey> = {
+  fixed: "lab.generate.nonce.fixed",
+  timestamped: "lab.generate.nonce.timestamped",
+}
 
-const usagePolicies: Array<{ value: UsagePolicy; label: string }> = [
-  { value: "reusable_public", label: "Reusable public" },
-  { value: "one_time", label: "One-time" },
-  { value: "time_limited", label: "Time-limited" },
+const nonceModeOrder: NonceMode[] = ["fixed", "timestamped"]
+
+// The labels live in `usagePolicyLabelKeys` beside the wire values; this array
+// only fixes the order the chips appear in.
+const usagePolicyOrder: UsagePolicy[] = [
+  "reusable_public",
+  "one_time",
+  "time_limited",
 ]
 
 type GenerateStepProps = {
@@ -65,20 +71,28 @@ export default function GenerateStep({
   onBack,
   onNext,
 }: GenerateStepProps) {
+  const t = useT()
+  const tNodes = useTNodes()
+
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-semibold">Generate the demo QR</h1>
+        <h1 className="text-xl font-semibold">{t("lab.generate.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scenario:{" "}
-          <span className="font-medium text-foreground">{scenarioLabel}</span>
+          {tNodes("lab.generate.scenarioLine", {
+            scenario: (
+              <span className="font-medium text-foreground">
+                {scenarioLabel}
+              </span>
+            ),
+          })}
         </p>
       </header>
 
       {showKeyIssue ? (
         <div className="rounded-md border border-border p-3">
           <p className="text-sm text-muted-foreground">
-            The verifier requires an API key. Issue a local demo key first.
+            {t("lab.generate.keyRequired")}
           </p>
           <Button
             data-testid="issue-lab-key"
@@ -87,7 +101,9 @@ export default function GenerateStep({
             disabled={isIssuingLabKey}
             onClick={onIssueLabKey}
           >
-            {isIssuingLabKey ? "Issuing key..." : "Issue local lab key"}
+            {isIssuingLabKey
+              ? t("lab.generate.issuingKey")
+              : t("lab.generate.issueKey")}
           </Button>
         </div>
       ) : null}
@@ -98,7 +114,9 @@ export default function GenerateStep({
           disabled={isGenerating}
           onClick={onGenerate}
         >
-          {isGenerating ? "Generating..." : "Generate demo QR"}
+          {isGenerating
+            ? t("lab.generate.generating")
+            : t("lab.generate.generate")}
         </Button>
         <Button
           data-testid="verify-current"
@@ -106,7 +124,9 @@ export default function GenerateStep({
           disabled={demo === null || isVerifyingCurrent}
           onClick={onVerifyCurrent}
         >
-          {isVerifyingCurrent ? "Verifying..." : "Verify current QR"}
+          {isVerifyingCurrent
+            ? t("lab.generate.verifying")
+            : t("lab.generate.verifyCurrent")}
         </Button>
       </div>
 
@@ -120,7 +140,7 @@ export default function GenerateStep({
         <div className="flex flex-col items-start gap-2">
           <img
             src={qrImageDataUrl(demo.qr_png_base64)}
-            alt="Generated verifier QR"
+            alt={t("lab.generate.qrAlt")}
             className="aspect-square w-full max-w-72 rounded-lg border border-border bg-white p-4"
           />
           <Button
@@ -129,7 +149,7 @@ export default function GenerateStep({
             size="sm"
             onClick={onOpenFullscreen}
           >
-            View full screen
+            {t("lab.generate.fullscreen")}
           </Button>
         </div>
       ) : null}
@@ -146,7 +166,7 @@ export default function GenerateStep({
 
       {result ? (
         <p className="text-xs text-muted-foreground">
-          Verifier reason:{" "}
+          {t("lab.generate.verifierReason")}{" "}
           <code
             data-testid="verifier-reason"
             className="rounded bg-muted px-1 py-0.5"
@@ -158,15 +178,15 @@ export default function GenerateStep({
 
       <details className="rounded-md border border-border p-3">
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-          Advanced options
+          {t("lab.generate.advanced")}
         </summary>
         <div className="mt-3 flex flex-col gap-4">
           <fieldset>
             <Eyebrow as="legend" className="mb-1.5">
-              Nonce mode
+              {t("lab.generate.nonceMode")}
             </Eyebrow>
             <div className="flex flex-wrap gap-2">
-              {nonceModes.map(({ value, label }) => (
+              {nonceModeOrder.map((value) => (
                 <ConsoleChip
                   key={value}
                   data-testid={`nonce-${value}`}
@@ -174,17 +194,17 @@ export default function GenerateStep({
                   aria-pressed={nonceMode === value}
                   onClick={() => onNonceModeChange(value)}
                 >
-                  {label}
+                  {t(nonceModeLabelKeys[value])}
                 </ConsoleChip>
               ))}
             </div>
           </fieldset>
           <fieldset>
             <Eyebrow as="legend" className="mb-1.5">
-              Usage policy
+              {t("lab.generate.usagePolicyLegend")}
             </Eyebrow>
             <div className="flex flex-wrap gap-2">
-              {usagePolicies.map(({ value, label }) => (
+              {usagePolicyOrder.map((value) => (
                 <ConsoleChip
                   key={value}
                   data-testid={`usage-${value}`}
@@ -192,7 +212,7 @@ export default function GenerateStep({
                   aria-pressed={usagePolicy === value}
                   onClick={() => onUsagePolicyChange(value)}
                 >
-                  {label}
+                  {t(usagePolicyLabelKeys[value])}
                 </ConsoleChip>
               ))}
             </div>
@@ -202,14 +222,14 @@ export default function GenerateStep({
 
       <div className="flex justify-between border-t border-border pt-4">
         <Button variant="ghost" data-testid="generate-back" onClick={onBack}>
-          Back
+          {t("lab.common.back")}
         </Button>
         <Button
           data-testid="generate-next"
           disabled={demo === null}
           onClick={onNext}
         >
-          Next: Scan
+          {t("lab.generate.next")}
         </Button>
       </div>
     </div>

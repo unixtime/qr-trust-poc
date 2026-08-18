@@ -2,15 +2,28 @@
 
 MkDocs intentionally publishes only ``docs_dir``. Public documentation in this
 repository also links to implementation files outside that directory. This
-hook records the Markdown pages MkDocs actually renders, resolves their local
-repository links, enforces the public-release source boundary, and creates
-read-only source pages at the paths those links already address.
+hook resolves those links as MkDocs renders each page, enforces the
+public-release source boundary, rewrites each link to the route it will
+publish, and creates read-only source pages at those routes.
+
+The published tree mirrors the repository root onto the site root, so
+``SECURITY.md`` is served at ``<site>/SECURITY.md/``. A repo-relative link is
+therefore correct on the site when its ``../`` count matches the page's depth
+below the *site* root -- which is not the depth of the Markdown file on disk.
+For ``docs/public/X.md`` the two happen to agree, because ``use_directory_urls``
+publishes it at ``public/X/`` and adds back the level that ``docs/`` consumed.
+A ``README.md`` collapses into its own directory instead and gains no level, so
+its links resolve one directory too high. Rather than rely on that coincidence,
+every repo-relative link is recomputed here against the page's published URL:
+the source keeps the spelling that works when the repository is browsed on its
+host, and the site gets the spelling that works when it is served.
 """
 
 from __future__ import annotations
 
 import html
 import logging
+import posixpath
 import re
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -22,7 +35,7 @@ from pygments.util import ClassNotFound
 
 LOG = logging.getLogger("mkdocs.hooks.source-pages")
 
-_RENDERED_MARKDOWN: set[Path] = set()
+_LINKED_SOURCES: set[Path] = set()
 _MARKDOWN_LINK = re.compile(
     r"(?<!!)\[[^\]]+\]\(\s*(?P<target><[^>]+>|[^\s)]+)(?:\s+['\"][^'\"]*['\"])?\s*\)"
 )
@@ -50,16 +63,97 @@ _MAX_SOURCE_BYTES = 2_000_000
 def on_pre_build(*, config, **kwargs) -> None:  # noqa: ARG001
     """Clear module state when a long-running MkDocs process rebuilds."""
 
-    _RENDERED_MARKDOWN.clear()
+    _LINKED_SOURCES.clear()
 
 
 def on_page_markdown(markdown, *, page, config, files):  # noqa: ARG001
-    """Record only pages that MkDocs selected for this build."""
+    """Record and re-point the repository links on each page MkDocs renders.
+
+    Running per page is what makes the rewrite possible: only here are the
+    Markdown file and the URL it will be published at both known, and the
+    difference between the two is exactly the bug this corrects.
+    """
 
     source = getattr(page.file, "abs_src_path", None)
-    if source:
-        _RENDERED_MARKDOWN.add(Path(source).resolve())
-    return markdown
+    if not source:
+        return markdown
+
+    markdown_path = Path(source).resolve()
+    repo_root = _repo_root()
+    docs_root = Path(config.docs_dir).resolve()
+
+    rewritten: list[str] = []
+    cursor = 0
+    for match in _MARKDOWN_LINK.finditer(markdown):
+        target = _resolve_repo_link(markdown_path, match.group("target"), repo_root, docs_root)
+        if target is None:
+            continue
+        _LINKED_SOURCES.add(target)
+        start, end = match.span("target")
+        href = _published_href(target.relative_to(repo_root), page.url)
+        # A target that needed angle brackets to survive Markdown parsing still
+        # needs them; only the path inside them changes.
+        if match.group("target").startswith("<"):
+            href = f"<{href}>"
+        rewritten.append(markdown[cursor:start])
+        rewritten.append(href)
+        cursor = end
+    if not rewritten:
+        return markdown
+
+    rewritten.append(markdown[cursor:])
+    return "".join(rewritten)
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _published_href(relative_path: Path, page_url: str) -> str:
+    """Address a generated source route from a page published at ``page_url``.
+
+    The inverse of :func:`_root_href`, which walks the same distance the other
+    way. Built with ``posixpath`` rather than arithmetic on separators so the
+    result stays correct if ``use_directory_urls`` is ever turned off, where a
+    page's URL names a file instead of a directory.
+    """
+
+    return posixpath.relpath(relative_path.as_posix(), posixpath.dirname(page_url) or ".") + "/"
+
+
+def _resolve_repo_link(
+    markdown_path: Path,
+    raw_target: str,
+    repo_root: Path,
+    docs_root: Path,
+) -> Path | None:
+    """Resolve one Markdown link, or return None if this hook does not own it.
+
+    Ownership is narrow: local links that leave ``docs_dir`` but stay inside the
+    repository. External URLs and links within ``docs_dir`` belong to MkDocs.
+    """
+
+    parsed = urlsplit(raw_target.strip("<>"))
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return None
+
+    target = (markdown_path.parent / unquote(parsed.path)).resolve()
+    if _is_within(target, docs_root):
+        return None
+    if not _is_within(target, repo_root):
+        raise RuntimeError(
+            f"documentation link escapes the repository: {markdown_path}: {raw_target}"
+        )
+
+    relative_target = target.relative_to(repo_root)
+    if not _is_public_source(relative_target):
+        raise RuntimeError(
+            "documentation link is outside the public source-view boundary: "
+            f"{markdown_path}: {relative_target}"
+        )
+    if not target.exists():
+        raise RuntimeError(f"documentation source link target does not exist: {relative_target}")
+    return target
 
 
 def _is_within(path: Path, parent: Path) -> bool:
@@ -79,36 +173,15 @@ def _is_public_source(relative_path: Path) -> bool:
     )
 
 
-def _linked_public_sources(repo_root: Path, docs_root: Path) -> set[Path]:
-    targets: set[Path] = set()
+def _linked_public_sources(repo_root: Path) -> set[Path]:
+    """The routes to publish: every link rewritten this build, plus READMEs.
 
-    for markdown_path in sorted(_RENDERED_MARKDOWN):
-        source = markdown_path.read_text(encoding="utf-8")
-        for match in _MARKDOWN_LINK.finditer(source):
-            raw_target = match.group("target").strip("<>")
-            parsed = urlsplit(raw_target)
-            if parsed.scheme or parsed.netloc or not parsed.path:
-                continue
+    Reusing the set that :func:`on_page_markdown` filled is what keeps the
+    rewritten links and the generated routes from drifting apart -- a link can
+    only be re-pointed at a route this same build is about to write.
+    """
 
-            target = (markdown_path.parent / unquote(parsed.path)).resolve()
-            if _is_within(target, docs_root):
-                continue
-            if not _is_within(target, repo_root):
-                raise RuntimeError(
-                    f"documentation link escapes the repository: {markdown_path}: {raw_target}"
-                )
-
-            relative_target = target.relative_to(repo_root)
-            if not _is_public_source(relative_target):
-                raise RuntimeError(
-                    "documentation link is outside the public source-view boundary: "
-                    f"{markdown_path}: {relative_target}"
-                )
-            if not target.exists():
-                raise RuntimeError(
-                    f"documentation source link target does not exist: {relative_target}"
-                )
-            targets.add(target)
+    targets = set(_LINKED_SOURCES)
 
     # A component-directory page is more useful when its README is available.
     for directory in [target for target in targets if target.is_dir()]:
@@ -247,10 +320,9 @@ def _directory_page(
 def on_post_build(*, config, **kwargs) -> None:
     """Write source pages after MkDocs has completed its normal output."""
 
-    repo_root = Path(__file__).resolve().parents[2]
-    docs_root = Path(config.docs_dir).resolve()
+    repo_root = _repo_root()
     site_root = Path(config.site_dir).resolve()
-    targets = _linked_public_sources(repo_root, docs_root)
+    targets = _linked_public_sources(repo_root)
 
     for target in sorted(targets):
         relative_path = target.relative_to(repo_root)

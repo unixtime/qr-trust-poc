@@ -8,8 +8,6 @@ import type {
 
 export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
   valid: {
-    label: "Valid first scan",
-    note: "Clean envelope, live certificate, matching payload, and policy-dependent reuse behavior.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -25,8 +23,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   expired: {
-    label: "Expired",
-    note: "The verifier should reject this envelope at the time-window gate.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -43,8 +39,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   revoked: {
-    label: "Revoked certificate",
-    note: "The verifier should block before replay reservation when the issuer state marks the certificate revoked.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -60,8 +54,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "subdomain-allowed": {
-    label: "Subdomain allowed",
-    note: "A subdomain payload should pass when the issuer policy explicitly allows subdomains.",
     payload: "https://checkout.acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: true,
@@ -77,8 +69,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "subdomain-blocked": {
-    label: "Subdomain blocked",
-    note: "The same subdomain should fail when the issuer policy only trusts the exact registered domain.",
     payload: "https://checkout.acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -94,8 +84,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "payload-mismatch": {
-    label: "Payload mismatch",
-    note: "The envelope is signed correctly, but the payload falls outside the issuer-approved destination set.",
     payload: "https://rogue.example/phish",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -111,8 +99,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "redirect-approved": {
-    label: "Approved resolver flow",
-    note: "The QR points to an enrolled resolver and the resolved final destination remains issuer-approved.",
     payload:
       "https://qr.acme.example/r/pay?final=https%3A%2F%2Facme.example%2Fpay&hops=1",
     verifiedDomains: ["qr.acme.example"],
@@ -129,8 +115,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "redirect-final-mismatch": {
-    label: "Resolver final mismatch",
-    note: "The resolver itself is enrolled, but the final destination leaves the issuer-approved redirect policy.",
     payload:
       "https://qr.acme.example/r/pay?final=https%3A%2F%2Fevil.example%2Fpay&hops=1",
     verifiedDomains: ["qr.acme.example"],
@@ -147,8 +131,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "redirect-too-many-hops": {
-    label: "Too many redirect hops",
-    note: "The resolver reaches the expected destination, but the redirect chain exceeds the issuer policy.",
     payload:
       "https://qr.acme.example/r/pay?final=https%3A%2F%2Facme.example%2Fpay&hops=3",
     verifiedDomains: ["qr.acme.example"],
@@ -165,8 +147,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "redirect-nested-shortener": {
-    label: "Nested shortener",
-    note: "The resolver flow includes an intermediate shortener that the issuer policy does not allow.",
     payload:
       "https://qr.acme.example/r/pay?final=https%3A%2F%2Facme.example%2Fpay&hops=1&nested=1",
     verifiedDomains: ["qr.acme.example"],
@@ -183,8 +163,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "runtime-risky": {
-    label: "Verified issuer, destination risky",
-    note: "Issuer and destination binding pass, then the runtime safety layer downgrades the final scanner state to caution.",
     payload: "https://acme.example/pay?runtime=risky",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -200,8 +178,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "runtime-blocked": {
-    label: "Runtime safety blocked",
-    note: "Issuer and destination binding pass, then the runtime safety layer reports a high-confidence block condition.",
     payload: "https://acme.example/pay?runtime=blocked",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -217,8 +193,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "stale-cache": {
-    label: "Stale verifier cache",
-    note: "Issuer and destination would otherwise pass, but the verifier's synchronized trust cache is too stale for a positive trust state.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -235,8 +209,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "unknown-issuer": {
-    label: "Signed, unknown issuer",
-    note: "The envelope is correctly signed, but its certificate is not enrolled in this scanner's trust records, so issuer legitimacy cannot be established.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -253,8 +225,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "artifact-quiet-zone": {
-    label: "Tampered print: missing quiet zone",
-    note: "The signed payload is valid, but the printed QR was rendered without its quiet zone, so artifact inspection reports a visual tampering indicator.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
@@ -271,8 +241,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     },
   },
   "artifact-mismatch": {
-    label: "Tampered print: payload mismatch",
-    note: "The printed QR encodes an attacker destination instead of the signed payload, standing in for a sticker pasted over a legitimate print.",
     payload: "https://acme.example/pay",
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,

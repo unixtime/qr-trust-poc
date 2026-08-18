@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ToastNotification, type ToastMessage, type ToastTone } from "@/components/ui/toast"
 import { buildLabLink } from "@/domain/links"
-import { scenarioLabels } from "@/domain/scenarios"
+import { scenarioLabelKeys } from "@/domain/scenarios"
+import { useT } from "@/i18n"
 import { requestJson, type ScannerDecisionRecent, type VerifierStatus } from "@/lib/verifier-client"
 import { FlowStepper } from "@/routes/lab/components/FlowStepper"
 import QrDisplayModal from "@/routes/lab/components/QrDisplayModal"
@@ -82,6 +83,7 @@ type ProbeState = "pending" | "ok" | "failed"
 
 export default function FlowPage({ onNavigate }: FlowPageProps) {
   const lab = useLabController()
+  const t = useT()
   const [activeStep, setActiveStep] = useState<FlowStepId>(() =>
     shouldAutogenerateFromRoute() ? 2 : 1,
   )
@@ -217,7 +219,7 @@ export default function FlowPage({ onNavigate }: FlowPageProps) {
             />
           ) : activeStep === 2 ? (
             <GenerateStep
-              scenarioLabel={scenarioLabels[lab.scenario]}
+              scenarioLabel={t(scenarioLabelKeys[lab.scenario])}
               demo={lab.demo}
               isGenerating={lab.isGenerating}
               generationError={lab.generationError}
@@ -247,7 +249,7 @@ export default function FlowPage({ onNavigate }: FlowPageProps) {
       <QrDisplayModal
         demo={lab.demo}
         open={lab.qrDisplayOpen}
-        currentScenarioLabel={lab.currentScenario.label}
+        currentScenarioLabel={t(scenarioLabelKeys[lab.scenario])}
         highContrast={lab.qrDisplayHighContrast}
         showMetadata={lab.qrDisplayShowMetadata}
         error={lab.qrDisplayError}

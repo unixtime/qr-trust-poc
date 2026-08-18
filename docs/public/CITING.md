@@ -31,7 +31,9 @@ for Issuer, Destination, and Runtime Safety State” (August 3, 2026), SSRN
 Abstract 7225699. Accepted and posted August 2026.
 
 - [SSRN abstract page](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699)
-- [DOI: 10.2139/ssrn.7225699](https://doi.org/10.2139/ssrn.7225699)
+
+SSRN has not registered a DOI for this record, so cite the abstract page above.
+Unlike Paper 1's, `10.2139/ssrn.7225699` does not resolve.
 
 [Trust-residual decision semantics](TRUST_RESIDUALS_DECISION_SEMANTICS.md) is
 the implementation-oriented view of this paper, and
@@ -52,8 +54,7 @@ Binding, and Runtime Safety* (April 12, 2026). Available at SSRN:
 
 El-Masri, Hassan, *Trust Residuals for Navigation QR Codes: Decision Semantics
 for Issuer, Destination, and Runtime Safety State* (August 3, 2026). Available
-at SSRN: <https://ssrn.com/abstract=7225699> or
-<https://doi.org/10.2139/ssrn.7225699>.
+at SSRN: <https://ssrn.com/abstract=7225699>.
 
 ## BibTeX
 
@@ -71,7 +72,6 @@ at SSRN: <https://ssrn.com/abstract=7225699> or
   author       = {El-Masri, Hassan},
   title        = {Trust Residuals for Navigation QR Codes: Decision Semantics for Issuer, Destination, and Runtime Safety State},
   date         = {2026-08-03},
-  doi          = {10.2139/ssrn.7225699},
   howpublished = {SSRN},
   url          = {https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699}
 }

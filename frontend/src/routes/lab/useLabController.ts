@@ -29,6 +29,10 @@ import {
   shouldAutogenerateFromRoute,
 } from "@/routes/lab/content"
 import { buildOperatorLink } from "@/domain/links"
+import { scenarioLabelKeys, usagePolicyLabelKeys } from "@/domain/scenarios"
+// The plain `t()`, not `useT()`: these strings are built inside async
+// handlers, where reading the live locale beats a value captured at render.
+import { t, type MessageKey } from "@/i18n"
 import type {
   CameraDevice,
   HistoryEntry,
@@ -59,8 +63,7 @@ type WindowWithAudioContext = Window &
     webkitAudioContext?: typeof AudioContext
   }
 
-const staleStoredKeyMessage =
-  "The verifier rejected the API key saved in this browser, which happens when the key store is rebuilt. The stale key was cleared. Issue a new lab key, then try again."
+const staleStoredKeyMessage = () => t("lab.error.staleStoredKey")
 
 const cameraDeviceStorageKey = "verifier-react-camera-device"
 const scannerKnownHostsStorageKey = "qr-trust-scanner-known-hosts"
@@ -70,8 +73,9 @@ const fallbackScanIntervalMs = 1500
 // compose proxy, so the status poll must stay well under that budget even with
 // a few tabs open.
 const scannerDecisionStatusPollMs = 5000
-const idleCameraOverlay =
-  "Camera idle. Point the lens at a generated, printed, or external QR code."
+// A function, not a const: a module-level string would freeze whichever locale
+// happened to be active when this module was first imported.
+const idleCameraOverlay = () => t("lab.camera.overlay.idle")
 
 function normaliseScannerHost(value: string) {
   const trimmed = value.trim()
@@ -123,26 +127,40 @@ function createNativeDetector() {
   return detectorCtor ? new detectorCtor({ formats: ["qr_code"] }) : null
 }
 
-function cameraUnavailableReason() {
-  if (typeof window === "undefined") {
-    return "Camera capture is not available during server rendering."
-  }
-  if (typeof navigator.mediaDevices?.getUserMedia === "function") {
-    return ""
-  }
-  if (!window.isSecureContext) {
-    return "Camera capture is unavailable because this page is not running in a secure context. Use HTTPS or localhost, or fall back to image upload."
-  }
-  if (!navigator.mediaDevices) {
-    return "Camera capture is unavailable because navigator.mediaDevices is not exposed in this browser."
-  }
-  return "Camera capture is unavailable because getUserMedia is not exposed in this browser."
+// Why the camera is unusable is a fact about the browser, not a sentence. The
+// reason travels as a code so `secureContextBlocked` below can compare against
+// an identifier instead of searching prose that changes with the language.
+type CameraBlockReason =
+  | "serverRendering"
+  | "insecureContext"
+  | "noMediaDevices"
+  | "noGetUserMedia"
+
+function cameraBlockReason(): CameraBlockReason | null {
+  if (typeof window === "undefined") return "serverRendering"
+  if (typeof navigator.mediaDevices?.getUserMedia === "function") return null
+  if (!window.isSecureContext) return "insecureContext"
+  if (!navigator.mediaDevices) return "noMediaDevices"
+  return "noGetUserMedia"
 }
 
-function buildCameraMessage(reason: string): MessageState {
+const cameraBlockKeys: Record<CameraBlockReason, MessageKey> = {
+  serverRendering: "lab.camera.blocked.serverRendering",
+  insecureContext: "lab.camera.blocked.insecureContext",
+  noMediaDevices: "lab.camera.blocked.noMediaDevices",
+  noGetUserMedia: "lab.camera.blocked.noGetUserMedia",
+}
+
+function cameraBlockText(reason: CameraBlockReason | null) {
+  return reason ? t(cameraBlockKeys[reason]) : ""
+}
+
+function buildCameraMessage(reason: CameraBlockReason | null): MessageState {
   return {
-    title: reason ? "Camera unsupported" : "Camera idle",
-    body: reason || "No QR captured yet.",
+    title: reason
+      ? t("lab.camera.unsupported.title")
+      : t("lab.camera.idle.title"),
+    body: reason ? t(cameraBlockKeys[reason]) : t("lab.camera.idle.body"),
     tone: reason ? "blocked" : "neutral",
   }
 }
@@ -216,7 +234,7 @@ async function emitVerificationFeedback(allowed: boolean) {
 }
 
 export function useLabController() {
-  const initialCameraReason = cameraUnavailableReason()
+  const initialCameraBlock = cameraBlockReason()
   const [hasNativeDetector] = useState(() => {
     if (typeof window === "undefined") return false
     return Boolean((window as WindowWithBarcodeDetector).BarcodeDetector)
@@ -244,21 +262,23 @@ export function useLabController() {
   const [result, setResult] = useState<VerifierDecision | null>(null)
   const [history, setHistory] = useState<HistoryEntry[]>([
     toHistoryEntry(
-      "Waiting",
-      "Issue a key, generate a QR, and the verifier decisions will appear here.",
+      t("lab.history.initial.title"),
+      t("lab.history.initial.body"),
       "neutral",
     ),
   ])
   const [scanMessage, setScanMessage] = useState<MessageState | null>(null)
   const [cameraMessage, setCameraMessage] = useState<MessageState | null>(() =>
-    buildCameraMessage(initialCameraReason),
+    buildCameraMessage(initialCameraBlock),
   )
   const [cameraOverlay, setCameraOverlay] = useState(
-    initialCameraReason || idleCameraOverlay,
+    () => cameraBlockText(initialCameraBlock) || idleCameraOverlay(),
   )
   const [cameraDevices, setCameraDevices] = useState<CameraDevice[]>([])
   const [selectedCameraId, setSelectedCameraId] = useState(() => getInitialCameraDeviceId())
-  const [cameraSupported, setCameraSupported] = useState(!initialCameraReason)
+  // The reason itself is the state, not a bare `supported` boolean — both
+  // `cameraSupported` and `secureContextBlocked` are derived from it below.
+  const [cameraBlock, setCameraBlock] = useState(initialCameraBlock)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isIssuingLabKey, setIsIssuingLabKey] = useState(false)
   const [isCheckingScannerDecision, setIsCheckingScannerDecision] = useState(false)
@@ -294,11 +314,12 @@ export function useLabController() {
   const apiAuthEnabled = Boolean(runtimeStatus?.api_key_auth_enabled)
   const adminFlowEnabled = Boolean(runtimeStatus?.admin_api_key_management_enabled)
   const decoderLabel = hasNativeDetector
-    ? "native browser decoder"
-    : "bundled verifier fallback"
-  const secureContextBlocked =
-    cameraMessage?.tone === "blocked" &&
-    cameraMessage.body.toLowerCase().includes("secure context")
+    ? t("lab.decoder.native")
+    : t("lab.decoder.fallback")
+  const cameraSupported = cameraBlock === null
+  // Was a substring search through `cameraMessage.body` for "secure context" —
+  // program behaviour that silently broke the moment the copy was translated.
+  const secureContextBlocked = cameraBlock === "insecureContext"
   const artifactUsagePolicy = demo?.verify_request.envelope.claims.usage_policy ?? null
   const generatorSettingsChanged = Boolean(
     demo &&
@@ -371,11 +392,10 @@ export function useLabController() {
 
   function updateScannedPayload(qrPayload: string) {
     stageScannedPayload(qrPayload)
+    const staged = qrPayload.trim().length > 0
     setScanMessage({
-      title: qrPayload.trim() ? "Payload changed" : "Payload cleared",
-      body: qrPayload.trim()
-        ? "The previous result was cleared. Check the scanned QR to refresh the scanner-visible decision."
-        : "Capture, upload, or paste a QR payload before checking it.",
+      title: t(staged ? "lab.payload.changed.title" : "lab.payload.cleared.title"),
+      body: t(staged ? "lab.payload.changed.body" : "lab.payload.cleared.body"),
       tone: "neutral",
     })
   }
@@ -413,9 +433,9 @@ export function useLabController() {
   } = {}) {
     clearActiveStream()
     setIsCameraRunning(false)
-    const reason = cameraUnavailableReason()
-    setCameraSupported(!reason)
-    setCameraOverlay(reason || idleCameraOverlay)
+    const reason = cameraBlockReason()
+    setCameraBlock(reason)
+    setCameraOverlay(cameraBlockText(reason) || idleCameraOverlay())
     if (!preserveMessage) {
       setCameraMessage(buildCameraMessage(reason))
     }
@@ -474,7 +494,7 @@ export function useLabController() {
       if (!reportErrors) return
 
       setScanMessage({
-        title: "Runtime status failed",
+        title: t("lab.runtimeStatus.failed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -532,7 +552,6 @@ export function useLabController() {
   ) {
     stopCamera()
     setIsGenerating(true)
-    const nextScenarioMeta = scenarioMeta[nextScenario]
     const request = buildScenarioRequest(nextScenario, nextNonceMode, nextUsagePolicy)
     setGenerationError(null)
     try {
@@ -557,21 +576,29 @@ export function useLabController() {
       setScannedPayload(response.qr_payload)
       setResult(null)
       setScanMessage({
-        title: "Demo QR ready",
-        body: `Generated ${nextScenarioMeta.label.toLowerCase()} as ${nextUsagePolicy.replaceAll("_", " ")} with nonce ${response.verify_request.envelope.claims.nonce}.`,
+        title: t("lab.generate.ready.title"),
+        body: t("lab.generate.ready.body", {
+          scenario: t(scenarioLabelKeys[nextScenario]),
+          policy: t(usagePolicyLabelKeys[nextUsagePolicy]),
+          nonce: response.verify_request.envelope.claims.nonce,
+        }),
         tone: "success",
       })
       setCameraMessage({
-        title: "Camera ready",
-        body: `Point the camera at the generated QR on another screen. Active decoder: ${decoderLabel}.`,
+        title: t("lab.camera.ready.title"),
+        body: t("lab.camera.ready.body", { decoder: decoderLabel }),
         tone: "neutral",
       })
       setCameraOverlay(
-        `Point the lens at the generated QR. Active decoder: ${decoderLabel}.`,
+        t("lab.camera.overlay.generated", { decoder: decoderLabel }),
       )
       pushHistory(
-        "QR generated",
-        `${nextScenarioMeta.label}. Usage ${nextUsagePolicy}. Nonce ${response.verify_request.envelope.claims.nonce}.`,
+        t("lab.history.generated.title"),
+        t("lab.history.generated.body", {
+          scenario: t(scenarioLabelKeys[nextScenario]),
+          policy: t(usagePolicyLabelKeys[nextUsagePolicy]),
+          nonce: response.verify_request.envelope.claims.nonce,
+        }),
         "neutral",
       )
     } catch (error) {
@@ -579,7 +606,7 @@ export function useLabController() {
       if (staleKey) {
         clearLabKey()
       }
-      const message = staleKey ? staleStoredKeyMessage : summariseError(error)
+      const message = staleKey ? staleStoredKeyMessage() : summariseError(error)
       setDemo(null)
       setGeneratedScenario(null)
       setGeneratedNonceMode(null)
@@ -588,7 +615,9 @@ export function useLabController() {
       setScannedPayload("")
       setGenerationError(message)
       setScanMessage({
-        title: staleKey ? "Stored verifier key rejected" : "Demo generation failed",
+        title: staleKey
+          ? t("lab.verify.staleKey.title")
+          : t("lab.generate.failed.title"),
         body: message,
         tone: "blocked",
       })
@@ -692,7 +721,11 @@ export function useLabController() {
         body: buildScannerUxEvent(eventType, decision, elapsedMs),
       })
     } catch (error) {
-      pushHistory("Scanner UX event was not recorded", summariseError(error), "neutral")
+      pushHistory(
+        t("lab.uxEvent.notRecorded"),
+        summariseError(error),
+        "neutral",
+      )
     }
   }
 
@@ -704,8 +737,8 @@ export function useLabController() {
     if (!destinationUrl) {
       void recordScannerUxEvent("cancel", decision, elapsedMs)
       setScanMessage({
-        title: "No destination to open",
-        body: "The scanner decision did not expose a destination URL.",
+        title: t("lab.open.noDestination.title"),
+        body: t("lab.open.noDestination.body"),
         tone: "blocked",
       })
       return
@@ -715,17 +748,19 @@ export function useLabController() {
     if (!popup) {
       void recordScannerUxEvent("cancel", decision, elapsedMs)
       setScanMessage({
-        title: "Open was blocked by the browser",
-        body: "The open did not complete. Allow popups or copy the destination if you need to continue.",
+        title: t("lab.open.blocked.title"),
+        body: t("lab.open.blocked.body"),
         tone: "blocked",
       })
       return
     }
     void recordScannerUxEvent("open", decision, elapsedMs)
     rememberScannerKnownHost(destinationUrl)
+    // `primary_action` is the scanner decision's own wording; only the fallback
+    // for a decision that omits it belongs to the catalogue.
     pushHistory(
-      "Scanner open selected",
-      `${decision.scanner_ux?.primary_action ?? "Open destination"}: ${destinationUrl}`,
+      t("lab.history.openSelected"),
+      `${decision.scanner_ux?.primary_action ?? t("lab.open.defaultAction")}: ${destinationUrl}`,
       scannerTone(decision),
     )
   }
@@ -736,12 +771,12 @@ export function useLabController() {
   ) {
     void recordScannerUxEvent("cancel", decision, elapsedMs)
     setScanMessage({
-      title: "Scanner open cancelled",
-      body: "The result stayed in the lab and no destination was opened.",
+      title: t("lab.open.cancelled.title"),
+      body: t("lab.open.cancelled.body"),
       tone: "neutral",
     })
     pushHistory(
-      "Scanner open cancelled",
+      t("lab.history.openCancelled"),
       `${decision.decision_state}: ${decision.primary_message}`,
       "neutral",
     )
@@ -762,8 +797,8 @@ export function useLabController() {
   async function checkScannerDecision() {
     if (!demo) {
       setScanMessage({
-        title: "No demo QR",
-        body: "Generate a demo QR before asking the scanner decision endpoint to evaluate it.",
+        title: t("lab.noDemo.title"),
+        body: t("lab.noDemo.scannerDecision"),
         tone: "blocked",
       })
       return
@@ -775,7 +810,7 @@ export function useLabController() {
       // Artifact scenarios tamper with the rendered image, not the payload,
       // so the scanner must see the image to notice anything is wrong.
       await runScannerDecision({
-        label: "Generated QR",
+        source: t("lab.source.generatedQr"),
         qrPayload: demo.qr_payload,
         imageBase64: generatedScenarioMeta?.artifactProfile
           ? demo.qr_png_base64
@@ -785,7 +820,7 @@ export function useLabController() {
       const message = summariseError(error)
       setScannerDecisionError(message)
       setScanMessage({
-        title: "Scanner decision failed",
+        title: t("lab.scan.decisionFailed.title"),
         body: message,
         tone: "blocked",
       })
@@ -795,12 +830,14 @@ export function useLabController() {
   }
 
   async function runScannerDecision({
-    label,
+    source,
     qrPayload,
     imageBase64 = null,
     cameraDriven = false,
   }: {
-    label: string
+    // Already-translated name of where the payload came from; it is substituted
+    // into the history sentence rather than concatenated in front of it.
+    source: string
     qrPayload: string
     imageBase64?: string | null
     cameraDriven?: boolean
@@ -826,18 +863,18 @@ export function useLabController() {
     setScannerDecisionError(null)
     setResult(null)
     setScanMessage({
-      title: "Scanner decision ready",
+      title: t("lab.scan.decisionReady.title"),
       body,
       tone,
     })
     if (cameraDriven) {
       setCameraMessage({
-        title: "Camera scan checked",
+        title: t("lab.camera.checked.title"),
         body,
         tone,
       })
     }
-    pushHistory(`${label} scanner decision`, body, tone)
+    pushHistory(t("lab.history.scannerDecision", { source }), body, tone)
     if (tone === "success") {
       await emitVerificationFeedback(true)
     } else if (tone === "blocked") {
@@ -859,19 +896,19 @@ export function useLabController() {
   )
 
   async function runScannedVerifier({
-    label,
+    source,
     qrPayload,
     cameraDriven = false,
   }: {
-    label: string
+    source: string
     qrPayload: string
     cameraDriven?: boolean
   }) {
     const activeDemo = demoRef.current
     if (!activeDemo) {
       setScanMessage({
-        title: "No demo QR",
-        body: "Generate a demo QR before asking the verifier to evaluate a payload.",
+        title: t("lab.noDemo.title"),
+        body: t("lab.noDemo.verifyPayload"),
         tone: "blocked",
       })
       return
@@ -896,19 +933,27 @@ export function useLabController() {
     const tone = toneForDecision(response)
     const body = `${response.stage}: ${response.reason}`
     setScanMessage({
-      title: response.allowed ? "Verifier accepted payload" : "Verifier blocked payload",
+      title: t(
+        response.allowed ? "lab.scan.accepted.title" : "lab.scan.rejected.title",
+      ),
       body,
       tone,
     })
     if (cameraDriven) {
       setCameraMessage({
-        title: response.allowed ? "Camera scan accepted" : "Camera scan blocked",
+        title: t(
+          response.allowed
+            ? "lab.camera.accepted.title"
+            : "lab.camera.rejected.title",
+        ),
         body,
         tone,
       })
     }
     pushHistory(
-      response.allowed ? `${label} accepted` : `${label} blocked`,
+      t(response.allowed ? "lab.history.accepted" : "lab.history.rejected", {
+        source,
+      }),
       body,
       tone,
     )
@@ -937,7 +982,7 @@ export function useLabController() {
   function captureCameraFrameBase64(videoElement: HTMLVideoElement) {
     const canvas = canvasRef.current
     if (!canvas) {
-      throw new Error("Camera canvas is not available.")
+      throw new Error(t("lab.camera.canvasUnavailable"))
     }
     const width = videoElement.videoWidth || 1280
     const height = videoElement.videoHeight || 720
@@ -945,7 +990,7 @@ export function useLabController() {
     canvas.height = height
     const context = canvas.getContext("2d")
     if (!context) {
-      throw new Error("Camera canvas could not create a 2D context.")
+      throw new Error(t("lab.camera.canvasNoContext"))
     }
     context.drawImage(videoElement, 0, 0, width, height)
     return dataUrlToBase64(canvas.toDataURL("image/png"))
@@ -988,19 +1033,25 @@ export function useLabController() {
         stageScannedPayload(qrPayload)
         flashFrame("success")
         setCameraMessage({
-          title: "QR captured",
-          body: `The live camera decoded a QR payload using the ${decoderLabelRef.current}.`,
+          title: t("lab.camera.captured.title"),
+          // The ref, not the render-time value: this runs inside a timer
+          // callback that outlives the render that scheduled it.
+          body: t("lab.camera.captured.body", {
+            decoder: decoderLabelRef.current,
+          }),
           tone: "success",
         })
         setScanMessage({
-          title: "Camera scan captured",
-          body: `Decoded payload from the live camera using the ${decoderLabelRef.current}.`,
+          title: t("lab.scan.captured.title"),
+          body: t("lab.scan.captured.body", {
+            decoder: decoderLabelRef.current,
+          }),
           tone: "success",
         })
         await emitCaptureFeedback()
         stopCamera({ preserveMessage: true })
         await runScannerDecision({
-          label: "Camera scan",
+          source: t("lab.source.cameraScan"),
           qrPayload,
           imageBase64,
           cameraDriven: true,
@@ -1010,16 +1061,13 @@ export function useLabController() {
     } catch (error) {
       if (error instanceof VerifierApiError && error.status === 429) {
         const retryAfterSeconds = error.retryAfterSeconds ?? 1
-        setCameraMessage({
-          title: "Camera scan paused",
-          body: `Decode rate limit reached. The client will retry in ${retryAfterSeconds}s.`,
+        const pausedMessage: MessageState = {
+          title: t("lab.camera.paused.title"),
+          body: t("lab.camera.paused.body", { seconds: retryAfterSeconds }),
           tone: "blocked",
-        })
-        setScanMessage({
-          title: "Camera scan paused",
-          body: `Decode rate limit reached. The client will retry in ${retryAfterSeconds}s.`,
-          tone: "blocked",
-        })
+        }
+        setCameraMessage(pausedMessage)
+        setScanMessage(pausedMessage)
         scheduleNextScan(retryAfterSeconds * 1000)
         return
       }
@@ -1035,18 +1083,14 @@ export function useLabController() {
         return
       }
 
-      const message = summariseError(error)
+      const failure: MessageState = {
+        title: t("lab.camera.scanFailed.title"),
+        body: summariseError(error),
+        tone: "blocked",
+      }
       flashFrame("blocked")
-      setCameraMessage({
-        title: "Camera scan failed",
-        body: message,
-        tone: "blocked",
-      })
-      setScanMessage({
-        title: "Camera scan failed",
-        body: message,
-        tone: "blocked",
-      })
+      setCameraMessage(failure)
+      setScanMessage(failure)
       stopCamera({ preserveMessage: true })
       return
     } finally {
@@ -1059,14 +1103,11 @@ export function useLabController() {
   }
 
   async function startCamera() {
-    const reason = cameraUnavailableReason()
+    const reason = cameraBlockReason()
     if (reason) {
-      setCameraMessage({
-        title: "Camera unsupported",
-        body: reason,
-        tone: "blocked",
-      })
-      setCameraOverlay(reason)
+      setCameraBlock(reason)
+      setCameraMessage(buildCameraMessage(reason))
+      setCameraOverlay(cameraBlockText(reason))
       return
     }
 
@@ -1084,33 +1125,32 @@ export function useLabController() {
 
       const videoElement = videoRef.current
       if (!videoElement) {
-        throw new Error("Camera preview is not mounted.")
+        throw new Error(t("lab.camera.notMounted"))
       }
       videoElement.srcObject = stream
       await videoElement.play()
       await refreshCameraOptions()
       setIsCameraRunning(true)
-      setCameraOverlay(`Point the camera at a QR code. Active decoder: ${decoderLabel}.`)
+      setCameraOverlay(
+        t("lab.camera.overlay.active", { decoder: decoderLabel }),
+      )
       setCameraMessage({
-        title: "Camera active",
-        body: `Waiting for a QR on another screen or on paper. Decoder: ${decoderLabel}.`,
+        title: t("lab.camera.active.title"),
+        body: t("lab.camera.active.body", { decoder: decoderLabel }),
         tone: "neutral",
       })
       scheduleNextScan(
         detectorRef.current ? nativeScanIntervalMs : fallbackScanIntervalMs,
       )
     } catch (error) {
+      const failure: MessageState = {
+        title: t("lab.camera.accessFailed.title"),
+        body: summariseError(error),
+        tone: "blocked",
+      }
       flashFrame("blocked")
-      setCameraMessage({
-        title: "Camera access failed",
-        body: summariseError(error),
-        tone: "blocked",
-      })
-      setScanMessage({
-        title: "Camera access failed",
-        body: summariseError(error),
-        tone: "blocked",
-      })
+      setCameraMessage(failure)
+      setScanMessage(failure)
       stopCamera({ preserveMessage: true })
     } finally {
       setIsStartingCamera(false)
@@ -1120,8 +1160,8 @@ export function useLabController() {
   async function verifyCurrent() {
     if (!demo) {
       setScanMessage({
-        title: "No demo QR",
-        body: "Generate a demo QR before asking the verifier to evaluate the current payload.",
+        title: t("lab.noDemo.title"),
+        body: t("lab.noDemo.verifyCurrent"),
         tone: "blocked",
       })
       return
@@ -1131,7 +1171,9 @@ export function useLabController() {
     try {
       setScannedPayload(demo.qr_payload)
       await runScannedVerifier({
-        label: `${currentScenario.label} direct verify`,
+        source: t("lab.history.directVerify.label", {
+          scenario: t(scenarioLabelKeys[scenario]),
+        }),
         qrPayload: demo.qr_payload,
       })
     } catch (error) {
@@ -1140,8 +1182,12 @@ export function useLabController() {
         clearLabKey()
       }
       setScanMessage({
-        title: staleKey ? "Stored verifier key rejected" : "Signed-verifier proof failed",
-        body: staleKey ? staleStoredKeyMessage : summariseSignedVerifierError(error),
+        title: t(
+          staleKey ? "lab.verify.staleKey.title" : "lab.verify.signedFailed.title",
+        ),
+        body: staleKey
+          ? staleStoredKeyMessage()
+          : summariseSignedVerifierError(error),
         tone: "blocked",
       })
     } finally {
@@ -1152,8 +1198,8 @@ export function useLabController() {
   async function verifyScannedPayload() {
     if (!scannedPayload.trim()) {
       setScanMessage({
-        title: "Scanned payload missing",
-        body: "Upload, capture, or paste a QR payload before verifying it.",
+        title: t("lab.scan.payloadMissing.title"),
+        body: t("lab.scan.payloadMissing.body"),
         tone: "blocked",
       })
       return
@@ -1162,12 +1208,12 @@ export function useLabController() {
     setIsVerifyingScanned(true)
     try {
       await runScannerDecision({
-        label: "Scanned QR",
+        source: t("lab.source.scannedQr"),
         qrPayload: scannedPayload.trim(),
       })
     } catch (error) {
       setScanMessage({
-        title: "Scanner decision failed",
+        title: t("lab.scan.decisionFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -1186,7 +1232,7 @@ export function useLabController() {
         const codes = await detectorRef.current.detect(bitmap)
         decodedPayload = codes[0]?.rawValue || ""
         if (!decodedPayload) {
-          throw new Error("No QR payload could be decoded from the selected image.")
+          throw new Error(t("lab.scan.noPayloadInImage"))
         }
       } else {
         decodedPayload = await decodeImageBase64ThroughVerifier(imageBase64)
@@ -1195,18 +1241,18 @@ export function useLabController() {
       stageScannedPayload(decodedPayload)
       flashFrame("success")
       setCameraMessage({
-        title: "Image decoded",
-        body: `The QR payload was decoded from the uploaded image using the ${decoderLabel}. The scanner decision is running now.`,
+        title: t("lab.scan.imageDecoded.title"),
+        body: t("lab.scan.imageDecoded.body", { decoder: decoderLabel }),
         tone: "success",
       })
       setScanMessage({
-        title: "QR image decoded; checking",
-        body: `Decoded with the ${decoderLabel}. The scanner-visible decision endpoint is evaluating the payload now.`,
+        title: t("lab.scan.imageChecking.title"),
+        body: t("lab.scan.imageChecking.body", { decoder: decoderLabel }),
         tone: "success",
       })
       await emitCaptureFeedback()
       await runScannerDecision({
-        label: "Uploaded QR",
+        source: t("lab.source.uploadedQr"),
         qrPayload: decodedPayload,
         imageBase64,
       })
@@ -1215,13 +1261,23 @@ export function useLabController() {
       if (decodedPayload) {
         setScannerDecisionError(message)
       }
+      // A payload that decoded but failed the decision is a different event
+      // from an image that never decoded — the titles distinguish them.
       setScanMessage({
-        title: decodedPayload ? "Scanner decision failed" : "QR decode failed",
+        title: t(
+          decodedPayload
+            ? "lab.scan.decisionFailed.title"
+            : "lab.scan.qrDecodeFailed.title",
+        ),
         body: message,
         tone: "blocked",
       })
       setCameraMessage({
-        title: decodedPayload ? "Image check failed" : "Image decode failed",
+        title: t(
+          decodedPayload
+            ? "lab.scan.imageCheckFailed.title"
+            : "lab.scan.imageDecodeFailed.title",
+        ),
         body: message,
         tone: "blocked",
       })
@@ -1240,17 +1296,14 @@ export function useLabController() {
     try {
       await navigator.clipboard.writeText(value)
       setScanMessage({
-        title: "Payload copied",
-        body:
-          kind === "qr"
-            ? "The generated QR payload is in your clipboard."
-            : "The decoded payload is in your clipboard.",
+        title: t("lab.copy.copied.title"),
+        body: t(kind === "qr" ? "lab.copy.copied.qr" : "lab.copy.copied.decoded"),
         tone: "success",
       })
     } catch {
       setScanMessage({
-        title: "Clipboard blocked",
-        body: "The browser denied clipboard access. Copy the payload manually from the text field.",
+        title: t("lab.copy.blocked.title"),
+        body: t("lab.copy.blocked.body"),
         tone: "blocked",
       })
     }
@@ -1294,7 +1347,9 @@ export function useLabController() {
       setQrDisplayError(null)
     } catch (error) {
       setQrDisplayError(
-        error instanceof Error ? error.message : "The browser blocked fullscreen mode.",
+        error instanceof Error
+          ? error.message
+          : t("lab.qrDisplay.fullscreenBlocked"),
       )
     }
   }
@@ -1330,19 +1385,21 @@ export function useLabController() {
       )
       setApiKey(response.plaintext_key)
       setScanMessage({
-        title: "Local lab key issued",
-        body: "The key is stored in browser storage for this local verifier workbench.",
+        title: t("lab.labKey.issued.title"),
+        body: t("lab.labKey.issued.body"),
         tone: "success",
       })
       pushHistory(
-        "Local lab key issued",
-        "The lab can now generate demo QR material against the protected verifier API.",
+        t("lab.labKey.issued.title"),
+        t("lab.labKey.issued.history"),
         "success",
       )
     } catch (error) {
       setScanMessage({
-        title: "Local lab key failed",
-        body: `${summariseError(error)} Open operator mode if this runtime does not use the local compose admin token.`,
+        title: t("lab.labKey.failed.title"),
+        // The verifier's own error leads, so `{error}` is a placeholder rather
+        // than a prefix glued on in English word order.
+        body: t("lab.labKey.failed.body", { error: summariseError(error) }),
         tone: "blocked",
       })
     } finally {

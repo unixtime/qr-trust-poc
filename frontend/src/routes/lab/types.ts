@@ -31,19 +31,34 @@ export type CameraDevice = {
   label: string
 }
 
+/**
+ * The behavioural half of a scenario: what gets sent to the verifier. The
+ * display half — label and note — lives in `@/domain/scenarios` as catalogue
+ * keys, so that a scenario's copy can be translated without touching the
+ * request it produces.
+ */
 export type ScenarioMeta = {
-  label: string
-  note: string
   payload: string
   verifiedDomains: string[]
   allowSubdomains: boolean
   certificateRevoked: boolean
+  /**
+   * Request data, not UI copy: this is sent as
+   * `certificate_revocation_reason` and echoed back by the verifier, so it
+   * stays in English along with the rest of the wire payload.
+   */
   certificateRevocationReason: string | null
   issuedOffsetMinutes?: number
   expiresOffsetMinutes: number
   governanceCacheProfile?: "fresh" | "stale" | "expired"
   registerScannerTrust?: boolean
   artifactProfile?: "low-quiet-zone" | "payload-mismatch"
+  /**
+   * Documentation of what each scenario is supposed to demonstrate. Nothing
+   * renders it — it is not in the message catalogue for that reason. Wire it
+   * into the UI and it must be extracted first, or it will show English to a
+   * Spanish reader.
+   */
   expectedOutcome: {
     tone: "green" | "amber" | "red"
     label: string

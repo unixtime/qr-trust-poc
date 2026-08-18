@@ -1,5 +1,7 @@
 import { Badge } from "@/components/ui/badge"
 import { Eyebrow } from "@/components/ui/eyebrow"
+import { useT } from "@/i18n"
+import { useTNodes } from "@/i18n/nodes"
 import type { VerifierDecision } from "@/lib/verifier-client"
 import {
   badgeVariantForTone,
@@ -12,11 +14,19 @@ function DecisionPanel({
 }: {
   result: VerifierDecision | null
 }) {
+  const t = useT()
+  const tNodes = useTNodes()
   const tone = result ? toneForDecision(result) : "neutral"
-  const title = result ? (result.allowed ? "Accepted" : "Blocked") : "Verification Result"
+  const title = result
+    ? result.allowed
+      ? t("lab.decision.accepted")
+      : t("lab.decision.blocked")
+    : t("lab.decision.pending")
+  // `stage` and `reason` are verifier output, not UI copy — the separator is
+  // the only part of this line the catalogue owns, and a colon carries over.
   const body = result
     ? `${result.stage}: ${result.reason}`
-    : "Run a verifier action to inspect the latest result."
+    : t("lab.decision.pendingBody")
   const indicatorClass =
     tone === "success"
       ? "bg-trust-green"
@@ -30,7 +40,7 @@ function DecisionPanel({
         <div className="flex items-center gap-2">
           <span className={`inline-flex size-2.5 rounded-full ${indicatorClass}`} />
           <Eyebrow as="div" tone="current">
-            Verification result
+            {t("lab.decision.eyebrow")}
           </Eyebrow>
         </div>
         {result ? <Badge variant={badgeVariantForTone(tone)}>{result.stage}</Badge> : null}
@@ -40,8 +50,13 @@ function DecisionPanel({
         <p className="mt-3 text-sm leading-6 text-current/74">{body}</p>
         {result?.matched_rule ? (
           <p className="mt-3 rounded-lg border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/72">
-            Matched rule:{" "}
-            <span className="font-semibold text-current">{result.matched_rule}</span>
+            {tNodes("lab.decision.matchedRule", {
+              rule: (
+                <span className="font-semibold text-current">
+                  {result.matched_rule}
+                </span>
+              ),
+            })}
           </p>
         ) : null}
       </div>

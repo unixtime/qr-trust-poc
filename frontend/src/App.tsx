@@ -2,6 +2,8 @@ import { lazy, Suspense, useSyncExternalStore } from "react"
 
 import AppShell from "@/app/AppShell"
 import { Eyebrow } from "@/components/ui/eyebrow"
+import { useLocale, useT } from "@/i18n"
+import { useTNodes } from "@/i18n/nodes"
 
 const FlowPage = lazy(() => import("@/routes/lab/FlowPage"))
 const OperatorPage = lazy(() => import("@/routes/operator/OperatorPage"))
@@ -65,22 +67,31 @@ function normalizedNavigationTarget(path: string) {
   return `${url.pathname}${url.search}${url.hash}`
 }
 
+/** The route paths in the 404 copy: literal, and so never translated. */
+function RoutePath({ path }: { path: string }) {
+  return <span className="font-medium text-foreground">{path}</span>
+}
+
 function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const t = useT()
+  const tNodes = useTNodes()
+
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16 md:px-6">
-      <Eyebrow as="p">
-        Route not found
-      </Eyebrow>
+      <Eyebrow as="p">{t("app.notFound.eyebrow")}</Eyebrow>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-        There is no page at this address.
+        {t("app.notFound.title")}
       </h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        The guided workflow lives at{" "}
-        <span className="font-medium text-foreground">/</span>, the operator
-        console at{" "}
-        <span className="font-medium text-foreground">/operator</span>, and
-        the project overview at{" "}
-        <span className="font-medium text-foreground">/about</span>.
+        {/* One message with three slots rather than four hard-coded fragments
+            around three spans. Spanish orders these clauses differently, and
+            a sentence assembled from English-ordered pieces cannot be
+            reordered by a translator. */}
+        {tNodes("app.notFound.body", {
+          workflow: <RoutePath path="/" />,
+          operator: <RoutePath path="/operator" />,
+          about: <RoutePath path="/about" />,
+        })}
       </p>
       <div className="mt-6">
         <button
@@ -89,7 +100,7 @@ function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
           onClick={() => onNavigate("/")}
           className="rounded-md border bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
         >
-          Go to the workflow
+          {t("app.notFound.cta")}
         </button>
       </div>
     </div>
@@ -97,17 +108,16 @@ function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
 }
 
 function RouteLoadingFallback() {
+  const t = useT()
+
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-16 md:px-6">
-      <Eyebrow as="p">
-        Loading
-      </Eyebrow>
+      <Eyebrow as="p">{t("app.loading.eyebrow")}</Eyebrow>
       <h1 className="mt-2 text-2xl font-semibold tracking-tight">
-        Preparing this page.
+        {t("app.loading.title")}
       </h1>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        Each route loads as its own chunk, so the first visit to a page can
-        take a moment.
+        {t("app.loading.body")}
       </p>
     </div>
   )
@@ -121,6 +131,15 @@ function App() {
   )
   const pathname = pathnameFromLocationSnapshot(locationSnapshot)
   const routeSearch = searchFromLocationSnapshot(locationSnapshot)
+
+  // Subscribed at the root, and deliberately not folded into the route keys
+  // below. Much of the copy in the lazy routes comes from module-level tables
+  // read through the plain `t()`, which no component subscribes to; a root
+  // subscription re-renders the whole tree so those tables are re-evaluated.
+  // Keying on it instead would remount the routes and throw away the
+  // scenario, the generated QR, and every other in-flight choice — switching
+  // language should change the words, not restart the demo.
+  useLocale()
 
   function navigate(nextPath: string) {
     const target = normalizedNavigationTarget(nextPath)

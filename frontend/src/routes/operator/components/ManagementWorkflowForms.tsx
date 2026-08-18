@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { type MessageKey, useT } from "@/i18n"
 
 type ManagementWorkflowPayload = Record<string, unknown>
 
@@ -46,18 +47,37 @@ type TrustKeyFormState = {
   notAfter: string
 }
 
-const defaultRootProgramId = "qr-trust-local"
-const defaultDelegatedAuthorityId = "acme-local-authority"
-const defaultIssuerId = "acme-demo"
+// These prefill the forms, so they are the ids most demo mutations actually
+// carry. Two constraints bind them, and an id can satisfy the first while
+// failing the second:
+//
+//  1. Shape — governance ids are URN-style, and EventEnvelopeSchema in
+//     network/src/contracts.ts rejects any envelope whose ids lack the
+//     registry prefix. Unprefixed defaults ("qr-trust-local") were accepted by
+//     the API, written to the outbox, and only rejected by the publisher, so
+//     the operator saw a retry-exhausted row instead of a form error.
+//  2. Existence — root ids are additionally checked against the
+//     QRTRUST_ACCEPTED_ROOT_PROGRAM_IDS trust anchor allowlist, which is
+//     seeded to root:qrtrust-demo:2026 alone. Merely prefixing the old value
+//     ("root:qr-trust-local") clears the schema and then fails at the
+//     subscriber instead.
+//
+// So these mirror `qrtrustctl demo-bootstrap` exactly rather than naming a
+// separate "local" persona: the forms open pointing at rows that are already
+// seeded, already accepted, and already published end to end.
+const defaultRootProgramId = "root:qrtrust-demo:2026"
+const defaultDelegatedAuthorityId = "authority:qrtrust-demo:merchant-web"
+const defaultIssuerId = "issuer:acme-demo"
 const defaultDomain = "acme.example"
+const defaultDestinationPolicyId = "policy:acme-demo:web-payments:v1"
 
 const defaultTrustKeyFormState: TrustKeyFormState = {
   rootProgramId: defaultRootProgramId,
   delegatedAuthorityId: defaultDelegatedAuthorityId,
-  keyId: "key:authority:acme-local-authority:ed25519:v1",
+  keyId: "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
   signerId: defaultDelegatedAuthorityId,
   algorithmId: "ed25519",
-  publicKeyMaterialRef: "managed://qrtrust/acme-local-authority/public/v1",
+  publicKeyMaterialRef: "managed://qrtrust/authority/public/v1",
   publicKeyMaterialPem: "",
   scope: "delegated_authority",
   keyStatus: "active",
@@ -106,14 +126,18 @@ function WorkflowFormShell({
   onSubmit,
   children,
 }: {
-  title: string
-  description: string
+  title: MessageKey
+  description: MessageKey
+  // Not a message key: this is the literal HTTP route the form calls, and it
+  // reads the same in every locale.
   endpoint: string
-  submitLabel: string
+  submitLabel: MessageKey
   isSubmitting: boolean
   onSubmit: (event: FormEvent<HTMLFormElement>) => void
   children: ReactNode
 }) {
+  const t = useT()
+
   return (
     <form
       onSubmit={onSubmit}
@@ -121,8 +145,10 @@ function WorkflowFormShell({
     >
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
-          <h4 className="text-base font-semibold text-foreground">{title}</h4>
-          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          <h4 className="text-base font-semibold text-foreground">{t(title)}</h4>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {t(description)}
+          </p>
         </div>
         <Badge variant="outline" className="max-w-full truncate" title={endpoint}>
           {endpoint}
@@ -131,7 +157,7 @@ function WorkflowFormShell({
       {children}
       <Button type="submit" className="w-full justify-center" disabled={isSubmitting}>
         <Send className="size-4" />
-        {isSubmitting ? "Recording..." : submitLabel}
+        {t(isSubmitting ? "operator.workflow.recording" : submitLabel)}
       </Button>
     </form>
   )
@@ -152,11 +178,13 @@ function GovernanceScopeFields({
   onDelegatedAuthorityIdChange: (value: string) => void
   onIssuerIdChange?: (value: string) => void
 }) {
+  const t = useT()
+
   return (
     <FieldGroup className="grid gap-4 md:grid-cols-3">
       <Field>
         <FieldLabel htmlFor="management-root-program-id">
-          Root program
+          {t("operator.workflow.field.rootProgram")}
         </FieldLabel>
         <Input
           id="management-root-program-id"
@@ -167,7 +195,7 @@ function GovernanceScopeFields({
       </Field>
       <Field>
         <FieldLabel htmlFor="management-delegated-authority-id">
-          Delegated authority
+          {t("operator.workflow.field.delegatedAuthority")}
         </FieldLabel>
         <Input
           id="management-delegated-authority-id"
@@ -178,7 +206,9 @@ function GovernanceScopeFields({
       </Field>
       {issuerId !== undefined && onIssuerIdChange ? (
         <Field>
-          <FieldLabel htmlFor="management-issuer-id">Issuer ID</FieldLabel>
+          <FieldLabel htmlFor="management-issuer-id">
+            {t("operator.workflow.field.issuerId")}
+          </FieldLabel>
           <Input
             id="management-issuer-id"
             value={issuerId}
@@ -196,6 +226,7 @@ function AuthoritySetupForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [rootName, setRootName] = useState("QR Trust Local Root")
   const [programScope, setProgramScope] = useState("local-development")
@@ -229,17 +260,17 @@ function AuthoritySetupForm({
 
   return (
     <WorkflowFormShell
-      title="Authority setup"
-      description="Create or update the root program and delegated authority that issuer enrollment depends on."
+      title="operator.workflow.authority.title"
+      description="operator.workflow.authority.description"
       endpoint="POST /admin/root-programs -> /admin/delegated-authorities"
-      submitLabel="Record authority setup"
+      submitLabel="operator.workflow.authority.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-authority-root-id">
-            Root program
+            {t("operator.workflow.field.rootProgram")}
           </FieldLabel>
           <Input
             id="management-authority-root-id"
@@ -250,7 +281,7 @@ function AuthoritySetupForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-root-name">
-            Root name
+            {t("operator.workflow.field.rootName")}
           </FieldLabel>
           <Input
             id="management-authority-root-name"
@@ -261,7 +292,7 @@ function AuthoritySetupForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-scope">
-            Program scope
+            {t("operator.workflow.field.programScope")}
           </FieldLabel>
           <Input
             id="management-authority-scope"
@@ -272,7 +303,7 @@ function AuthoritySetupForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-algorithms">
-            Accepted algorithms
+            {t("operator.workflow.field.acceptedAlgorithms")}
           </FieldLabel>
           <Input
             id="management-authority-algorithms"
@@ -280,11 +311,13 @@ function AuthoritySetupForm({
             onChange={(event) => setAlgorithms(event.target.value)}
             required
           />
-          <FieldDescription>Comma-separated algorithm identifiers.</FieldDescription>
+          <FieldDescription>
+            {t("operator.workflow.hint.commaAlgorithms")}
+          </FieldDescription>
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-id">
-            Delegated authority
+            {t("operator.workflow.field.delegatedAuthority")}
           </FieldLabel>
           <Input
             id="management-authority-id"
@@ -295,7 +328,7 @@ function AuthoritySetupForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-name">
-            Authority name
+            {t("operator.workflow.field.authorityName")}
           </FieldLabel>
           <Input
             id="management-authority-name"
@@ -306,7 +339,7 @@ function AuthoritySetupForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-authority-type">
-            Authority type
+            {t("operator.workflow.field.authorityType")}
           </FieldLabel>
           <select
             id="management-authority-type"
@@ -333,6 +366,7 @@ function TrustKeyForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [formState, updateFormState] = useReducer(
     (state: TrustKeyFormState, patch: Partial<TrustKeyFormState>) => ({
       ...state,
@@ -387,17 +421,17 @@ function TrustKeyForm({
 
   return (
     <WorkflowFormShell
-      title="Trust keys"
-      description="Publish signer-key metadata into Postgres so NATS projections and verifiers receive the same authority state."
+      title="operator.workflow.trustKey.title"
+      description="operator.workflow.trustKey.description"
       endpoint="POST /admin/trust-keys -> /admin/trust-keys/status"
-      submitLabel="Record trust key"
+      submitLabel="operator.workflow.trustKey.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-trust-key-root-program">
-            Root program
+            {t("operator.workflow.field.rootProgram")}
           </FieldLabel>
           <Input
             id="management-trust-key-root-program"
@@ -409,7 +443,9 @@ function TrustKeyForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-trust-key-id">Key ID</FieldLabel>
+          <FieldLabel htmlFor="management-trust-key-id">
+            {t("operator.workflow.field.keyId")}
+          </FieldLabel>
           <Input
             id="management-trust-key-id"
             value={keyId}
@@ -418,7 +454,9 @@ function TrustKeyForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-trust-key-scope">Scope</FieldLabel>
+          <FieldLabel htmlFor="management-trust-key-scope">
+            {t("operator.workflow.field.scope")}
+          </FieldLabel>
           <select
             id="management-trust-key-scope"
             className={selectClassName}
@@ -431,7 +469,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-authority">
-            Delegated authority
+            {t("operator.workflow.field.delegatedAuthority")}
           </FieldLabel>
           <Input
             id="management-trust-key-authority"
@@ -445,7 +483,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-signer">
-            Signer ID
+            {t("operator.workflow.field.signerId")}
           </FieldLabel>
           <Input
             id="management-trust-key-signer"
@@ -458,7 +496,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-algorithm">
-            Algorithm
+            {t("operator.workflow.field.algorithm")}
           </FieldLabel>
           <Input
             id="management-trust-key-algorithm"
@@ -471,7 +509,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-ref">
-            Public key material ref
+            {t("operator.workflow.field.publicKeyRef")}
           </FieldLabel>
           <Input
             id="management-trust-key-ref"
@@ -482,12 +520,12 @@ function TrustKeyForm({
             required
           />
           <FieldDescription>
-            Use a managed reference by default; paste PEM only for local test keys.
+            {t("operator.workflow.hint.publicKeyRef")}
           </FieldDescription>
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-status">
-            Key status
+            {t("operator.workflow.field.keyStatus")}
           </FieldLabel>
           <select
             id="management-trust-key-status"
@@ -505,7 +543,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-status-update">
-            Optional status event
+            {t("operator.workflow.field.optionalStatusEvent")}
           </FieldLabel>
           <select
             id="management-trust-key-status-update"
@@ -524,7 +562,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-not-before">
-            Not before
+            {t("operator.workflow.field.notBefore")}
           </FieldLabel>
           <Input
             id="management-trust-key-not-before"
@@ -537,7 +575,7 @@ function TrustKeyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-trust-key-not-after">
-            Not after
+            {t("operator.workflow.field.notAfter")}
           </FieldLabel>
           <Input
             id="management-trust-key-not-after"
@@ -551,7 +589,7 @@ function TrustKeyForm({
       </FieldGroup>
       <Field>
         <FieldLabel htmlFor="management-trust-key-pem">
-          Public key PEM
+          {t("operator.workflow.field.publicKeyPem")}
         </FieldLabel>
         <Textarea
           id="management-trust-key-pem"
@@ -571,6 +609,7 @@ function IssuerEnrollmentForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [delegatedAuthorityId, setDelegatedAuthorityId] = useState(
     defaultDelegatedAuthorityId,
@@ -594,10 +633,10 @@ function IssuerEnrollmentForm({
 
   return (
     <WorkflowFormShell
-      title="Issuer enrollment"
-      description="Create a pending issuer under the selected root and authority."
+      title="operator.workflow.issuerEnrollment.title"
+      description="operator.workflow.issuerEnrollment.description"
       endpoint="POST /admin/issuers"
-      submitLabel="Record issuer enrollment"
+      submitLabel="operator.workflow.issuerEnrollment.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
@@ -612,7 +651,7 @@ function IssuerEnrollmentForm({
       <FieldGroup className="grid gap-4 md:grid-cols-3">
         <Field>
           <FieldLabel htmlFor="management-issuer-display-name">
-            Display name
+            {t("operator.workflow.field.displayName")}
           </FieldLabel>
           <Input
             id="management-issuer-display-name"
@@ -622,7 +661,9 @@ function IssuerEnrollmentForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-issuer-class">Issuer class</FieldLabel>
+          <FieldLabel htmlFor="management-issuer-class">
+            {t("operator.workflow.field.issuerClass")}
+          </FieldLabel>
           <select
             id="management-issuer-class"
             className={selectClassName}
@@ -639,7 +680,7 @@ function IssuerEnrollmentForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-assurance-tier">
-            Assurance tier
+            {t("operator.workflow.field.assuranceTier")}
           </FieldLabel>
           <select
             id="management-assurance-tier"
@@ -664,6 +705,7 @@ function IssuerStatusForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [delegatedAuthorityId, setDelegatedAuthorityId] = useState(
     defaultDelegatedAuthorityId,
@@ -683,10 +725,10 @@ function IssuerStatusForm({
 
   return (
     <WorkflowFormShell
-      title="Issuer status"
-      description="Move an issuer between active, suspended, revoked, or expired state."
+      title="operator.workflow.issuerStatus.title"
+      description="operator.workflow.issuerStatus.description"
       endpoint="POST /admin/issuers/status"
-      submitLabel="Record issuer status"
+      submitLabel="operator.workflow.issuerStatus.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
@@ -699,7 +741,9 @@ function IssuerStatusForm({
         onIssuerIdChange={setIssuerId}
       />
       <Field>
-        <FieldLabel htmlFor="management-issuer-status">Status</FieldLabel>
+        <FieldLabel htmlFor="management-issuer-status">
+          {t("operator.workflow.field.status")}
+        </FieldLabel>
         <select
           id="management-issuer-status"
           className={selectClassName}
@@ -722,6 +766,7 @@ function DomainProofForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [delegatedAuthorityId, setDelegatedAuthorityId] = useState(
     defaultDelegatedAuthorityId,
@@ -749,10 +794,10 @@ function DomainProofForm({
 
   return (
     <WorkflowFormShell
-      title="Domain proof"
-      description="Attach verified domain-control evidence to an issuer before policy approval."
+      title="operator.workflow.domainProof.title"
+      description="operator.workflow.domainProof.description"
       endpoint="POST /admin/domain-proofs"
-      submitLabel="Record domain proof"
+      submitLabel="operator.workflow.domainProof.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
@@ -766,7 +811,9 @@ function DomainProofForm({
       />
       <FieldGroup className="grid gap-4 md:grid-cols-3">
         <Field>
-          <FieldLabel htmlFor="management-domain">Domain</FieldLabel>
+          <FieldLabel htmlFor="management-domain">
+            {t("operator.workflow.field.domain")}
+          </FieldLabel>
           <Input
             id="management-domain"
             value={domain}
@@ -775,7 +822,9 @@ function DomainProofForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-proof-method">Proof method</FieldLabel>
+          <FieldLabel htmlFor="management-proof-method">
+            {t("operator.workflow.field.proofMethod")}
+          </FieldLabel>
           <select
             id="management-proof-method"
             className={selectClassName}
@@ -791,7 +840,7 @@ function DomainProofForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-verification-status">
-            Verification status
+            {t("operator.workflow.field.verificationStatus")}
           </FieldLabel>
           <select
             id="management-verification-status"
@@ -808,7 +857,9 @@ function DomainProofForm({
         </Field>
       </FieldGroup>
       <Field>
-        <FieldLabel htmlFor="management-evidence-ref">Evidence ref</FieldLabel>
+        <FieldLabel htmlFor="management-evidence-ref">
+          {t("operator.workflow.field.evidenceRef")}
+        </FieldLabel>
         <Input
           id="management-evidence-ref"
           value={evidenceRef}
@@ -824,13 +875,14 @@ function DestinationPolicyForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [delegatedAuthorityId, setDelegatedAuthorityId] = useState(
     defaultDelegatedAuthorityId,
   )
   const [issuerId, setIssuerId] = useState(defaultIssuerId)
   const [destinationPolicyId, setDestinationPolicyId] = useState(
-    "acme-demo-policy",
+    defaultDestinationPolicyId,
   )
   const [usagePolicy, setUsagePolicy] = useState("reusable_public")
   const [destinationId, setDestinationId] = useState("acme-pay")
@@ -878,10 +930,10 @@ function DestinationPolicyForm({
 
   return (
     <WorkflowFormShell
-      title="Destination policy"
-      description="Approve exact final destinations after issuer and domain preconditions are satisfied."
+      title="operator.workflow.destinationPolicy.title"
+      description="operator.workflow.destinationPolicy.description"
       endpoint="POST /admin/destination-policies"
-      submitLabel="Record destination policy"
+      submitLabel="operator.workflow.destinationPolicy.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
@@ -896,7 +948,7 @@ function DestinationPolicyForm({
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-policy-id">
-            Destination policy ID
+            {t("operator.workflow.field.destinationPolicyId")}
           </FieldLabel>
           <Input
             id="management-policy-id"
@@ -906,7 +958,9 @@ function DestinationPolicyForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-usage-policy">Usage policy</FieldLabel>
+          <FieldLabel htmlFor="management-usage-policy">
+            {t("operator.workflow.field.usagePolicy")}
+          </FieldLabel>
           <select
             id="management-usage-policy"
             className={selectClassName}
@@ -920,7 +974,7 @@ function DestinationPolicyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-destination-id">
-            Destination ID
+            {t("operator.workflow.field.destinationId")}
           </FieldLabel>
           <Input
             id="management-destination-id"
@@ -931,7 +985,7 @@ function DestinationPolicyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-expected-final-url">
-            Expected final URL
+            {t("operator.workflow.field.expectedFinalUrl")}
           </FieldLabel>
           <Input
             id="management-expected-final-url"
@@ -941,26 +995,36 @@ function DestinationPolicyForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-allowed-hosts">Allowed hosts</FieldLabel>
+          <FieldLabel htmlFor="management-allowed-hosts">
+            {t("operator.workflow.field.allowedHosts")}
+          </FieldLabel>
           <Textarea
             id="management-allowed-hosts"
             value={allowedHosts}
             onChange={(event) => setAllowedHosts(event.target.value)}
             required
           />
-          <FieldDescription>Comma- or newline-separated hostnames.</FieldDescription>
+          <FieldDescription>
+            {t("operator.workflow.hint.hostnames")}
+          </FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-path-prefixes">Path prefixes</FieldLabel>
+          <FieldLabel htmlFor="management-path-prefixes">
+            {t("operator.workflow.field.pathPrefixes")}
+          </FieldLabel>
           <Input
             id="management-path-prefixes"
             value={pathPrefixes}
             onChange={(event) => setPathPrefixes(event.target.value)}
           />
-          <FieldDescription>Comma-separated; leave empty for no path gate.</FieldDescription>
+          <FieldDescription>
+            {t("operator.workflow.hint.pathPrefixes")}
+          </FieldDescription>
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-query-policy">Query policy</FieldLabel>
+          <FieldLabel htmlFor="management-query-policy">
+            {t("operator.workflow.field.queryPolicy")}
+          </FieldLabel>
           <select
             id="management-query-policy"
             className={selectClassName}
@@ -975,7 +1039,7 @@ function DestinationPolicyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-max-redirects">
-            Max redirect hops
+            {t("operator.workflow.field.maxRedirectHops")}
           </FieldLabel>
           <Input
             id="management-max-redirects"
@@ -987,7 +1051,7 @@ function DestinationPolicyForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider">
-            Runtime safety provider
+            {t("operator.workflow.field.runtimeSafetyProvider")}
           </FieldLabel>
           <Input
             id="management-runtime-provider"
@@ -1000,13 +1064,13 @@ function DestinationPolicyForm({
           <input
             id="management-allow-subdomains"
             type="checkbox"
-            aria-label="Allow subdomains"
+            aria-label={t("operator.workflow.field.allowSubdomains")}
             checked={allowSubdomains}
             onChange={(event) => setAllowSubdomains(event.target.checked)}
             className="size-4 rounded border border-input"
           />
           <FieldLabel htmlFor="management-allow-subdomains">
-            Allow subdomains
+            {t("operator.workflow.field.allowSubdomains")}
           </FieldLabel>
         </Field>
       </FieldGroup>
@@ -1019,13 +1083,14 @@ function DestinationPolicyStatusForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [rootProgramId, setRootProgramId] = useState(defaultRootProgramId)
   const [delegatedAuthorityId, setDelegatedAuthorityId] = useState(
     defaultDelegatedAuthorityId,
   )
   const [issuerId, setIssuerId] = useState(defaultIssuerId)
   const [destinationPolicyId, setDestinationPolicyId] = useState(
-    "acme-demo-policy",
+    defaultDestinationPolicyId,
   )
   const [policyStatus, setPolicyStatus] = useState("active")
 
@@ -1042,10 +1107,10 @@ function DestinationPolicyStatusForm({
 
   return (
     <WorkflowFormShell
-      title="Policy status"
-      description="Change an existing destination-policy lifecycle state."
+      title="operator.workflow.policyStatus.title"
+      description="operator.workflow.policyStatus.description"
       endpoint="POST /admin/destination-policies/status"
-      submitLabel="Record policy status"
+      submitLabel="operator.workflow.policyStatus.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
@@ -1060,7 +1125,7 @@ function DestinationPolicyStatusForm({
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-policy-status-id">
-            Destination policy ID
+            {t("operator.workflow.field.destinationPolicyId")}
           </FieldLabel>
           <Input
             id="management-policy-status-id"
@@ -1070,7 +1135,9 @@ function DestinationPolicyStatusForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-policy-status">Status</FieldLabel>
+          <FieldLabel htmlFor="management-policy-status">
+            {t("operator.workflow.field.status")}
+          </FieldLabel>
           <select
             id="management-policy-status"
             className={selectClassName}
@@ -1093,6 +1160,7 @@ function NatsSubscriberForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [subscriberId, setSubscriberId] = useState("network-governance-worker")
   const [displayName, setDisplayName] = useState("Network Governance Worker")
   const [durableName, setDurableName] = useState("qrtrust-governance")
@@ -1122,17 +1190,17 @@ function NatsSubscriberForm({
 
   return (
     <WorkflowFormShell
-      title="NATS subscriber authorization"
-      description="Approve a subscriber identity and the NATS subject families it can consume."
+      title="operator.workflow.natsSubscriber.title"
+      description="operator.workflow.natsSubscriber.description"
       endpoint="POST /admin/nats/subscribers"
-      submitLabel="Authorize subscriber"
+      submitLabel="operator.workflow.natsSubscriber.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-subscriber-id">
-            Subscriber ID
+            {t("operator.workflow.field.subscriberId")}
           </FieldLabel>
           <Input
             id="management-subscriber-id"
@@ -1143,7 +1211,7 @@ function NatsSubscriberForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-subscriber-display-name">
-            Display name
+            {t("operator.workflow.field.displayName")}
           </FieldLabel>
           <Input
             id="management-subscriber-display-name"
@@ -1153,7 +1221,9 @@ function NatsSubscriberForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-durable-name">Durable name</FieldLabel>
+          <FieldLabel htmlFor="management-durable-name">
+            {t("operator.workflow.field.durableName")}
+          </FieldLabel>
           <Input
             id="management-durable-name"
             value={durableName}
@@ -1163,7 +1233,7 @@ function NatsSubscriberForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-subscriber-description">
-            Description
+            {t("operator.workflow.field.description")}
           </FieldLabel>
           <Input
             id="management-subscriber-description"
@@ -1173,14 +1243,18 @@ function NatsSubscriberForm({
         </Field>
       </FieldGroup>
       <Field>
-        <FieldLabel htmlFor="management-subscriber-subjects">Subjects</FieldLabel>
+        <FieldLabel htmlFor="management-subscriber-subjects">
+          {t("operator.workflow.field.subjects")}
+        </FieldLabel>
         <Textarea
           id="management-subscriber-subjects"
           value={subjects}
           onChange={(event) => setSubjects(event.target.value)}
           required
         />
-        <FieldDescription>Comma- or newline-separated subject patterns.</FieldDescription>
+        <FieldDescription>
+          {t("operator.workflow.hint.subjects")}
+        </FieldDescription>
       </Field>
     </WorkflowFormShell>
   )
@@ -1191,6 +1265,7 @@ function RuntimeProviderForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [form, setForm] = useState<RuntimeProviderFormState>({
     providerId: "deterministic-runtime-safety",
     displayName: "Deterministic runtime safety",
@@ -1226,17 +1301,17 @@ function RuntimeProviderForm({
 
   return (
     <WorkflowFormShell
-      title="Runtime provider"
-      description="Register the runtime safety provider used by destination policies and verifier posture checks."
+      title="operator.workflow.runtimeProvider.title"
+      description="operator.workflow.runtimeProvider.description"
       endpoint="POST /admin/runtime-providers"
-      submitLabel="Record runtime provider"
+      submitLabel="operator.workflow.runtimeProvider.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-id">
-            Provider ID
+            {t("operator.workflow.field.providerId")}
           </FieldLabel>
           <Input
             id="management-runtime-provider-id"
@@ -1247,7 +1322,7 @@ function RuntimeProviderForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-name">
-            Display name
+            {t("operator.workflow.field.displayName")}
           </FieldLabel>
           <Input
             id="management-runtime-provider-name"
@@ -1258,7 +1333,7 @@ function RuntimeProviderForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-base-url">
-            Base URL
+            {t("operator.workflow.field.baseUrl")}
           </FieldLabel>
           <Input
             id="management-runtime-provider-base-url"
@@ -1267,12 +1342,12 @@ function RuntimeProviderForm({
             placeholder="https://runtime.example"
           />
           <FieldDescription>
-            Leave empty for the local deterministic provider.
+            {t("operator.workflow.hint.baseUrl")}
           </FieldDescription>
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-ttl">
-            Verdict TTL seconds
+            {t("operator.workflow.field.verdictTtlSeconds")}
           </FieldLabel>
           <Input
             id="management-runtime-provider-ttl"
@@ -1287,7 +1362,7 @@ function RuntimeProviderForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-stale">
-            Stale behavior
+            {t("operator.workflow.field.staleBehavior")}
           </FieldLabel>
           <select
             id="management-runtime-provider-stale"
@@ -1301,7 +1376,7 @@ function RuntimeProviderForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-unavailable">
-            Unavailable behavior
+            {t("operator.workflow.field.unavailableBehavior")}
           </FieldLabel>
           <select
             id="management-runtime-provider-unavailable"
@@ -1317,7 +1392,7 @@ function RuntimeProviderForm({
         </Field>
         <Field>
           <FieldLabel htmlFor="management-runtime-provider-status">
-            Status
+            {t("operator.workflow.field.status")}
           </FieldLabel>
           <select
             id="management-runtime-provider-status"
@@ -1340,6 +1415,7 @@ function OutboxRemediationForm({
   isSubmitting,
   onSubmit,
 }: ManagementWorkflowFormProps) {
+  const t = useT()
   const [eventId, setEventId] = useState("")
   const [action, setAction] = useState("retry")
   const [reason, setReason] = useState("operator reviewed event state")
@@ -1355,17 +1431,17 @@ function OutboxRemediationForm({
 
   return (
     <WorkflowFormShell
-      title="Outbox remediation"
-      description="Retry a remediated outbox row or quarantine an unsafe row without direct SQL."
+      title="operator.workflow.outboxRemediation.title"
+      description="operator.workflow.outboxRemediation.description"
       endpoint="POST /admin/outbox/events/remediate"
-      submitLabel="Record outbox remediation"
+      submitLabel="operator.workflow.outboxRemediation.submit"
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
     >
       <FieldGroup className="grid gap-4 md:grid-cols-2">
         <Field>
           <FieldLabel htmlFor="management-outbox-event-id">
-            Outbox event ID
+            {t("operator.workflow.field.outboxEventId")}
           </FieldLabel>
           <Input
             id="management-outbox-event-id"
@@ -1375,7 +1451,9 @@ function OutboxRemediationForm({
           />
         </Field>
         <Field>
-          <FieldLabel htmlFor="management-outbox-action">Action</FieldLabel>
+          <FieldLabel htmlFor="management-outbox-action">
+            {t("operator.workflow.field.action")}
+          </FieldLabel>
           <select
             id="management-outbox-action"
             className={selectClassName}
@@ -1388,7 +1466,9 @@ function OutboxRemediationForm({
         </Field>
       </FieldGroup>
       <Field>
-        <FieldLabel htmlFor="management-outbox-reason">Reason</FieldLabel>
+        <FieldLabel htmlFor="management-outbox-reason">
+          {t("operator.workflow.field.reason")}
+        </FieldLabel>
         <Textarea
           id="management-outbox-reason"
           value={reason}
@@ -1404,15 +1484,19 @@ function ReadOnlyWorkflowPanel({
   description,
   onRefreshEvidence,
 }: {
-  title: string
-  description: string
+  title: MessageKey
+  description: MessageKey
   onRefreshEvidence: () => void
 }) {
+  const t = useT()
+
   return (
     <div className="grid gap-3 rounded-2xl border border-border/70 bg-card/75 p-4">
       <div className="grid gap-1">
-        <h4 className="text-base font-semibold text-foreground">{title}</h4>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        <h4 className="text-base font-semibold text-foreground">{t(title)}</h4>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {t(description)}
+        </p>
       </div>
       <Button
         type="button"
@@ -1421,7 +1505,7 @@ function ReadOnlyWorkflowPanel({
         onClick={onRefreshEvidence}
       >
         <RotateCcw className="size-4" />
-        Refresh evidence
+        {t("operator.workflow.refreshEvidence")}
       </Button>
     </div>
   )
@@ -1460,8 +1544,8 @@ function ManagementWorkflowForm(props: ManagementWorkflowFormProps) {
   }
   return (
     <ReadOnlyWorkflowPanel
-      title="Audit review"
-      description="Review recent governance audit rows and verify the source-state mutation trail."
+      title="operator.workflow.auditReview.title"
+      description="operator.workflow.auditReview.description"
       onRefreshEvidence={props.onRefreshEvidence}
     />
   )

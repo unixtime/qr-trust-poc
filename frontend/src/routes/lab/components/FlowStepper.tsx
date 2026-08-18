@@ -1,13 +1,14 @@
 import { Check } from "lucide-react"
 
+import { useT, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 import type { FlowState, FlowStepId } from "@/routes/lab/deriveFlowStep"
 
-const stepTitles: Record<FlowStepId, string> = {
-  1: "Pick scenario",
-  2: "Generate QR",
-  3: "Scan",
-  4: "Verdict & evidence",
+const stepTitleKeys: Record<FlowStepId, MessageKey> = {
+  1: "lab.stepper.step1",
+  2: "lab.stepper.step2",
+  3: "lab.stepper.step3",
+  4: "lab.stepper.step4",
 }
 
 const flowStepIds: FlowStepId[] = [1, 2, 3, 4]
@@ -25,9 +26,11 @@ export function FlowStepper({
   visitedSteps,
   onSelectStep,
 }: FlowStepperProps) {
+  const t = useT()
+
   return (
     <nav
-      aria-label="Workflow steps"
+      aria-label={t("lab.stepper.label")}
       data-testid="flow-stepper"
       className="flex gap-2 overflow-x-auto lg:flex-col lg:gap-1"
     >
@@ -67,7 +70,7 @@ export function FlowStepper({
                 step
               )}
             </span>
-            {stepTitles[step]}
+            {t(stepTitleKeys[step])}
           </button>
         )
       })}

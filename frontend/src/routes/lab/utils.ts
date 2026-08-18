@@ -1,3 +1,4 @@
+import { t } from "@/i18n"
 import { VerifierApiError, type VerifierDecision } from "@/lib/verifier-client"
 import type { HistoryEntry, Tone } from "@/routes/lab/types"
 
@@ -48,7 +49,7 @@ export function summariseError(error: unknown) {
   if (error instanceof Error) {
     return error.message
   }
-  return "The verifier request failed."
+  return t("lab.error.requestFailed")
 }
 
 export function summariseSignedVerifierError(error: unknown) {
@@ -59,7 +60,7 @@ export function summariseSignedVerifierError(error: unknown) {
       error.message.includes("QR payload") ||
       error.message.includes("signed"))
   ) {
-    return "The signed-verifier proof only accepts generated QR Trust envelopes. Use the scanner-decision check for ordinary web links, camera scans, and user-facing safety results."
+    return t("lab.error.signedProofOnly")
   }
 
   return summariseError(error)

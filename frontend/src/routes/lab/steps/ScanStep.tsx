@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useT } from "@/i18n"
 import { ScanWorkbenchSection } from "@/routes/lab/components/ScanWorkbenchSection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
 
@@ -17,24 +18,26 @@ type ScanStepProps = {
 
 export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
   const hasScanEvidence = lab.result !== null || lab.scannerDecision !== null
+  const t = useT()
 
   return (
     <div className="flex flex-col gap-6" data-testid="scan-step">
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">Scan</h2>
+        <h2 className="text-xl font-semibold tracking-tight">
+          {t("lab.scan.title")}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Upload a QR image, paste a decoded payload, or run the scanner
-          pipeline directly against the QR from step 2. A live camera scan is
-          available for second-screen demos.
+          {t("lab.scan.subtitle")}
         </p>
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Simulated scan</CardTitle>
+          <CardTitle className="text-base">
+            {t("lab.scan.simulated.title")}
+          </CardTitle>
           <CardDescription>
-            Runs the full scanner decision against the current demo QR — no
-            camera required.
+            {t("lab.scan.simulated.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-start gap-2">
@@ -44,12 +47,12 @@ export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
             onClick={() => void lab.checkScannerDecision()}
           >
             {lab.isCheckingScannerDecision
-              ? "Checking scanner decision…"
-              : "Check scanner decision"}
+              ? t("lab.scan.checkingDecision")
+              : t("lab.scan.checkDecision")}
           </Button>
           {lab.demo === null ? (
             <p className="text-sm text-muted-foreground">
-              Generate a QR in step 2 first.
+              {t("lab.scan.needsQr")}
             </p>
           ) : null}
           {lab.scannerDecisionError ? (
@@ -112,10 +115,10 @@ export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
 
       <footer className="flex items-center justify-between">
         <Button variant="outline" data-testid="scan-back" onClick={onBack}>
-          Back
+          {t("lab.common.back")}
         </Button>
         <Button data-testid="scan-next" disabled={!hasScanEvidence} onClick={onNext}>
-          Next: Verdict &amp; evidence
+          {t("lab.scan.next")}
         </Button>
       </footer>
     </div>

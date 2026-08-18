@@ -9,6 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { usagePolicyLabelKeys } from "@/domain/scenarios"
+import { useT } from "@/i18n"
 import type { ScannerDecisionResponse } from "@/lib/verifier-client"
 import { HistorySection } from "@/routes/lab/components/HistorySection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
@@ -70,6 +72,7 @@ type VerdictStepProps = {
 }
 
 export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
+  const t = useT()
   const decision = lab.scannerDecision
   const rows = decision ? trustPathRows(decision) : []
   const reasonCodes = decision
@@ -89,35 +92,40 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
     <div className="flex flex-col gap-6" data-testid="verdict-step">
       <header>
         <h2 className="text-xl font-semibold tracking-tight">
-          Verdict &amp; evidence
+          {t("lab.verdict.title")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every trust check the scanner ran, with its raw evidence.
+          {t("lab.verdict.subtitle")}
         </p>
       </header>
 
       {lab.result ? (
         <Card data-testid="verifier-result">
           <CardHeader>
-            <CardTitle className="text-base">Cryptographic verification</CardTitle>
+            <CardTitle className="text-base">
+              {t("lab.verdict.crypto.title")}
+            </CardTitle>
             <CardDescription>
-              Result of verifying the current QR payload against the verifier
-              API.
+              {t("lab.verdict.crypto.description")}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-sm">
             <div className="flex items-center gap-2">
               <Badge variant={lab.result.allowed ? "secondary" : "destructive"}>
-                {lab.result.allowed ? "accepted" : "rejected"}
+                {lab.result.allowed
+                  ? t("lab.verdict.accepted")
+                  : t("lab.verdict.rejected")}
               </Badge>
               <span className="text-muted-foreground">
-                stage: {lab.result.stage}
+                {t("lab.verdict.stage", { stage: lab.result.stage })}
               </span>
             </div>
             <p>{lab.result.reason}</p>
             {lab.result.usage_policy ? (
               <p className="text-muted-foreground">
-                usage policy: {lab.result.usage_policy}
+                {t("lab.verdict.usagePolicy", {
+                  policy: t(usagePolicyLabelKeys[lab.result.usage_policy]),
+                })}
               </p>
             ) : null}
           </CardContent>
@@ -127,13 +135,16 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
       {decision === null ? (
         <Card data-testid="verdict-empty">
           <CardContent className="flex flex-col items-start gap-3 py-8">
-            <h3 className="text-lg font-semibold">No scanner decision yet</h3>
+            <h3 className="text-lg font-semibold">
+              {t("lab.verdict.empty.title")}
+            </h3>
             <p className="text-sm text-muted-foreground">
-              Scan the QR with the camera in step 3, or use the simulated scan
-              ("Check scanner decision") there.
+              {t("lab.verdict.empty.body", {
+                action: t("lab.scan.checkDecision"),
+              })}
             </p>
             <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>
-              Back to Scan
+              {t("lab.verdict.empty.cta")}
             </Button>
           </CardContent>
         </Card>
@@ -186,7 +197,7 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
                       ) : null}
                       <details className="mt-2">
                         <summary className="cursor-pointer text-xs text-muted-foreground">
-                          Raw evidence
+                          {t("lab.verdict.rawEvidence")}
                         </summary>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
                           <span className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs">
@@ -211,7 +222,7 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
 
           <footer>
             <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>
-              Back
+              {t("lab.common.back")}
             </Button>
           </footer>
         </>

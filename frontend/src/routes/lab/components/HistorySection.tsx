@@ -7,6 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useT } from "@/i18n"
 import type { HistoryEntry, Tone } from "@/routes/lab/types"
 
 function toneBadgeVariant(tone: Tone): "secondary" | "destructive" | "outline" {
@@ -16,18 +17,19 @@ function toneBadgeVariant(tone: Tone): "secondary" | "destructive" | "outline" {
 }
 
 export function HistorySection({ history }: { history: HistoryEntry[] }) {
+  const t = useT()
+
   return (
     <Card data-testid="history-section">
       <CardHeader>
-        <CardTitle className="text-base">Recent verifier history</CardTitle>
-        <CardDescription>
-          The latest generate, accept, block, and admin events stay visible
-          here.
-        </CardDescription>
+        <CardTitle className="text-base">{t("lab.history.title")}</CardTitle>
+        <CardDescription>{t("lab.history.description")}</CardDescription>
       </CardHeader>
       <CardContent>
         {history.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No events yet.</p>
+          <p className="text-sm text-muted-foreground">
+            {t("lab.history.empty")}
+          </p>
         ) : (
           <ScrollArea className="max-h-72">
             <ul className="flex flex-col gap-3">

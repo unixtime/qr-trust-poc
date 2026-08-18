@@ -5,20 +5,24 @@ import { Card, CardContent } from "@/components/ui/card"
 import { ConsoleChip } from "@/components/ui/console-chip"
 import { Eyebrow } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils"
+import { useT } from "@/i18n"
 import {
+  scenarioGroupLabelKeys,
   scenarioGroups,
   scenarioKeys,
-  scenarioLabels,
+  scenarioLabelKeys,
+  scenarioNoteKeys,
   type ScenarioGroup,
   type ScenarioKey,
 } from "@/domain/scenarios"
-import { scenarioMeta } from "@/routes/lab/content"
 
+// Slugs, not display strings — the rendered heading comes from
+// `scenarioGroupLabelKeys`. This array only fixes the order.
 const groupOrder: ScenarioGroup[] = [
-  "Valid",
-  "Tampered",
-  "Policy-blocked",
-  "Runtime-degraded",
+  "valid",
+  "tampered",
+  "policyBlocked",
+  "runtimeDegraded",
 ]
 
 type ScenarioStepProps = {
@@ -37,21 +41,21 @@ export default function ScenarioStep({
   onNext,
 }: ScenarioStepProps) {
   const [compareOpen, setCompareOpen] = useState(compareScenario !== null)
+  const t = useT()
 
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-semibold">Pick a scenario</h1>
+        <h1 className="text-xl font-semibold">{t("lab.scenarioStep.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Each scenario issues a QR whose trust evidence passes or fails one
-          specific check.
+          {t("lab.scenarioStep.subtitle")}
         </p>
       </header>
 
       {groupOrder.map((group) => (
         <section key={group}>
           <Eyebrow as="h2" className="mb-2">
-            {group}
+            {t(scenarioGroupLabelKeys[group])}
           </Eyebrow>
           <div className="grid gap-2 sm:grid-cols-2">
             {scenarioGroups[group].map((key) => {
@@ -75,10 +79,10 @@ export default function ScenarioStep({
                   >
                     <CardContent className="grid gap-1">
                       <span className="block text-sm font-medium">
-                        {scenarioLabels[key]}
+                        {t(scenarioLabelKeys[key])}
                       </span>
                       <span className="block text-xs text-muted-foreground">
-                        {scenarioMeta[key].note}
+                        {t(scenarioNoteKeys[key])}
                       </span>
                     </CardContent>
                   </Card>
@@ -96,7 +100,9 @@ export default function ScenarioStep({
           onClick={() => setCompareOpen((open) => !open)}
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          {compareOpen ? "Hide comparison" : "Compare against a second scenario"}
+          {compareOpen
+            ? t("lab.scenarioStep.compare.hide")
+            : t("lab.scenarioStep.compare.show")}
         </button>
         {compareOpen ? (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -106,7 +112,7 @@ export default function ScenarioStep({
               aria-pressed={compareScenario === null}
               onClick={() => onSelectCompare(null)}
             >
-              None
+              {t("lab.scenarioStep.compare.none")}
             </ConsoleChip>
             {scenarioKeys.map((key) => (
               <ConsoleChip
@@ -116,7 +122,7 @@ export default function ScenarioStep({
                 aria-pressed={compareScenario === key}
                 onClick={() => onSelectCompare(key)}
               >
-                {scenarioLabels[key]}
+                {t(scenarioLabelKeys[key])}
               </ConsoleChip>
             ))}
           </div>
@@ -125,7 +131,7 @@ export default function ScenarioStep({
 
       <div className="flex justify-end border-t border-border pt-4">
         <Button data-testid="scenario-next" onClick={onNext}>
-          Next: Generate QR
+          {t("lab.scenarioStep.next")}
         </Button>
       </div>
     </div>

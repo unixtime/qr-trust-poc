@@ -1029,6 +1029,19 @@ release-audit-strict:
 
 docs-build:
 	cd backend && uv sync --frozen
+# mkdocs-material 9.7.7's optimize plugin races itself on a warm cache: it
+# submits _optimize_image to a thread pool and then calls files.remove(file),
+# but that worker ends by rewriting file.src_path -- the very key remove()
+# looks up. A cache miss makes the worker shell out to pngquant first, so the
+# main thread always wins; a cache hit skips to the mutation and often beats
+# it, and the build dies with `'.cache/plugin/optimize/...' not in collection`.
+# Locally that was 5 failures in 6 runs, a different image losing each time.
+#
+# Starting cold forces every worker down the slow path, which is what makes
+# the ordering reliable rather than lucky. It costs nothing measurable --
+# 3s cold against 2.5s warm -- because optimization overlaps the rest of the
+# build. Drop this only when the plugin removes before it submits.
+	rm -rf .cache/plugin/optimize
 	$(DOCS_CAIRO_ENV) ./backend/.venv/bin/mkdocs build --strict --config-file mkdocs.yml
 	test -f site/public/TRUST_MODEL_GRAPH/index.html
 	test -f site/public/assets/stylesheets/diagram-explorer.css
@@ -1039,6 +1052,10 @@ docs-build:
 	! rg -q 'class="language-mermaid"' site/public/TRUST_MODEL_GRAPH/index.html
 	rg -q 'assets/stylesheets/diagram-explorer\.css' site/public/TRUST_MODEL_GRAPH/index.html
 	rg -q 'assets/javascripts/diagram-explorer\.js' site/public/TRUST_MODEL_GRAPH/index.html
+# --strict cannot see the source-view routes the mkdocs_source_pages hook
+# generates, because they do not exist until this build has written them.
+# Check the finished tree instead, where they do.
+	./backend/.venv/bin/python backend/scripts/check_docs_links.py site
 
 docs-serve: docs-build
 	./backend/.venv/bin/python -m http.server '$(DOCS_PORT)' --bind '$(DOCS_HOST)' --directory site

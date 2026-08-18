@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useT, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 import AccessControlSection from "@/routes/operator/components/AccessControlSection"
 import ManagementWorkflowSection from "@/routes/operator/components/ManagementWorkflowSection"
@@ -21,10 +22,12 @@ type OperatorPageProps = {
 
 type OperatorTab = "access" | "management" | "runtime"
 
-const TABS: Array<{ id: OperatorTab; label: string }> = [
-  { id: "access", label: "Access" },
-  { id: "management", label: "Management" },
-  { id: "runtime", label: "Runtime" },
+// `id` is the tab's identity — it reaches the `?focus=` query parameter and the
+// test ids, so it stays an English identifier no matter what the label says.
+const TABS: Array<{ id: OperatorTab; labelKey: MessageKey }> = [
+  { id: "access", labelKey: "operator.tabs.access" },
+  { id: "management", labelKey: "operator.tabs.management" },
+  { id: "runtime", labelKey: "operator.tabs.runtime" },
 ]
 
 function parseOperatorFocus(): OperatorTab {
@@ -34,11 +37,12 @@ function parseOperatorFocus(): OperatorTab {
   return "runtime"
 }
 
-function compactCount(value: boolean) {
-  return value ? "enabled" : "disabled"
+function compactCount(value: boolean): MessageKey {
+  return value ? "operator.value.enabled" : "operator.value.disabled"
 }
 
 function OperatorPage({ onNavigate }: OperatorPageProps) {
+  const t = useT()
   const controller = useOperatorController()
   const [activeTab, setActiveTab] = useState<OperatorTab>(() =>
     parseOperatorFocus(),
@@ -50,11 +54,10 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Operator console
+              {t("operator.title")}
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Runtime posture, access control, and management workflows — the
-              facts an engineer inspects before trusting workflow results.
+              {t("operator.subtitle")}
             </p>
           </div>
           <Button
@@ -62,42 +65,46 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
             data-testid="operator-open-workflow"
             onClick={() => onNavigate("/")}
           >
-            Back to workflow
+            {t("operator.backToWorkflow")}
           </Button>
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
           <RuntimeMetric
-            label="Verifier auth"
-            value={
+            label={t("operator.metric.verifierAuth")}
+            value={t(
               controller.runtimeStatus
                 ? compactCount(controller.runtimeStatus.api_key_auth_enabled)
-                : "loading"
-            }
+                : "operator.value.loading",
+            )}
             emphasis
           />
           <RuntimeMetric
-            label="Admin flow"
-            value={
+            label={t("operator.metric.adminFlow")}
+            value={t(
               controller.runtimeStatus
                 ? compactCount(
                     controller.runtimeStatus.admin_api_key_management_enabled,
                   )
-                : "loading"
-            }
+                : "operator.value.loading",
+            )}
             emphasis
           />
           <RuntimeMetric
-            label="Shared lab key"
-            value={controller.sharedLabKey ? "present" : "empty"}
+            label={t("operator.metric.sharedLabKey")}
+            value={t(
+              controller.sharedLabKey
+                ? "operator.value.present"
+                : "operator.value.empty",
+            )}
             emphasis
           />
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Current operator read</CardTitle>
-            <CardDescription>{controller.runtimeSummary}</CardDescription>
+            <CardTitle className="text-base">{t("operator.read.title")}</CardTitle>
+            <CardDescription>{t(controller.runtimeSummaryKey)}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button
@@ -107,8 +114,8 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
               disabled={controller.isLoadingStatus}
             >
               {controller.isLoadingStatus
-                ? "Refreshing runtime…"
-                : "Refresh runtime posture"}
+                ? t("operator.refreshing")
+                : t("operator.refresh")}
             </Button>
           </CardContent>
         </Card>
@@ -116,7 +123,7 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
 
       <div
         role="tablist"
-        aria-label="Operator sections"
+        aria-label={t("operator.tabs.label")}
         className="mt-8 flex gap-1 border-b"
       >
         {TABS.map((tab) => (
@@ -134,7 +141,7 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>

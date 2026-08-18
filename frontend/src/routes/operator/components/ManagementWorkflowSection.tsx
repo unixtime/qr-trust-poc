@@ -14,6 +14,7 @@ import { useMemo, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useLocale, useT, type Locale, type MessageKey } from "@/i18n"
 import type {
   ManagementAuditListResponse,
   ManagementAuditRecord,
@@ -27,14 +28,25 @@ import type { MessageState } from "@/routes/operator/types"
 
 type WorkflowState = "ready" | "planned"
 
+// `id` is the workflow's identity — it selects the form and reaches
+// `onSubmitWorkflow`, so it stays an English identifier. `endpoint` is an HTTP
+// route and `operatorRecord` names Postgres rows and outbox event types; both
+// are wire vocabulary, not prose. Only the title and description translate.
 type Workflow = {
   id: string
-  title: string
-  description: string
+  titleKey: MessageKey
+  descriptionKey: MessageKey
   endpoint: string
   state: WorkflowState
   operatorRecord: string
   icon: typeof Building2
+}
+
+// `state` is authored here rather than returned by the API, so its badge text
+// is prose the catalog owns.
+const workflowStateKeys: Record<WorkflowState, MessageKey> = {
+  ready: "operator.management.state.ready",
+  planned: "operator.management.state.planned",
 }
 
 type ManagementWorkflowSectionProps = {
@@ -52,8 +64,8 @@ type ManagementWorkflowSectionProps = {
 const workflows: Workflow[] = [
   {
     id: "authority-setup",
-    title: "Authority setup",
-    description: "Create the root program and delegated authority that issuer workflows depend on.",
+    titleKey: "operator.management.workflow.authoritySetup.title",
+    descriptionKey: "operator.management.workflow.authoritySetup.description",
     endpoint: "POST /admin/root-programs",
     state: "ready",
     operatorRecord: "root_program.upserted + delegated_authority.upserted",
@@ -61,8 +73,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "trust-keys",
-    title: "Trust keys",
-    description: "Manage root and delegated-authority signer keys used to verify governance events.",
+    titleKey: "operator.management.workflow.trustKeys.title",
+    descriptionKey: "operator.management.workflow.trustKeys.description",
     endpoint: "POST /admin/trust-keys",
     state: "ready",
     operatorRecord: "trust_key.upserted + trust_key.status.changed",
@@ -70,8 +82,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "issuer-enrollment",
-    title: "Issuer enrollment",
-    description: "Create a pending issuer record under an accepted root and delegated authority.",
+    titleKey: "operator.management.workflow.issuerEnrollment.title",
+    descriptionKey: "operator.management.workflow.issuerEnrollment.description",
     endpoint: "POST /admin/issuers",
     state: "ready",
     operatorRecord: "issuer.enrollment.requested",
@@ -79,8 +91,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "domain-proof",
-    title: "Domain proof",
-    description: "Bind issuer identity to DNS, well-known, directory, or manual-review evidence.",
+    titleKey: "operator.management.workflow.domainProof.title",
+    descriptionKey: "operator.management.workflow.domainProof.description",
     endpoint: "POST /admin/domain-proofs",
     state: "ready",
     operatorRecord: "domain_proof.upserted",
@@ -88,8 +100,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "destination-policy",
-    title: "Destination policy",
-    description: "Approve exact destinations, redirect limits, and runtime-safety policy.",
+    titleKey: "operator.management.workflow.destinationPolicy.title",
+    descriptionKey: "operator.management.workflow.destinationPolicy.description",
     endpoint: "POST /admin/destination-policies",
     state: "ready",
     operatorRecord: "destination_policy.upserted",
@@ -97,8 +109,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "issuer-status",
-    title: "Issuer status",
-    description: "Suspend, revoke, expire, or reactivate issuer enrollment state.",
+    titleKey: "operator.management.workflow.issuerStatus.title",
+    descriptionKey: "operator.management.workflow.issuerStatus.description",
     endpoint: "POST /admin/issuers/status",
     state: "ready",
     operatorRecord: "issuer.status.changed",
@@ -106,8 +118,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "policy-status",
-    title: "Policy status",
-    description: "Suspend, revoke, expire, or reactivate destination-policy state.",
+    titleKey: "operator.management.workflow.policyStatus.title",
+    descriptionKey: "operator.management.workflow.policyStatus.description",
     endpoint: "POST /admin/destination-policies/status",
     state: "ready",
     operatorRecord: "destination_policy.status.changed",
@@ -115,8 +127,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "runtime-providers",
-    title: "Runtime providers",
-    description: "Register provider status, TTL, and fail behavior for runtime safety checks.",
+    titleKey: "operator.management.workflow.runtimeProviders.title",
+    descriptionKey: "operator.management.workflow.runtimeProviders.description",
     endpoint: "POST /admin/runtime-providers",
     state: "ready",
     operatorRecord: "runtime_provider.upserted",
@@ -124,8 +136,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "nats-subscribers",
-    title: "NATS subscribers",
-    description: "Approve subscriber identities and constrain subject families from Postgres.",
+    titleKey: "operator.management.workflow.natsSubscribers.title",
+    descriptionKey: "operator.management.workflow.natsSubscribers.description",
     endpoint: "POST /admin/nats/subscribers",
     state: "ready",
     operatorRecord: "subscriber.authorization.changed",
@@ -133,8 +145,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "outbox-health",
-    title: "Outbox health",
-    description: "Inspect pending, failed, and published governance propagation events.",
+    titleKey: "operator.management.workflow.outboxHealth.title",
+    descriptionKey: "operator.management.workflow.outboxHealth.description",
     endpoint: "GET /admin/outbox",
     state: "ready",
     operatorRecord: "event_outbox",
@@ -142,8 +154,8 @@ const workflows: Workflow[] = [
   },
   {
     id: "audit-log",
-    title: "Audit log",
-    description: "Review who changed governance state, when, and which outbox event followed.",
+    titleKey: "operator.management.workflow.auditLog.title",
+    descriptionKey: "operator.management.workflow.auditLog.description",
     endpoint: "GET /admin/audit",
     state: "ready",
     operatorRecord: "governance_audit_log",
@@ -151,11 +163,15 @@ const workflows: Workflow[] = [
   },
 ]
 
-function formatTimestamp(value: string | null) {
-  if (!value) return "not published"
+// A timestamp is data, but the month name and clock format are locale-shaped,
+// so the active locale drives the formatting instead of the browser default.
+// The missing-value case is the only prose here, so it comes back as `null` and
+// the caller supplies the translated text.
+function formatTimestamp(value: string | null, locale: Locale) {
+  if (!value) return null
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return value
-  return parsed.toLocaleString(undefined, {
+  return parsed.toLocaleString(locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",
@@ -179,18 +195,20 @@ function auditLabel(row: ManagementAuditRecord) {
 }
 
 function EmptyEvidence({ onRefresh }: { onRefresh: () => void }) {
+  const t = useT()
   return (
     <div className="grid gap-3 rounded-2xl border border-dashed border-border bg-background/75 p-4">
       <div className="grid gap-1">
-        <p className="text-sm font-medium text-foreground">No management evidence loaded</p>
+        <p className="text-sm font-medium text-foreground">
+          {t("operator.management.empty.title")}
+        </p>
         <p className="text-pretty text-sm leading-6 text-muted-foreground">
-          Load the current Postgres outbox and audit rows before reviewing this
-          runtime as a production-style operator surface.
+          {t("operator.management.empty.body")}
         </p>
       </div>
       <Button type="button" variant="outline" onClick={onRefresh} className="w-fit">
         <RefreshCw className="size-4" />
-        Load evidence
+        {t("operator.management.empty.action")}
       </Button>
     </div>
   )
@@ -201,6 +219,8 @@ function OutboxEvidence({
 }: {
   outbox: ManagementOutboxStatusResponse
 }) {
+  const t = useT()
+  const locale = useLocale()
   const counts = outbox.status_counts
   return (
     <div className="grid gap-3">
@@ -220,7 +240,9 @@ function OutboxEvidence({
         )}
       </div>
       <div className="grid gap-2">
-        <p className="text-sm font-medium text-foreground">Recent outbox events</p>
+        <p className="text-sm font-medium text-foreground">
+          {t("operator.management.outbox.recent")}
+        </p>
         {outbox.recent_events.length > 0 ? (
           <div className="grid gap-2">
             {outbox.recent_events.slice(0, 4).map((event) => (
@@ -242,8 +264,15 @@ function OutboxEvidence({
                   </Badge>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span className="tabular-nums">attempts {event.attempts}</span>
-                  <span>{formatTimestamp(event.created_at)}</span>
+                  <span className="tabular-nums">
+                    {t("operator.management.attempts", {
+                      attempts: event.attempts,
+                    })}
+                  </span>
+                  <span>
+                    {formatTimestamp(event.created_at, locale) ??
+                      t("operator.management.notPublished")}
+                  </span>
                   {event.last_error ? (
                     <span className="line-clamp-1 text-destructive">{event.last_error}</span>
                   ) : null}
@@ -253,7 +282,7 @@ function OutboxEvidence({
           </div>
         ) : (
           <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
-            No outbox rows were returned for this management window.
+            {t("operator.management.outbox.empty")}
           </p>
         )}
       </div>
@@ -262,9 +291,13 @@ function OutboxEvidence({
 }
 
 function AuditEvidence({ audit }: { audit: ManagementAuditListResponse }) {
+  const t = useT()
+  const locale = useLocale()
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-medium text-foreground">Recent audit rows</p>
+      <p className="text-sm font-medium text-foreground">
+        {t("operator.management.audit.recent")}
+      </p>
       {audit.audit_rows.length > 0 ? (
         <div className="grid gap-2">
           {audit.audit_rows.slice(0, 4).map((row) => (
@@ -277,12 +310,21 @@ function AuditEvidence({ audit }: { audit: ManagementAuditListResponse }) {
                   <p className="truncate font-mono text-xs text-foreground">{row.action}</p>
                   <p className="truncate text-xs text-muted-foreground">{auditLabel(row)}</p>
                 </div>
-                <Badge variant="outline">{row.actor_key_id ?? "unknown actor"}</Badge>
+                <Badge variant="outline">
+                  {row.actor_key_id ?? t("operator.management.audit.unknownActor")}
+                </Badge>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>{formatTimestamp(row.created_at)}</span>
+                <span>
+                  {formatTimestamp(row.created_at, locale) ??
+                    t("operator.management.notPublished")}
+                </span>
                 {row.idempotency_key ? (
-                  <span className="truncate font-mono">idem {row.idempotency_key}</span>
+                  <span className="truncate font-mono">
+                    {t("operator.management.audit.idempotency", {
+                      key: row.idempotency_key,
+                    })}
+                  </span>
                 ) : null}
               </div>
             </article>
@@ -290,7 +332,7 @@ function AuditEvidence({ audit }: { audit: ManagementAuditListResponse }) {
         </div>
       ) : (
         <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
-          No governance audit rows were returned for this management window.
+          {t("operator.management.audit.empty")}
         </p>
       )}
     </div>
@@ -302,17 +344,22 @@ function RuntimeProviderEvidence({
 }: {
   providers: ManagementRuntimeProviderRecord[]
 }) {
+  // Hooks run before the early return — React requires the same hook order on
+  // every render, and an empty provider list must not skip `useT`.
+  const t = useT()
   if (providers.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
-        No runtime providers were returned for this management window.
+        {t("operator.management.providers.empty")}
       </p>
     )
   }
 
   return (
     <div className="grid gap-2">
-      <p className="text-sm font-medium text-foreground">Runtime provider registry</p>
+      <p className="text-sm font-medium text-foreground">
+        {t("operator.management.providers.title")}
+      </p>
       <div className="grid gap-2 md:grid-cols-2">
         {providers.map((provider) => (
           <article
@@ -338,16 +385,20 @@ function RuntimeProviderEvidence({
             </div>
             <div className="grid gap-1 text-xs text-muted-foreground">
               <span className="tabular-nums">
-                ttl {provider.verdict_ttl_seconds}s
+                {t("operator.management.providers.ttl", {
+                  seconds: provider.verdict_ttl_seconds,
+                })}
               </span>
               <span className="truncate">
-                stale {provider.stale_behavior}; unavailable{" "}
-                {provider.unavailable_behavior}
+                {t("operator.management.providers.behavior", {
+                  stale: provider.stale_behavior,
+                  unavailable: provider.unavailable_behavior,
+                })}
               </span>
               {provider.base_url ? (
                 <span className="truncate font-mono">{provider.base_url}</span>
               ) : (
-                <span>local provider</span>
+                <span>{t("operator.management.providers.local")}</span>
               )}
             </div>
           </article>
@@ -368,6 +419,7 @@ function ManagementWorkflowSection({
   onRefresh,
   onSubmitWorkflow,
 }: ManagementWorkflowSectionProps) {
+  const t = useT()
   const [selectedId, setSelectedId] = useState(workflows[0]?.id ?? "")
   const selectedWorkflow = useMemo(
     () => workflows.find((workflow) => workflow.id === selectedId) ?? workflows[0],
@@ -380,16 +432,14 @@ function ManagementWorkflowSection({
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="grid gap-2">
           <Badge variant="outline" className="w-fit">
-            Management plane
+            {t("operator.management.plane")}
           </Badge>
           <div className="grid gap-1">
             <h2 className="text-balance text-2xl font-semibold text-foreground">
-              Govern the trust network from one operator surface.
+              {t("operator.management.headline")}
             </h2>
             <p className="max-w-3xl text-pretty text-sm leading-6 text-muted-foreground">
-              Production-like workflows write source state to Postgres, append audit
-              evidence, and enqueue propagation events before NATS subscribers see
-              any update.
+              {t("operator.management.lede")}
             </p>
           </div>
         </div>
@@ -401,7 +451,11 @@ function ManagementWorkflowSection({
           className="w-full xl:w-fit"
         >
           <RefreshCw className="size-4" />
-          {isLoading ? "Refreshing..." : "Refresh management evidence"}
+          {t(
+            isLoading
+              ? "operator.management.refreshing"
+              : "operator.management.refresh",
+          )}
         </Button>
       </div>
 
@@ -431,13 +485,15 @@ function ManagementWorkflowSection({
                     variant={workflow.state === "ready" ? "default" : "outline"}
                     className="shrink-0"
                   >
-                    {workflow.state}
+                    {t(workflowStateKeys[workflow.state])}
                   </Badge>
                 </span>
                 <span className="grid gap-1">
-                  <span className="text-base font-semibold">{workflow.title}</span>
+                  <span className="text-base font-semibold">
+                    {t(workflow.titleKey)}
+                  </span>
                   <span className="line-clamp-2 text-sm leading-5 text-muted-foreground">
-                    {workflow.description}
+                    {t(workflow.descriptionKey)}
                   </span>
                 </span>
               </button>
@@ -451,9 +507,11 @@ function ManagementWorkflowSection({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="grid gap-1">
                   <Badge variant="outline" className="w-fit">
-                    Selected workflow
+                    {t("operator.management.selected")}
                   </Badge>
-                  <h3 className="text-xl font-semibold">{selectedWorkflow.title}</h3>
+                  <h3 className="text-xl font-semibold">
+                    {t(selectedWorkflow.titleKey)}
+                  </h3>
                 </div>
                 <Badge
                   variant={selectedWorkflow.state === "ready" ? "default" : "outline"}
@@ -464,7 +522,7 @@ function ManagementWorkflowSection({
                 </Badge>
               </div>
               <p className="text-pretty text-sm leading-6 text-muted-foreground">
-                {selectedWorkflow.description}
+                {t(selectedWorkflow.descriptionKey)}
               </p>
               <p className="font-mono text-xs text-muted-foreground">
                 {selectedWorkflow.operatorRecord}

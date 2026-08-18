@@ -194,6 +194,18 @@ services:
     ports:
       - "${FRONTEND_PUBLISH_HOST:-127.0.0.1}:${FRONTEND_PUBLISH_PORT:-5173}:5173"
     volumes:
+      # Serve the working tree, not the copy baked in at build time. Without
+      # this, `npm run dev` watches the image's frozen snapshot: edits never
+      # reach the browser and a refresh looks like the change simply failed.
+      - ./frontend:/app/frontend
+      # The Dockerfile runs `npm install` under WORKDIR /app/frontend, so
+      # node_modules sits inside the mount above and the host copy would
+      # shadow it — swapping the container's Linux esbuild/rollup binaries
+      # for darwin ones. This anonymous volume keeps the image's copy.
+      # It also persists across recreates: after changing dependencies, use
+      # `docker compose up -d --force-recreate --renew-anon-volumes frontend`
+      # or the container keeps serving the old node_modules.
+      - /app/frontend/node_modules
       - ./local/https:/app/local/https:ro
 
   management-cli:

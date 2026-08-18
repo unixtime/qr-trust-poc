@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import NoReturn
 
 import httpx
 
@@ -10,7 +11,10 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_ADMIN_TOKEN = "local-lab-admin"
 
 
-def _fail(message: str) -> None:
+# `NoReturn`, not `None`: this always raises, and saying so lets a type checker
+# see that the code after a `_fail` in an except branch is unreachable rather
+# than flagging every later use of the value that branch failed to produce.
+def _fail(message: str) -> NoReturn:
     print(message, file=sys.stderr)
     raise SystemExit(1)
 
@@ -25,7 +29,29 @@ def main() -> None:
     }
 
     with httpx.Client(base_url=base_url, timeout=15.0, verify=not insecure_tls) as client:
-        status_response = client.get("/verifier/status")
+        # The first request is where a misdirected smoke actually surfaces, and
+        # httpx reports the two ways to misdirect it as bare transport errors:
+        # aimed at the wrong protocol it disconnects, aimed at a dead port it
+        # refuses. Untranslated, either arrives as a ~90-line traceback that
+        # names neither the URL it tried nor the target that would have worked.
+        try:
+            status_response = client.get("/verifier/status")
+        except httpx.RemoteProtocolError as exc:
+            # A TLS listener drops a plaintext request before writing any bytes,
+            # so there is no response to report -- this exact error, every time.
+            hint = (
+                " The compose API serves TLS when VERIFIER_TLS_ENABLED=true;"
+                " run `make smoke-compose-https` against that stack."
+                if base_url.startswith("http://")
+                else ""
+            )
+            # httpx's own message ends in a period; strip it so appending the
+            # hint does not read as an ellipsis.
+            detail = str(exc).rstrip(".")
+            _fail(f"status request to {base_url} disconnected without a response: {detail}.{hint}")
+        except httpx.ConnectError as exc:
+            _fail(f"status request to {base_url} could not connect: {exc}. Is the stack up?")
+
         if status_response.status_code != 200:
             _fail(f"status request failed: {status_response.status_code} {status_response.text}")
 

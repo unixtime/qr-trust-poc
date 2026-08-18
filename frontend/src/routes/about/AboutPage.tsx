@@ -3,33 +3,45 @@ import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Eyebrow } from "@/components/ui/eyebrow"
+import { useT, type MessageKey } from "@/i18n"
 
-const trustChecks = [
+// `id` is what React keys on. Keying on the label instead — as this did —
+// makes every card unmount and remount the moment the language changes,
+// because the key itself is the thing being translated.
+const trustChecks: {
+  id: string
+  labelKey: MessageKey
+  detailKey: MessageKey
+}[] = [
   {
-    label: "Issuer legitimacy",
-    detail: "Is the QR signed by a registered issuer key?",
+    id: "issuer",
+    labelKey: "about.check.issuer.label",
+    detailKey: "about.check.issuer.detail",
   },
   {
-    label: "Destination binding",
-    detail: "Does the destination match the issuer's approved set?",
+    id: "destination",
+    labelKey: "about.check.destination.label",
+    detailKey: "about.check.destination.detail",
   },
   {
-    label: "Runtime safety",
-    detail: "Is the destination safe to visit right now?",
+    id: "runtime",
+    labelKey: "about.check.runtime.label",
+    detailKey: "about.check.runtime.detail",
   },
   {
-    label: "Scanner decision",
-    detail: "Open, hold-to-open, or block — with the evidence attached.",
+    id: "decision",
+    labelKey: "about.check.decision.label",
+    detailKey: "about.check.decision.detail",
   },
 ]
 
-const docLinks = [
+const docLinks: { labelKey: MessageKey; href: string }[] = [
   {
-    label: "Repository README",
+    labelKey: "about.link.readme",
     href: "https://github.com/unixtime/qr-trust-poc#readme",
   },
   {
-    label: "Run guide",
+    labelKey: "about.link.runGuide",
     href: "https://github.com/unixtime/qr-trust-poc/blob/main/docs/public/RUN_GUIDE.md",
   },
 ]
@@ -39,26 +51,28 @@ type AboutPageProps = {
 }
 
 export default function AboutPage({ onNavigate }: AboutPageProps) {
+  const t = useT()
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">How it works</h1>
-        <p className="text-sm text-muted-foreground">
-          A proof of concept for QR codes a scanner can actually verify.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {t("about.title")}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t("about.subtitle")}</p>
       </header>
 
       <Card>
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-stretch sm:gap-2">
           {trustChecks.map((check, index) => (
-            <div key={check.label} className="flex flex-1 items-center gap-2">
+            <div key={check.id} className="flex flex-1 items-center gap-2">
               <div className="flex flex-1 flex-col gap-1 rounded-md border border-border bg-muted/40 p-3">
                 <Eyebrow tone="primary">
                   {index + 1}
                 </Eyebrow>
-                <span className="text-sm font-medium">{check.label}</span>
+                <span className="text-sm font-medium">{t(check.labelKey)}</span>
                 <span className="text-xs text-muted-foreground">
-                  {check.detail}
+                  {t(check.detailKey)}
                 </span>
               </div>
               {index < trustChecks.length - 1 ? (
@@ -70,34 +84,10 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
       </Card>
 
       <div className="flex flex-col gap-4 text-sm leading-6 text-foreground">
-        <p>
-          An ordinary QR code is an opaque instruction: the scanner decodes a
-          URL and opens it, trusting whoever printed the sticker. This proof of
-          concept adds a verification step in between. Every demo QR carries a
-          signed envelope, and the scanner asks a verifier to check that
-          envelope before anything opens.
-        </p>
-        <p>
-          The verifier walks the four checks above in order. Each check either
-          passes, fails, or leaves a residual — a condition the cryptography
-          alone cannot settle, such as an issuer policy that expired or a
-          destination whose runtime reputation degraded after the code was
-          printed.
-        </p>
-        <p>
-          Verdicts keep those residuals visible instead of rounding them up to
-          green: emerald means accepted, red means rejected or tampered, and
-          amber means policy-gated or runtime-degraded. An amber verdict is
-          never a positive result — it is the verifier telling you exactly
-          which trust question remains open.
-        </p>
-        <p>
-          The workflow on the landing page walks one scenario end to end: pick
-          a scenario, generate its QR, scan it, and read the verdict evidence.
-          The operator console manages the other side — issuer keys, policy,
-          and runtime posture — so you can change the rules and watch the same
-          QR produce a different decision.
-        </p>
+        <p>{t("about.body.problem")}</p>
+        <p>{t("about.body.checks")}</p>
+        <p>{t("about.body.verdicts")}</p>
+        <p>{t("about.body.tour")}</p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -105,7 +95,7 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
           data-testid="about-open-workflow"
           onClick={() => onNavigate("/")}
         >
-          Open the workflow
+          {t("about.cta.workflow")}
         </Button>
         {docLinks.map((link) => (
           <a
@@ -115,7 +105,7 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
             rel="noreferrer"
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
-            {link.label}
+            {t(link.labelKey)}
           </a>
         ))}
       </div>

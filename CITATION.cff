@@ -49,5 +49,7 @@ references:
         orcid: "https://orcid.org/0000-0001-6704-8605"
     year: 2026
     status: preprint
-    doi: "10.2139/ssrn.7225699"
+    # doi is deliberately absent. SSRN has not registered 10.2139/ssrn.7225699:
+    # it is not in Crossref and does not resolve, so publishing it here would
+    # send citation tooling to a 404. Add it once the SSRN record carries one.
     url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699"

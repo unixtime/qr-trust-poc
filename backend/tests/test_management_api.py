@@ -7,6 +7,11 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app.schemas.management_contracts import (
+    DELEGATED_AUTHORITY_ID_DETAIL,
+    ROOT_PROGRAM_ID_DETAIL,
+)
+
 
 class FakeManagementConnection:
     def __init__(self, changed_rows: int = 1) -> None:
@@ -1367,6 +1372,51 @@ def test_upsert_delegated_authority_rejects_unknown_authority_type(
     )
 
     assert response.status_code == 422
+
+
+def test_upsert_delegated_authority_rejects_unprefixed_governance_ids(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Contract-invalid ids must fail here, not three hops downstream.
+
+    These are the exact ids the operator form used to prefill. Everything else
+    in this payload is valid, so before the ids were pattern-checked the
+    mutation was accepted, persisted, and enqueued — and only the outbox
+    publisher's EventEnvelopeSchema rejected it, after the worker had burned
+    its three retries. The operator's evidence was a `failed` outbox row
+    reading "Outbox payload envelope is invalid.", with nothing tying it back
+    to the form they submitted.
+    """
+    from backend.app.core.config import config
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+
+    response = client.post(
+        "/admin/delegated-authorities",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "root_program_id": "qr-trust-local",
+            "delegated_authority_id": "acme-local-authority",
+            "name": "Acme Local Authority",
+            "authority_type": "merchant_operator",
+            "scope": {"domains": ["acme.example"]},
+            "assurance_requirements": {"domain_proof": "required"},
+        },
+    )
+
+    assert response.status_code == 422
+    # Both ids are wrong; naming only the first would send the operator round
+    # the loop twice.
+    assert "root_program_id" in response.text
+    assert "delegated_authority_id" in response.text
+    # And each says what the rule is. Pydantic's built-in `pattern=` check
+    # would answer with "String should match pattern '^(?:root:|control-plane$)'",
+    # which is the constraint expressed in the one notation an operator
+    # filling in a form is least able to act on.
+    assert ROOT_PROGRAM_ID_DETAIL in response.text
+    assert DELEGATED_AUTHORITY_ID_DETAIL in response.text
+    assert "should match pattern" not in response.text
 
 
 def test_enroll_issuer_accepts_local_admin_token(

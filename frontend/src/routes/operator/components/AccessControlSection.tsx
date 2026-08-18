@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { useT, type MessageKey } from "@/i18n"
+import { useTNodes } from "@/i18n/nodes"
 import type {
   ManagementApiKeyRecord,
   VerifierStatus,
@@ -84,10 +86,13 @@ type AccessControlSectionProps = {
   actions: AccessControlActions
 }
 
-function compactCount(value: boolean) {
-  return value ? "enabled" : "disabled"
+// Module scope evaluates once at import, so this returns a key and lets the
+// caller translate it at render time — a string here would freeze the locale.
+function compactCount(value: boolean): MessageKey {
+  return value ? "operator.value.enabled" : "operator.value.disabled"
 }
 
+// Pure formatting: no prose, so nothing to translate.
 function keyPreview(value: string) {
   if (value.length <= 18) return value
   return `${value.slice(0, 10)}…${value.slice(-8)}`
@@ -150,6 +155,7 @@ function AccessControlSection({
 }
 
 function AccessHeader({ adminFlowEnabled }: { adminFlowEnabled: boolean }) {
+  const t = useT()
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -157,15 +163,18 @@ function AccessHeader({ adminFlowEnabled }: { adminFlowEnabled: boolean }) {
           <WalletCards className="size-4" />
         </div>
         <div>
-          <CardTitle className="text-base">Access control</CardTitle>
-          <CardDescription>
-            Issue, inspect, and hand off scoped credentials without mixing them
-            into scanning.
-          </CardDescription>
+          <CardTitle className="text-base">
+            {t("operator.access.title")}
+          </CardTitle>
+          <CardDescription>{t("operator.access.description")}</CardDescription>
         </div>
       </div>
       <Badge variant={adminFlowEnabled ? "secondary" : "outline"}>
-        {adminFlowEnabled ? "admin flow enabled" : "admin flow disabled"}
+        {t(
+          adminFlowEnabled
+            ? "operator.access.adminFlow.enabled"
+            : "operator.access.adminFlow.disabled",
+        )}
       </Badge>
     </div>
   )
@@ -178,20 +187,23 @@ function AdminDisabledAlert({
   adminFlowEnabled: boolean
   apiAuthEnabled: boolean
 }) {
+  const t = useT()
+  const tNodes = useTNodes()
   if (adminFlowEnabled) return null
 
   return (
     <Alert>
-      <AlertTitle>Server-side verifier key management is disabled</AlertTitle>
+      <AlertTitle>{t("operator.access.adminDisabled.title")}</AlertTitle>
       <AlertDescription>
-        This API instance was started without local bootstrap admin tokens enabled,
-        so local token issuance is unavailable. DB-backed management keys may
-        still issue or refresh verifier client keys when the token has{" "}
-        <code>verifier_clients:write</code> or{" "}
-        <code>verifier_clients:read</code>.{" "}
-        {apiAuthEnabled
-          ? "Paste an existing verifier API key into the lab, or restart local compose with make up-admin."
-          : "Verifier auth is off, so the lab can still operate without issuing a key."}
+        {tNodes("operator.access.adminDisabled.body", {
+          writeScope: <code>verifier_clients:write</code>,
+          readScope: <code>verifier_clients:read</code>,
+        })}{" "}
+        {t(
+          apiAuthEnabled
+            ? "operator.access.adminDisabled.authOn"
+            : "operator.access.adminDisabled.authOff",
+        )}
       </AlertDescription>
     </Alert>
   )
@@ -208,23 +220,31 @@ function CredentialFields({
   adminHeader: string
   actions: AccessControlActions
 }) {
+  const t = useT()
+  const tNodes = useTNodes()
   const canCallManagementApi = adminFlowEnabled || Boolean(credentials.adminToken.trim())
   return (
     <FieldGroup className="grid gap-5 md:grid-cols-2">
       <Field>
-        <FieldLabel htmlFor="operator-admin-token">Admin token</FieldLabel>
+        <FieldLabel htmlFor="operator-admin-token">
+          {t("operator.access.adminToken.label")}
+        </FieldLabel>
         <Input
           id="operator-admin-token"
           value={credentials.adminToken}
           onChange={(event) => actions.onAdminTokenChange(event.target.value)}
-          placeholder="Verifier admin token"
+          placeholder={t("operator.access.adminToken.placeholder")}
         />
         <FieldDescription>
-          Uses the runtime’s advertised admin header: <code>{adminHeader}</code>.
+          {tNodes("operator.access.adminToken.description", {
+            header: <code>{adminHeader}</code>,
+          })}
         </FieldDescription>
       </Field>
       <Field>
-        <FieldLabel htmlFor="operator-key-label">New verifier key label</FieldLabel>
+        <FieldLabel htmlFor="operator-key-label">
+          {t("operator.access.keyLabel.label")}
+        </FieldLabel>
         <Input
           id="operator-key-label"
           value={credentials.apiKeyLabel}
@@ -248,6 +268,7 @@ function VerifierClientControls({
   hasAdminCredential: boolean
   actions: AccessControlActions
 }) {
+  const t = useT()
   const canCallManagementApi = adminFlowEnabled || hasAdminCredential
   return (
     <div className="flex flex-wrap gap-3">
@@ -256,7 +277,11 @@ function VerifierClientControls({
         disabled={verifierKeys.isIssuing || !canCallManagementApi}
       >
         <KeyRound className="size-4" />
-        {verifierKeys.isIssuing ? "Issuing…" : "Issue verifier key"}
+        {t(
+          verifierKeys.isIssuing
+            ? "operator.access.issuing"
+            : "operator.access.issueKey",
+        )}
       </Button>
       <Button
         variant="outline"
@@ -264,7 +289,11 @@ function VerifierClientControls({
         disabled={verifierKeys.isRefreshing || !canCallManagementApi}
       >
         <RefreshCw className="size-4" />
-        {verifierKeys.isRefreshing ? "Refreshing…" : "Refresh key list"}
+        {t(
+          verifierKeys.isRefreshing
+            ? "operator.access.refreshing"
+            : "operator.access.refreshKeys",
+        )}
       </Button>
       <Button
         variant="outline"
@@ -275,14 +304,18 @@ function VerifierClientControls({
         }
       >
         <Copy className="size-4" />
-        {verifierKeys.isCopying ? "Copying…" : "Copy current key"}
+        {t(
+          verifierKeys.isCopying
+            ? "operator.access.copying"
+            : "operator.access.copyKey",
+        )}
       </Button>
       <Button
         variant="outline"
         onClick={actions.onClearSharedKey}
         disabled={!verifierKeys.sharedLabKey}
       >
-        Clear shared lab key
+        {t("operator.access.clearSharedKey")}
       </Button>
     </div>
   )
@@ -295,22 +328,31 @@ function VerifierMetrics({
   runtimeStatus: VerifierStatus | null
   verifierKeys: VerifierKeyState
 }) {
+  const t = useT()
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <RuntimeMetric
-        label="Active dynamic keys"
+        label={t("operator.access.metric.activeKeys")}
         value={String(
           verifierKeys.records.filter((record) => record.status === "active")
             .length,
         )}
       />
       <RuntimeMetric
-        label="Configured auth"
-        value={runtimeStatus ? compactCount(runtimeStatus.api_key_auth_enabled) : "loading"}
+        label={t("operator.access.metric.configuredAuth")}
+        value={t(
+          runtimeStatus
+            ? compactCount(runtimeStatus.api_key_auth_enabled)
+            : "operator.value.loading",
+        )}
       />
       <RuntimeMetric
-        label="Lab preload"
-        value={verifierKeys.sharedLabKey ? "ready" : "not loaded"}
+        label={t("operator.access.metric.labPreload")}
+        value={t(
+          verifierKeys.sharedLabKey
+            ? "operator.value.ready"
+            : "operator.value.notLoaded",
+        )}
       />
     </div>
   )
@@ -323,32 +365,38 @@ function LabHandoff({
   verifierKeys: VerifierKeyState
   actions: AccessControlActions
 }) {
+  const t = useT()
   return (
     <div className="grid gap-3 rounded-[1.2rem] border border-border/70 bg-background/85 p-4">
       <div className="grid gap-1">
-        <h3 className="text-sm font-semibold text-foreground">Lab handoff</h3>
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("operator.access.handoff.title")}
+        </h3>
         <p className="text-sm leading-6 text-muted-foreground">
-          The latest verifier key can be stored in browser storage so the lab
-          route can reuse it immediately without exposing it in the URL.
+          {t("operator.access.handoff.body")}
         </p>
       </div>
       <div className="rounded-[1.2rem] border border-border/70 bg-card/80 p-3 text-sm leading-6 text-muted-foreground">
-        {verifierKeys.sharedLabKey
-          ? "A verifier API key is already staged for the lab. Return to /lab and keep the scan flow moving."
-          : "No verifier API key is staged for the lab yet. Issue a key or paste one into the lab manually if auth is enabled."}
+        {t(
+          verifierKeys.sharedLabKey
+            ? "operator.access.handoff.staged"
+            : "operator.access.handoff.notStaged",
+        )}
       </div>
       <div className="grid min-w-0 gap-3">
         <Button className="w-full min-w-0 justify-center" onClick={actions.onNavigateLab}>
-          Open lab with current browser key
+          {t("operator.access.handoff.open")}
           <ArrowRight className="size-4" />
         </Button>
         {verifierKeys.latestIssuedKey ? (
           <div className="min-w-0 rounded-[1.2rem] border border-border/70 bg-card/80 p-3 text-xs leading-6 text-muted-foreground">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
               <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                Staged lab key
+                {t("operator.access.handoff.stagedKey")}
               </div>
-              <Badge variant="secondary">browser only</Badge>
+              <Badge variant="secondary">
+                {t("operator.access.handoff.browserOnly")}
+              </Badge>
             </div>
             <div
               className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-foreground"
@@ -357,8 +405,7 @@ function LabHandoff({
               {keyPreview(verifierKeys.latestIssuedKey)}
             </div>
             <div className="mt-1 text-[11px] leading-5 text-muted-foreground">
-              Full value stays in browser storage. Use “Copy current key” above
-              when you need it.
+              {t("operator.access.handoff.stagedKeyNote")}
             </div>
           </div>
         ) : null}
@@ -376,19 +423,18 @@ function VerifierKeyInventory({
   hasAdminCredential: boolean
   records: ManagementApiKeyRecord[]
 }) {
+  const t = useT()
   const canCallManagementApi = adminFlowEnabled || hasAdminCredential
   return (
     <ScrollArea className="h-[300px] rounded-[1.2rem] border border-border/70 bg-background/80">
       <div className="grid gap-3 p-3">
         {!canCallManagementApi ? (
           <InventoryEmptyState>
-            Dynamic key inventory is unavailable because the server is not
-            exposing verifier key management on this runtime.
+            {t("operator.access.inventory.unavailable")}
           </InventoryEmptyState>
         ) : records.length === 0 ? (
           <InventoryEmptyState>
-            No dynamic keys loaded yet. Issue or refresh to populate the verifier
-            key inventory.
+            {t("operator.access.inventory.empty")}
           </InventoryEmptyState>
         ) : (
           records.map((record) => <VerifierKeyRow key={record.key_id} record={record} />)
@@ -399,6 +445,7 @@ function VerifierKeyInventory({
 }
 
 function VerifierKeyRow({ record }: { record: ManagementApiKeyRecord }) {
+  const t = useT()
   const isActive = record.status === "active"
   return (
     <div className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-card/90 p-3">
@@ -414,7 +461,7 @@ function VerifierKeyRow({ record }: { record: ManagementApiKeyRecord }) {
         {record.key_id}
       </div>
       <div className="mt-2 break-all text-[11px] leading-5 text-muted-foreground">
-        Postgres management · {record.created_at}
+        {t("operator.access.keyRow.source", { createdAt: record.created_at })}
       </div>
       <div className="mt-1 flex flex-wrap gap-2">
         {record.scopes.map((scope) => (
@@ -456,21 +503,21 @@ function ManagementKeyPanel({
 }
 
 function ManagementKeyHeader() {
+  const t = useT()
   return (
     <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
       <div className="grid gap-1">
         <div className="flex items-center gap-2">
           <ShieldCheck className="size-4 text-trust-green" />
           <h3 className="text-sm font-semibold text-foreground">
-            Management API keys
+            {t("operator.access.management.title")}
           </h3>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">
-          Issue scoped operator credentials for the management API. These keys
-          are audited, revocable, and separate from lab verifier keys.
+          {t("operator.access.management.body")}
         </p>
       </div>
-      <Badge variant="outline">Postgres authority</Badge>
+      <Badge variant="outline">{t("operator.access.management.badge")}</Badge>
     </div>
   )
 }
@@ -482,11 +529,12 @@ function ManagementKeyFields({
   credentials: CredentialState
   actions: AccessControlActions
 }) {
+  const t = useT()
   return (
     <FieldGroup className="grid gap-4 md:grid-cols-2">
       <Field>
         <FieldLabel htmlFor="operator-management-key-label">
-          Management key label
+          {t("operator.access.management.labelField")}
         </FieldLabel>
         <Input
           id="operator-management-key-label"
@@ -496,7 +544,9 @@ function ManagementKeyFields({
         />
       </Field>
       <Field>
-        <FieldLabel htmlFor="operator-management-key-scopes">Scopes</FieldLabel>
+        <FieldLabel htmlFor="operator-management-key-scopes">
+          {t("operator.access.management.scopesField")}
+        </FieldLabel>
         <Input
           id="operator-management-key-scopes"
           value={credentials.managementKeyScopes}
@@ -504,7 +554,7 @@ function ManagementKeyFields({
           placeholder="audit:read, outbox:read"
         />
         <FieldDescription>
-          Comma-separated. Verifier client scope is intentionally rejected.
+          {t("operator.access.management.scopesDescription")}
         </FieldDescription>
       </Field>
     </FieldGroup>
@@ -520,6 +570,7 @@ function ManagementKeyActions({
   managementKeys: ManagementKeyState
   actions: AccessControlActions
 }) {
+  const t = useT()
   const hasAdminToken = Boolean(adminToken.trim())
   return (
     <div className="flex flex-wrap gap-3">
@@ -529,7 +580,11 @@ function ManagementKeyActions({
         disabled={managementKeys.isIssuing || !hasAdminToken}
       >
         <ShieldCheck className="size-4" />
-        {managementKeys.isIssuing ? "Issuing…" : "Issue management key"}
+        {t(
+          managementKeys.isIssuing
+            ? "operator.access.issuing"
+            : "operator.access.management.issue",
+        )}
       </Button>
       <Button
         type="button"
@@ -538,7 +593,11 @@ function ManagementKeyActions({
         disabled={managementKeys.isRefreshing || !hasAdminToken}
       >
         <RefreshCw className="size-4" />
-        {managementKeys.isRefreshing ? "Refreshing…" : "Refresh management keys"}
+        {t(
+          managementKeys.isRefreshing
+            ? "operator.access.refreshing"
+            : "operator.access.management.refresh",
+        )}
       </Button>
       <Button
         type="button"
@@ -547,22 +606,27 @@ function ManagementKeyActions({
         disabled={managementKeys.isCopying || !managementKeys.latestIssuedKey}
       >
         <Copy className="size-4" />
-        {managementKeys.isCopying ? "Copying…" : "Copy issued management key"}
+        {t(
+          managementKeys.isCopying
+            ? "operator.access.copying"
+            : "operator.access.management.copy",
+        )}
       </Button>
     </div>
   )
 }
 
 function ManagementPlaintextNotice({ plaintextKey }: { plaintextKey: string }) {
+  const t = useT()
   if (!plaintextKey) return null
 
   return (
     <div className="min-w-0 rounded-[1.2rem] border border-trust-green/30 bg-trust-green/10 p-3 text-xs leading-6 text-foreground">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="text-[11px] font-medium uppercase tracking-[0.16em]">
-          One-time plaintext
+          {t("operator.access.plaintext.title")}
         </div>
-        <Badge variant="secondary">copy now</Badge>
+        <Badge variant="secondary">{t("operator.access.plaintext.badge")}</Badge>
       </div>
       <div
         className="mt-2 max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px]"
@@ -571,7 +635,7 @@ function ManagementPlaintextNotice({ plaintextKey }: { plaintextKey: string }) {
         {keyPreview(plaintextKey)}
       </div>
       <div className="mt-1 text-[11px] leading-5">
-        This value is not shown again by management-key list or audit views.
+        {t("operator.access.plaintext.note")}
       </div>
     </div>
   )
@@ -586,13 +650,13 @@ function ManagementKeyInventory({
   managementKeys: ManagementKeyState
   actions: AccessControlActions
 }) {
+  const t = useT()
   return (
     <ScrollArea className="h-[220px] rounded-[1.2rem] border border-border/70 bg-card/80">
       <div className="grid gap-3 p-3">
         {managementKeys.records.length === 0 ? (
           <InventoryEmptyState>
-            No management keys loaded yet. Issue or refresh to inspect scoped
-            operator credentials.
+            {t("operator.access.management.inventoryEmpty")}
           </InventoryEmptyState>
         ) : (
           managementKeys.records.map((record) => (
@@ -621,6 +685,7 @@ function ManagementKeyRow({
   revokingKeyId: string
   onRevoke: (keyId: string) => void
 }) {
+  const t = useT()
   const isActive = record.status === "active"
   return (
     <div className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-background/90 p-3">
@@ -652,7 +717,11 @@ function ManagementKeyRow({
           onClick={() => onRevoke(record.key_id)}
         >
           <Trash2 className="size-3.5" />
-          {revokingKeyId === record.key_id ? "Revoking…" : "Revoke"}
+          {t(
+            revokingKeyId === record.key_id
+              ? "operator.access.management.revoking"
+              : "operator.access.management.revoke",
+          )}
         </Button>
       </div>
     </div>

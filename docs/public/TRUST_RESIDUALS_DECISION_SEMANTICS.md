@@ -170,4 +170,4 @@ arm of every profile-conditional rule.
 ## Papers
 
 - Paper 1 — [QR Navigation Security Is Not Primarily a Cryptography Problem](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478) (SSRN, DOI 10.2139/ssrn.6577478): the trust-model argument.
-- Paper 2 — [Trust Residuals for Navigation QR Codes: Decision Semantics for Issuer, Destination, and Runtime Safety State](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699) (SSRN, DOI 10.2139/ssrn.7225699): the decision semantics this page summarizes.
+- Paper 2 — [Trust Residuals for Navigation QR Codes: Decision Semantics for Issuer, Destination, and Runtime Safety State](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7225699) (SSRN 7225699): the decision semantics this page summarizes.

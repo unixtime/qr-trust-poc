@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Eyebrow } from "@/components/ui/eyebrow"
+import { useT } from "@/i18n"
 import { qrImageDataUrl } from "@/lib/verifier-client"
 import type { QrDisplayModalProps } from "@/routes/lab/types"
 import { cn } from "@/lib/utils"
@@ -27,6 +28,10 @@ function QrDisplayModal({
   onToggleHighContrast,
   onEnterFullscreen,
 }: QrDisplayModalProps) {
+  // Before the early return: a hook after a conditional `return` runs on some
+  // renders and not others, which is the one thing the hook rules forbid.
+  const t = useT()
+
   if (!open || !demo) return null
 
   return (
@@ -42,21 +47,19 @@ function QrDisplayModal({
           <div className="grid content-start gap-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <Eyebrow as="div">
-                  Fullscreen QR display
-                </Eyebrow>
+                <Eyebrow as="div">{t("lab.qrModal.eyebrow")}</Eyebrow>
                 <div className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Use this as the display surface only. Scan it from a second device running the verifier workbench.
+                  {t("lab.qrModal.subtitle")}
                 </div>
               </div>
               <Button variant="outline" onClick={onClose}>
-                Close
+                {t("lab.qrModal.close")}
               </Button>
             </div>
 
             <img
               src={qrImageDataUrl(demo.qr_png_base64)}
-              alt="Fullscreen verifier QR"
+              alt={t("lab.qrModal.qrAlt")}
               className={cn(
                 "aspect-square w-full rounded-[2rem] border p-4 md:p-6",
                 highContrast
@@ -68,25 +71,19 @@ function QrDisplayModal({
             {showMetadata ? (
               <div className="grid gap-4 rounded-[1.4rem] border border-border/70 bg-background/80 p-5 md:grid-cols-3">
                 <div>
-                  <Eyebrow as="div">
-                    Scenario
-                  </Eyebrow>
+                  <Eyebrow as="div">{t("lab.qrModal.meta.scenario")}</Eyebrow>
                   <div className="mt-2 text-lg font-medium text-foreground">
                     {currentScenarioLabel}
                   </div>
                 </div>
                 <div>
-                  <Eyebrow as="div">
-                    Nonce
-                  </Eyebrow>
+                  <Eyebrow as="div">{t("lab.qrModal.meta.nonce")}</Eyebrow>
                   <div className="mt-2 break-all text-sm font-medium text-foreground">
                     {demo.verify_request.envelope.claims.nonce}
                   </div>
                 </div>
                 <div>
-                  <Eyebrow as="div">
-                    Payload
-                  </Eyebrow>
+                  <Eyebrow as="div">{t("lab.qrModal.meta.payload")}</Eyebrow>
                   <div className="mt-2 break-all text-sm font-medium text-foreground">
                     {demo.verify_request.envelope.claims.payload}
                   </div>
@@ -98,28 +95,34 @@ function QrDisplayModal({
           <div className="grid content-start gap-4">
             <Card className="border-border/70 bg-background/80 shadow-none">
               <CardHeader>
-                <CardTitle className="text-base">Display controls</CardTitle>
+                <CardTitle className="text-base">
+                  {t("lab.qrModal.controls.title")}
+                </CardTitle>
                 <CardDescription>
-                  Reduce noise and push the QR container into fullscreen when the browser allows it.
+                  {t("lab.qrModal.controls.description")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
                 <Button variant="outline" onClick={onToggleMetadata}>
                   <QrCode data-icon="inline-start" />
-                  {showMetadata ? "Hide metadata" : "Show metadata"}
+                  {showMetadata
+                    ? t("lab.qrModal.controls.hideMetadata")
+                    : t("lab.qrModal.controls.showMetadata")}
                 </Button>
                 <Button variant="outline" onClick={onToggleHighContrast}>
                   <CircleAlert data-icon="inline-start" />
-                  {highContrast ? "Disable high contrast" : "Enable high contrast"}
+                  {highContrast
+                    ? t("lab.qrModal.controls.disableHighContrast")
+                    : t("lab.qrModal.controls.enableHighContrast")}
                 </Button>
                 <Button onClick={onEnterFullscreen}>
                   <Expand data-icon="inline-start" />
-                  Enter fullscreen
+                  {t("lab.qrModal.controls.enterFullscreen")}
                 </Button>
                 {error ? (
                   <Alert>
                     <CircleAlert />
-                    <AlertTitle>Fullscreen request failed</AlertTitle>
+                    <AlertTitle>{t("lab.qrModal.controls.failed")}</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 ) : null}
@@ -128,9 +131,11 @@ function QrDisplayModal({
 
             <Card className="border-border/70 bg-background/80 shadow-none">
               <CardHeader>
-                <CardTitle className="text-base">Second-screen rule</CardTitle>
+                <CardTitle className="text-base">
+                  {t("lab.qrModal.secondScreen.title")}
+                </CardTitle>
                 <CardDescription>
-                  This overlay only displays the QR. The verifier still runs in the main workbench on the other device.
+                  {t("lab.qrModal.secondScreen.description")}
                 </CardDescription>
               </CardHeader>
             </Card>

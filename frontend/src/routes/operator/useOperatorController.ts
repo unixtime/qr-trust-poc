@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react"
 
+import { t, type MessageKey } from "@/i18n"
 import {
   clearStoredVerifierApiKey,
   type DelegatedAuthorityUpsertResponse,
@@ -50,16 +51,16 @@ function summariseError(error: unknown) {
   if (error instanceof Error) {
     return error.message
   }
-  return "The verifier request failed."
+  return t("operator.error.requestFailed")
 }
 
 async function copyText(value: string) {
   if (!value.trim()) {
-    throw new Error("There is no key value to copy yet.")
+    throw new Error(t("operator.copy.noValue"))
   }
 
   if (!navigator.clipboard?.writeText) {
-    throw new Error("Clipboard access is unavailable in this browser.")
+    throw new Error(t("operator.copy.clipboardUnavailable"))
   }
 
   await navigator.clipboard.writeText(value)
@@ -110,15 +111,18 @@ export function useOperatorController() {
   const apiAuthEnabled = Boolean(runtimeStatus?.api_key_auth_enabled)
   const adminFlowEnabled = Boolean(runtimeStatus?.admin_api_key_management_enabled)
 
-  const runtimeSummary = useMemo(() => {
-    if (!runtimeStatus) return "Loading live verifier posture."
+  // A key, not a translated string: the memo is keyed on `runtimeStatus` alone,
+  // so a resolved string would survive a locale switch and keep the card in the
+  // language that happened to be active when the status last changed.
+  const runtimeSummaryKey = useMemo<MessageKey>(() => {
+    if (!runtimeStatus) return "operator.summary.loading"
     if (!runtimeStatus.api_key_auth_enabled) {
-      return "Verifier auth is disabled on this runtime. The lab can operate without a client key."
+      return "operator.summary.authDisabled"
     }
     if (!runtimeStatus.admin_api_key_management_enabled) {
-      return "Verifier auth is enabled, but admin key issuance is disabled. Engineers must paste an existing client key into the lab."
+      return "operator.summary.adminDisabled"
     }
-    return "Verifier auth and admin key issuance are both enabled. Issue a key here, then return to the lab with a shared browser-side key."
+    return "operator.summary.ready"
   }, [runtimeStatus])
 
   async function loadRuntimeStatus({ reportErrors = true } = {}) {
@@ -135,7 +139,7 @@ export function useOperatorController() {
     } catch (error) {
       if (reportErrors) {
         setStatusMessage({
-          title: "Runtime status failed",
+          title: t("operator.status.failed.title"),
           body: summariseError(error),
           tone: "blocked",
         })
@@ -169,8 +173,8 @@ export function useOperatorController() {
   async function refreshKeys() {
     if (!adminToken.trim()) {
       setAccessMessage({
-        title: "Admin token missing",
-        body: "Provide the verifier admin token before refreshing the dynamic key inventory.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.refreshKeys"),
         tone: "blocked",
       })
       return
@@ -187,13 +191,15 @@ export function useOperatorController() {
       )
       setApiKeys(response.records)
       setAccessMessage({
-        title: "Key inventory refreshed",
-        body: `Loaded ${response.records.length} DB-backed verifier client key records from the management API.`,
+        title: t("operator.keys.refreshed.title"),
+        body: t("operator.keys.refreshed.body", {
+          count: response.records.length,
+        }),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Key refresh failed",
+        title: t("operator.keys.refreshFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -205,8 +211,8 @@ export function useOperatorController() {
   async function refreshManagementKeys() {
     if (!adminToken.trim()) {
       setAccessMessage({
-        title: "Admin token missing",
-        body: "Provide a management credential before refreshing management keys.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.refreshManagementKeys"),
         tone: "blocked",
       })
       return
@@ -223,13 +229,15 @@ export function useOperatorController() {
       )
       setManagementKeys(response.records)
       setAccessMessage({
-        title: "Management keys refreshed",
-        body: `Loaded ${response.records.length} DB-backed management key records.`,
+        title: t("operator.managementKeys.refreshed.title"),
+        body: t("operator.managementKeys.refreshed.body", {
+          count: response.records.length,
+        }),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Management key refresh failed",
+        title: t("operator.managementKeys.refreshFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -242,8 +250,8 @@ export function useOperatorController() {
     if (managementEvidenceInFlightRef.current) return
     if (!adminToken.trim()) {
       setManagementMessage({
-        title: "Admin token missing",
-        body: "Provide the verifier admin token before loading management evidence.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.managementEvidence"),
         tone: "blocked",
       })
       return
@@ -294,7 +302,7 @@ export function useOperatorController() {
         .filter(Boolean)
       if (errors.length > 0 && reportErrors) {
         setManagementMessage({
-          title: "Management evidence partially unavailable",
+          title: t("operator.evidence.partial.title"),
           body: errors.join(" "),
           tone: "blocked",
         })
@@ -310,8 +318,8 @@ export function useOperatorController() {
   async function issueKey() {
     if (!adminToken.trim()) {
       setAccessMessage({
-        title: "Admin token missing",
-        body: "Provide the verifier admin token before issuing a client key.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.issueKey"),
         tone: "blocked",
       })
       return
@@ -336,14 +344,14 @@ export function useOperatorController() {
         ...current.filter((record) => record.key_id !== response.record.key_id),
       ])
       setAccessMessage({
-        title: "Verifier key issued",
-        body: `Key ${response.record.label} is active. It has been stored in the browser so the lab can reuse it immediately.`,
+        title: t("operator.keys.issued.title"),
+        body: t("operator.keys.issued.body", { label: response.record.label }),
         tone: "success",
       })
       await loadRuntimeStatus()
     } catch (error) {
       setAccessMessage({
-        title: "Key issue failed",
+        title: t("operator.keys.issueFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -355,8 +363,8 @@ export function useOperatorController() {
   async function issueManagementKey() {
     if (!adminToken.trim()) {
       setAccessMessage({
-        title: "Admin token missing",
-        body: "Provide a management credential before issuing a management key.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.issueManagementKey"),
         tone: "blocked",
       })
       return
@@ -368,8 +376,8 @@ export function useOperatorController() {
       .filter(Boolean)
     if (scopes.length === 0) {
       setAccessMessage({
-        title: "Management scopes missing",
-        body: "Add at least one scope before issuing a management key.",
+        title: t("operator.scopes.missing.title"),
+        body: t("operator.scopes.missing.body"),
         tone: "blocked",
       })
       return
@@ -396,13 +404,13 @@ export function useOperatorController() {
         ...current.filter((record) => record.key_id !== response.record.key_id),
       ])
       setAccessMessage({
-        title: "Management key issued",
-        body: "Copy this key now. The plaintext value is not returned by list or audit views.",
+        title: t("operator.managementKeys.issued.title"),
+        body: t("operator.managementKeys.issued.body"),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Management key issue failed",
+        title: t("operator.managementKeys.issueFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -417,8 +425,8 @@ export function useOperatorController() {
   ) {
     if (!adminToken.trim()) {
       setManagementMessage({
-        title: "Admin token missing",
-        body: "Provide a management credential before running operator workflows.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.runWorkflow"),
         tone: "blocked",
       })
       return
@@ -427,7 +435,11 @@ export function useOperatorController() {
     setIsSubmittingManagementWorkflow(true)
     setSubmittingManagementWorkflowId(workflowId)
     try {
-      let body = "The management mutation was accepted."
+      // Every branch reports the same shape — subject, resulting status, queued
+      // event — so they share two catalog entries instead of eight. Eight
+      // separate English sentences would have been translated eight times and
+      // drifted apart; one key cannot.
+      let body = t("operator.workflow.accepted")
 
       if (workflowId === "authority-setup") {
         const setupPayload = payload as AuthoritySetupPayload
@@ -450,7 +462,10 @@ export function useOperatorController() {
               body: setupPayload.delegated_authority,
             },
           )
-        body = `${rootResponse.event_type} and ${authorityResponse.event_type} were recorded.`
+        body = t("operator.workflow.authorityRecorded", {
+          rootEvent: rootResponse.event_type,
+          authorityEvent: authorityResponse.event_type,
+        })
       } else if (workflowId === "trust-keys") {
         const trustKeyPayload = payload as TrustKeyWorkflowPayload
         const response = await requestJson<TrustKeyMutationResponse>(
@@ -462,7 +477,16 @@ export function useOperatorController() {
             body: trustKeyPayload.trust_key,
           },
         )
-        let statusSuffix = ""
+        // Sentences are collected and joined here rather than concatenated with
+        // a leading space inside a catalog string — a translator (human or
+        // machine) will not reliably preserve leading whitespace.
+        const sentences = [
+          t("operator.workflow.queued", {
+            subject: response.key_id,
+            status: response.key_status,
+            event: response.event_type,
+          }),
+        ]
         if (trustKeyPayload.status_update) {
           const statusResponse = await requestJson<TrustKeyMutationResponse>(
             "/admin/trust-keys/status",
@@ -473,9 +497,14 @@ export function useOperatorController() {
               body: trustKeyPayload.status_update,
             },
           )
-          statusSuffix = ` ${statusResponse.event_type} set ${statusResponse.key_status}.`
+          sentences.push(
+            t("operator.workflow.statusSet", {
+              event: statusResponse.event_type,
+              status: statusResponse.key_status,
+            }),
+          )
         }
-        body = `${response.key_id} is ${response.key_status}; ${response.event_type} was queued.${statusSuffix}`
+        body = sentences.join(" ")
       } else if (workflowId === "issuer-enrollment") {
         const response = await requestJson<IssuerEnrollmentResponse>(
           "/admin/issuers",
@@ -486,7 +515,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.issuer_id} is ${response.enrollment_status}; ${response.event_type} was queued.`
+        body = t("operator.workflow.queued", {
+          subject: response.issuer_id,
+          status: response.enrollment_status,
+          event: response.event_type,
+        })
       } else if (workflowId === "issuer-status") {
         const response = await requestJson<IssuerStatusUpdateResponse>(
           "/admin/issuers/status",
@@ -497,7 +530,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.issuer_id} is now ${response.enrollment_status}; ${response.event_type} was queued.`
+        body = t("operator.workflow.queuedNow", {
+          subject: response.issuer_id,
+          status: response.enrollment_status,
+          event: response.event_type,
+        })
       } else if (workflowId === "domain-proof") {
         const response = await requestJson<DomainProofUpsertResponse>(
           "/admin/domain-proofs",
@@ -508,7 +545,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.domain} is ${response.verification_status}; ${response.event_type} was queued.`
+        body = t("operator.workflow.queued", {
+          subject: response.domain,
+          status: response.verification_status,
+          event: response.event_type,
+        })
       } else if (workflowId === "destination-policy") {
         const response = await requestJson<DestinationPolicyUpsertResponse>(
           "/admin/destination-policies",
@@ -519,7 +560,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.destination_policy_id} is ${response.status}; required hosts: ${response.required_hosts.join(", ")}.`
+        body = t("operator.workflow.policyHosts", {
+          subject: response.destination_policy_id,
+          status: response.status,
+          hosts: response.required_hosts.join(", "),
+        })
       } else if (workflowId === "policy-status") {
         const response =
           await requestJson<DestinationPolicyStatusUpdateResponse>(
@@ -531,7 +576,11 @@ export function useOperatorController() {
               body: payload,
             },
           )
-        body = `${response.destination_policy_id} is now ${response.status}; ${response.event_type} was queued.`
+        body = t("operator.workflow.queuedNow", {
+          subject: response.destination_policy_id,
+          status: response.status,
+          event: response.event_type,
+        })
       } else if (workflowId === "runtime-providers") {
         const response = await requestJson<RuntimeProviderUpsertResponse>(
           "/admin/runtime-providers",
@@ -542,7 +591,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.provider_id} is ${response.status}; ${response.event_type} was queued.`
+        body = t("operator.workflow.queued", {
+          subject: response.provider_id,
+          status: response.status,
+          event: response.event_type,
+        })
       } else if (workflowId === "nats-subscribers") {
         const response = await requestJson<NatsSubscriberAuthorizationResponse>(
           "/admin/nats/subscribers",
@@ -553,7 +606,11 @@ export function useOperatorController() {
             body: payload,
           },
         )
-        body = `${response.subscriber_id} is ${response.status}; ${response.subjects.length} subject rule(s) are approved.`
+        body = t("operator.workflow.subscriberRules", {
+          subject: response.subscriber_id,
+          status: response.status,
+          count: response.subjects.length,
+        })
       } else if (workflowId === "outbox-health") {
         const response =
           await requestJson<ManagementOutboxEventRemediationResponse>(
@@ -565,20 +622,24 @@ export function useOperatorController() {
               body: payload,
             },
           )
-        body = `${response.event_id} is now ${response.publish_status}; attempts ${response.attempts}.`
+        body = t("operator.workflow.outboxAttempts", {
+          subject: response.event_id,
+          status: response.publish_status,
+          attempts: response.attempts,
+        })
       } else {
-        throw new Error("This management workflow is read-only.")
+        throw new Error(t("operator.workflow.readOnly"))
       }
 
       setManagementMessage({
-        title: "Management workflow recorded",
+        title: t("operator.workflow.recorded.title"),
         body,
         tone: "success",
       })
       await loadManagementEvidence({ reportErrors: false })
     } catch (error) {
       setManagementMessage({
-        title: "Management workflow failed",
+        title: t("operator.workflow.failed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -591,8 +652,8 @@ export function useOperatorController() {
   async function revokeManagementKey(keyId: string) {
     if (!adminToken.trim()) {
       setAccessMessage({
-        title: "Admin token missing",
-        body: "Provide a management credential before revoking a management key.",
+        title: t("operator.adminToken.missing.title"),
+        body: t("operator.adminToken.missing.revokeManagementKey"),
         tone: "blocked",
       })
       return
@@ -618,13 +679,15 @@ export function useOperatorController() {
         setLatestIssuedManagementKeyId("")
       }
       setAccessMessage({
-        title: "Management key revoked",
-        body: `${response.record.label} is no longer accepted by the management API.`,
+        title: t("operator.managementKeys.revoked.title"),
+        body: t("operator.managementKeys.revoked.body", {
+          label: response.record.label,
+        }),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Management key revoke failed",
+        title: t("operator.managementKeys.revokeFailed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -638,13 +701,13 @@ export function useOperatorController() {
     try {
       await copyText(latestIssuedKey || sharedLabKey)
       setAccessMessage({
-        title: "Key copied",
-        body: "The current verifier key is now in your clipboard.",
+        title: t("operator.copy.key.title"),
+        body: t("operator.copy.key.body"),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Copy failed",
+        title: t("operator.copy.failed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -658,13 +721,13 @@ export function useOperatorController() {
     try {
       await copyText(latestIssuedManagementKey)
       setAccessMessage({
-        title: "Management key copied",
-        body: "The one-time plaintext management key is now in your clipboard.",
+        title: t("operator.copy.managementKey.title"),
+        body: t("operator.copy.managementKey.body"),
         tone: "success",
       })
     } catch (error) {
       setAccessMessage({
-        title: "Copy failed",
+        title: t("operator.copy.failed.title"),
         body: summariseError(error),
         tone: "blocked",
       })
@@ -678,15 +741,15 @@ export function useOperatorController() {
     setSharedLabKey("")
     if (!latestIssuedKey) {
       setAccessMessage({
-        title: "Shared key cleared",
-        body: "The lab will no longer preload a verifier API key from browser storage.",
+        title: t("operator.sharedKey.cleared.title"),
+        body: t("operator.sharedKey.cleared.body"),
         tone: "neutral",
       })
       return
     }
     setAccessMessage({
-      title: "Shared lab key cleared",
-      body: "The latest issued key still appears below for inspection, but it will no longer preload into the lab.",
+      title: t("operator.sharedKey.clearedWithIssued.title"),
+      body: t("operator.sharedKey.clearedWithIssued.body"),
       tone: "neutral",
     })
   }
@@ -723,7 +786,7 @@ export function useOperatorController() {
     adminHeader,
     apiAuthEnabled,
     adminFlowEnabled,
-    runtimeSummary,
+    runtimeSummaryKey,
     setAdminToken,
     setApiKeyLabel,
     setManagementKeyLabel,

@@ -72,10 +72,14 @@ validation:
     not_found: warn
     absolute_links: info
   links:
-    # Repo-relative links to source, policies, and CITATION.cff legitimately
-    # leave docs_dir. The release exporter validates those links against the
-    # complete public tree; MkDocs can only validate targets under docs/.
-    not_found: info
+    # warn is an error under --strict, so a link to a missing doc file fails
+    # the build. Repo-relative links to source, policies, and CITATION.cff
+    # legitimately leave docs_dir; the mkdocs_source_pages hook rewrites them
+    # to the trailing-slash routes it generates, which have no extension and so
+    # reach unrecognized_links rather than not_found. MkDocs cannot check those
+    # -- their targets exist only once the build has written them -- so
+    # check_docs_links.py validates them against the built tree instead.
+    not_found: warn
     anchors: warn
     absolute_links: relative_to_docs
     unrecognized_links: info

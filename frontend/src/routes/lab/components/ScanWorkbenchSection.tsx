@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useT, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 import DecisionPanel from "@/routes/lab/components/DecisionPanel"
 import StatusPanel from "@/routes/lab/components/StatusPanel"
@@ -76,11 +77,14 @@ function scannerDecisionTone(decision: ScanDecision) {
   return "neutral"
 }
 
-function scannerDecisionLabel(decision: ScanDecision) {
+// These helpers run at module scope, so they must return catalog keys rather
+// than translated strings — a string resolved here would be fixed at import
+// time and never follow a locale change.
+function scannerDecisionLabelKey(decision: ScanDecision): MessageKey {
   const riskLevel = scannerRiskLevel(decision)
-  if (riskLevel === "green") return "Verified QR"
-  if (riskLevel === "red") return "Blocked QR"
-  return "Use caution"
+  if (riskLevel === "green") return "lab.scanner.verdict.verified"
+  if (riskLevel === "red") return "lab.scanner.verdict.blocked"
+  return "lab.scanner.verdict.caution"
 }
 
 function formatDecisionValue(value: string) {
@@ -91,119 +95,127 @@ function formatReasonCode(value: string) {
   return value.replaceAll("_", " ")
 }
 
-const reasonCopy: Record<string, { label: string; detail: string }> = {
+// The record keys are verifier reason codes off the wire and never change with
+// locale; only the label and detail they point at do.
+const reasonCopy = {
   caption_domain_mismatch: {
-    label: "Caption mismatch",
-    detail: "The visible text names a different domain than the QR destination.",
+    labelKey: "lab.reason.captionDomainMismatch.label",
+    detailKey: "lab.reason.captionDomainMismatch.detail",
   },
   destination_mismatch: {
-    label: "Destination changed",
-    detail: "The QR points outside the destination policy approved by the issuer.",
+    labelKey: "lab.reason.destinationMismatch.label",
+    detailKey: "lab.reason.destinationMismatch.detail",
   },
   embedded_credentials: {
-    label: "Embedded credentials",
-    detail: "The URL includes account-like text before the host, which can hide the real destination.",
+    labelKey: "lab.reason.embeddedCredentials.label",
+    detailKey: "lab.reason.embeddedCredentials.detail",
   },
   https_absent: {
-    label: "No HTTPS",
-    detail: "The destination is not using HTTPS, so transport protection is absent.",
+    labelKey: "lab.reason.httpsAbsent.label",
+    detailKey: "lab.reason.httpsAbsent.detail",
   },
   issuer_unknown: {
-    label: "Unknown issuer",
-    detail: "A signed QR was found, but this verifier does not recognize the issuer.",
+    labelKey: "lab.reason.issuerUnknown.label",
+    detailKey: "lab.reason.issuerUnknown.detail",
   },
   known_bad_domain: {
-    label: "Known-bad domain",
-    detail: "The destination matched a local or provider-supplied bad-domain hint.",
+    labelKey: "lab.reason.knownBadDomain.label",
+    detailKey: "lab.reason.knownBadDomain.detail",
   },
   net_new_domain: {
-    label: "New destination",
-    detail: "This domain has not been seen on this device during the current demo.",
+    labelKey: "lab.reason.netNewDomain.label",
+    detailKey: "lab.reason.netNewDomain.detail",
   },
   newly_registered_domain: {
-    label: "New domain",
-    detail: "The destination matched a new-domain hint or a very recent domain age.",
+    labelKey: "lab.reason.newlyRegisteredDomain.label",
+    detailKey: "lab.reason.newlyRegisteredDomain.detail",
   },
   one_time_used: {
-    label: "One-time QR used",
-    detail: "This QR appears to be a one-time code that has already been consumed.",
+    labelKey: "lab.reason.oneTimeUsed.label",
+    detailKey: "lab.reason.oneTimeUsed.detail",
   },
   plain_url: {
-    label: "Normal link",
-    detail: "The QR contains a plain URL without a recognized QR Trust envelope.",
+    labelKey: "lab.reason.plainUrl.label",
+    detailKey: "lab.reason.plainUrl.detail",
   },
   redirect_chain: {
-    label: "Redirect chain",
-    detail: "The QR uses more than one redirect hop before the final destination.",
+    labelKey: "lab.reason.redirectChain.label",
+    detailKey: "lab.reason.redirectChain.detail",
   },
   redirect_policy_block: {
-    label: "Redirect policy block",
-    detail: "The final redirect target is outside the issuer-approved policy.",
+    labelKey: "lab.reason.redirectPolicyBlock.label",
+    detailKey: "lab.reason.redirectPolicyBlock.detail",
   },
   runtime_blocked: {
-    label: "Runtime block",
-    detail: "Present-time safety checks blocked this destination.",
+    labelKey: "lab.reason.runtimeBlocked.label",
+    detailKey: "lab.reason.runtimeBlocked.detail",
   },
   runtime_risky: {
-    label: "Runtime risk",
-    detail: "The issuer is recognized, but current safety checks reported risk.",
+    labelKey: "lab.reason.runtimeRisky.label",
+    detailKey: "lab.reason.runtimeRisky.detail",
   },
   signature_invalid: {
-    label: "Signature failed",
-    detail: "The signed QR envelope could not be verified as authentic.",
+    labelKey: "lab.reason.signatureInvalid.label",
+    detailKey: "lab.reason.signatureInvalid.detail",
   },
   stale_trust_state: {
-    label: "Stale trust state",
-    detail: "The verifier cache is too old for a confident decision.",
+    labelKey: "lab.reason.staleTrustState.label",
+    detailKey: "lab.reason.staleTrustState.detail",
   },
   suspicious_tld: {
-    label: "Suspicious domain ending",
-    detail: "The domain uses an ending commonly abused in QR phishing demos.",
+    labelKey: "lab.reason.suspiciousTld.label",
+    detailKey: "lab.reason.suspiciousTld.detail",
   },
   trust_cache_unavailable: {
-    label: "Trust cache unavailable",
-    detail: "The verifier could not use its local issuer trust state.",
+    labelKey: "lab.reason.trustCacheUnavailable.label",
+    detailKey: "lab.reason.trustCacheUnavailable.detail",
   },
   unreadable_payload: {
-    label: "Unreadable QR",
-    detail: "The payload could not be interpreted as a URL or QR Trust envelope.",
+    labelKey: "lab.reason.unreadablePayload.label",
+    detailKey: "lab.reason.unreadablePayload.detail",
   },
+} satisfies Record<string, { labelKey: MessageKey; detailKey: MessageKey }>
+
+// Resolves rather than returning keys, because the fallback label is the wire
+// reason code itself — a value, not prose, so it has no catalog entry to name.
+function reasonCodeCopy(code: string, t: (key: MessageKey) => string) {
+  const entry = reasonCopy[code as keyof typeof reasonCopy]
+  if (!entry) {
+    return { label: formatReasonCode(code), detail: t("lab.reason.unknown.detail") }
+  }
+  return { label: t(entry.labelKey), detail: t(entry.detailKey) }
 }
 
-function reasonCodeCopy(code: string) {
-  return (
-    reasonCopy[code] ?? {
-      label: formatReasonCode(code),
-      detail: "This condition contributed to the scanner-visible result.",
-    }
-  )
+function riskStripeLabelKey(
+  level: "green" | "amber" | "red" | undefined,
+): MessageKey {
+  if (level === "green") return "lab.scanner.risk.low"
+  if (level === "red") return "lab.scanner.risk.high"
+  return "lab.scanner.risk.medium"
 }
 
-function riskStripeLabel(level: "green" | "amber" | "red" | undefined) {
-  if (level === "green") return "Low risk"
-  if (level === "red") return "High risk"
-  return "Medium risk"
-}
-
-function scannerPreviewSummary(decision: ScanDecision) {
+// `null` means the verifier's own `primary_message` is the best summary we
+// have. That string arrives from the backend already composed, so it stays out
+// of the frontend catalog and the caller renders it verbatim.
+function scannerPreviewSummaryKey(decision: ScanDecision): MessageKey | null {
   const reasons = decision.scanner_ux?.reason_codes ?? []
   const riskLevel = scannerRiskLevel(decision)
   if (riskLevel === "green") {
-    return "The issuer and destination checks line up, so this QR can be opened from the scanner preview."
+    return "lab.scanner.summary.verified"
   }
   if (riskLevel === "red") {
     if (reasons.includes("one_time_used")) {
-      return "This one-time QR appears to have already been used. Ask for a fresh QR before continuing."
+      return "lab.scanner.summary.oneTimeUsed"
     }
     if (reasons.includes("destination_mismatch")) {
-      return "The destination no longer matches the issuer-approved policy. Do not open it from this scan."
+      return "lab.scanner.summary.destinationMismatch"
     }
-    return "The verifier found a blocking condition. Do not open this QR from the scanner preview."
+    return "lab.scanner.summary.blocked"
   }
   if (reasons.includes("plain_url")) {
-    return "This is a normal link QR without a recognized trust signal. Continue only if you trust where it came from."
+    return "lab.scanner.summary.plainUrl"
   }
-  return decision.primary_message
+  return null
 }
 
 function riskStripeClass(level: "green" | "amber" | "red"): string {
@@ -266,6 +278,7 @@ function HoldToOpenButton({
   onHoldCancel: (decision: ScanDecision, elapsedMs: number) => void
   onHoldComplete: (decision: ScanDecision, elapsedMs: number) => void
 }) {
+  const t = useT()
   const [isHolding, setIsHolding] = useState(false)
   const startedAtRef = useRef<number | null>(null)
   const timerRef = useRef<number | null>(null)
@@ -341,7 +354,9 @@ function HoldToOpenButton({
       className="min-w-[12rem]"
     >
       <ExternalLink data-icon="inline-start" />
-      {isHolding ? "Keep holding…" : `Hold ${holdMs} ms to open`}
+      {isHolding
+        ? t("lab.scanner.hold.inProgress")
+        : t("lab.scanner.hold.prompt", { ms: holdMs })}
     </Button>
   )
 }
@@ -361,6 +376,7 @@ function ScannerDecisionPanel({
   onHoldCancel: (decision: ScanDecision, elapsedMs: number) => void
   onHoldComplete: (decision: ScanDecision, elapsedMs: number) => void
 }) {
+  const t = useT()
   const tone = scannerDecisionTone(decision)
   const scannerUx = decision.scanner_ux
   const destinationUrl = scannerDestinationUrl(decision)
@@ -369,7 +385,7 @@ function ScannerDecisionPanel({
     decision.contract?.destination.display_host ||
     decision.destination.host ||
     decision.destination.display_url ||
-    "No destination"
+    t("lab.scanner.noDestination")
   const indicatorClass =
     scannerUx?.risk_stripe !== undefined
       ? riskStripeClass(scannerUx.risk_stripe)
@@ -390,17 +406,24 @@ function ScannerDecisionPanel({
     decision.contract?.destination.fingerprint ||
     scannerUx?.destination_fingerprint ||
     destination
+  // The first two branches are verifier-authored action text; only the last
+  // resort is ours to translate.
   const finalAction =
     scannerUx?.primary_action ??
     decision.actions[0]?.label ??
-    (decision.open_allowed ? "Opening is available" : "Opening is not advised")
+    t(
+      decision.open_allowed
+        ? "lab.scanner.action.openAvailable"
+        : "lab.scanner.action.openNotAdvised",
+    )
   const holdToOpen = decision.contract?.hold_to_open
   const holdRequired = scannerUx?.hold_required ?? holdToOpen?.required ?? false
   const holdMs = scannerUx?.hold_ms ?? holdToOpen?.duration_ms ?? 0
   const holdCopy = holdRequired
-    ? `Requires ${holdMs} ms hold before opening.`
-    : "No hold gate required for this scan."
+    ? t("lab.scanner.hold.required", { ms: holdMs })
+    : t("lab.scanner.hold.notRequired")
   const trustPath = scannerTrustPath(decision)
+  const summaryKey = scannerPreviewSummaryKey(decision)
 
   return (
     <div
@@ -408,14 +431,16 @@ function ScannerDecisionPanel({
     >
       <div
         className={cn("h-2 w-full", riskStripeClass(scannerUx?.risk_stripe ?? riskLevel))}
-        aria-label={`${riskStripeLabel(riskLevel)} scanner risk stripe`}
+        aria-label={t("lab.scanner.riskStripe.label", {
+          level: t(riskStripeLabelKey(riskLevel)),
+        })}
       />
       <div className="grid gap-4 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <span className={`inline-flex size-2.5 rounded-full ${indicatorClass}`} />
             <Eyebrow as="div" tone="current">
-              Scanner preview
+              {t("lab.scanner.preview")}
             </Eyebrow>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
@@ -423,21 +448,21 @@ function ScannerDecisionPanel({
               variant="outline"
               className={cn("capitalize", riskPillClass(riskLevel))}
             >
-              {riskStripeLabel(riskLevel)}
+              {t(riskStripeLabelKey(riskLevel))}
               {scannerUx ? ` · ${scannerUx.risk_score}/100` : ""}
             </Badge>
             <Badge variant={tone === "blocked" ? "destructive" : "outline"}>
-              {scannerDecisionLabel(decision)}
+              {t(scannerDecisionLabelKey(decision))}
             </Badge>
           </div>
         </div>
 
         <div className="grid gap-3 rounded-[1.35rem] border border-current/10 bg-background/50 p-4">
           <div className="text-3xl font-black tracking-[-0.055em]">
-            {scannerDecisionLabel(decision)}
+            {t(scannerDecisionLabelKey(decision))}
           </div>
           <p className="text-sm leading-6 text-current/76">
-            {scannerPreviewSummary(decision)}
+            {summaryKey ? t(summaryKey) : decision.primary_message}
           </p>
         </div>
 
@@ -445,7 +470,7 @@ function ScannerDecisionPanel({
           <div className="flex items-start justify-between gap-3">
             <div>
               <Eyebrow as="div" tone="current">
-                Domain fingerprint
+                {t("lab.scanner.fingerprint")}
               </Eyebrow>
               <div className="mt-2 break-all text-xl font-black tracking-[-0.045em] text-current">
                 {fingerprint}
@@ -454,13 +479,12 @@ function ScannerDecisionPanel({
             <QrCode className="mt-1 size-5 shrink-0 text-current/45" />
           </div>
           <p className="mt-2 text-xs leading-5 text-current/64">
-            The scanner shows a short destination identity first. The full URL
-            stays available below, but it is not the default decision surface.
+            {t("lab.scanner.fingerprint.note")}
           </p>
           {destinationUrl ? (
             <details className="mt-3 rounded-[1rem] border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/68">
               <summary className="cursor-pointer select-none font-semibold">
-                Show full destination URL
+                {t("lab.scanner.showFullUrl")}
               </summary>
               <div className="mt-2 break-all leading-5">{destinationUrl}</div>
             </details>
@@ -470,11 +494,11 @@ function ScannerDecisionPanel({
         {reasonCodes.length ? (
           <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
             <Eyebrow as="div" tone="current">
-              Why this result
+              {t("lab.scanner.whyThisResult")}
             </Eyebrow>
             <div className="mt-3 grid gap-2">
               {reasonCodes.map((code) => {
-                const copy = reasonCodeCopy(code)
+                const copy = reasonCodeCopy(code, t)
                 return (
                   <div
                     key={code}
@@ -497,10 +521,10 @@ function ScannerDecisionPanel({
           <div className="rounded-[1.35rem] border border-current/10 bg-background/35 p-4">
             <div className="flex items-center justify-between gap-3">
               <Eyebrow as="div" tone="current">
-                Trust path
+                {t("lab.scanner.trustPath")}
               </Eyebrow>
               <Eyebrow as="div" tone="current">
-                first weak layer explains result
+                {t("lab.scanner.trustPath.note")}
               </Eyebrow>
             </div>
             <div className="mt-3 grid gap-2">
@@ -512,7 +536,7 @@ function ScannerDecisionPanel({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <Eyebrow as="div" tone="current">
-                        Layer {index + 1}
+                        {t("lab.scanner.layer", { index: index + 1 })}
                       </Eyebrow>
                       <div className="mt-1 text-sm font-semibold">
                         {step.label}
@@ -547,7 +571,7 @@ function ScannerDecisionPanel({
 
         <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
           <Eyebrow as="div" tone="current">
-            User action
+            {t("lab.scanner.userAction")}
           </Eyebrow>
           <div className="mt-2 text-sm font-semibold text-current">
             {finalAction}
@@ -568,34 +592,42 @@ function ScannerDecisionPanel({
               ) : (
                 <Button onClick={() => onOpenDestination(decision)}>
                   <ExternalLink data-icon="inline-start" />
-                  Open destination
+                  {t("lab.scanner.openDestination")}
                 </Button>
               )
             ) : null}
             <Button variant="outline" onClick={() => onCancelOpen(decision)}>
-              Dismiss result
+              {t("lab.scanner.dismiss")}
             </Button>
           </div>
           <details className="mt-3 rounded-[1rem] border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/66">
             <summary className="cursor-pointer select-none font-semibold">
-              Technical verifier details
+              {t("lab.scanner.technicalDetails")}
             </summary>
             <div className="mt-2 grid gap-1.5">
               <div>
-                <span className="font-semibold">Decision state:</span>{" "}
+                <span className="font-semibold">
+                  {t("lab.scanner.field.decisionState")}
+                </span>{" "}
                 {formatDecisionValue(decision.decision_state)}
               </div>
               <div>
-                <span className="font-semibold">Verifier stage:</span>{" "}
+                <span className="font-semibold">
+                  {t("lab.scanner.field.verifierStage")}
+                </span>{" "}
                 {formatDecisionValue(decision.verifier_stage)}
               </div>
               <div>
-                <span className="font-semibold">Verifier reason:</span>{" "}
+                <span className="font-semibold">
+                  {t("lab.scanner.field.verifierReason")}
+                </span>{" "}
                 {decision.verifier_reason}
               </div>
               {decision.request_id ? (
                 <div>
-                  <span className="font-semibold">Request ID:</span>{" "}
+                  <span className="font-semibold">
+                    {t("lab.scanner.field.requestId")}
+                  </span>{" "}
                   {decision.request_id}
                 </div>
               ) : null}
@@ -615,6 +647,7 @@ export function ScanWorkbenchSection({
   refs,
   actions,
 }: ScanWorkbenchSectionProps) {
+  const t = useT()
   const {
     scannedPayload,
     scannerDecision,
@@ -667,20 +700,20 @@ export function ScanWorkbenchSection({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-border/70 bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Capture and verify
+                {t("lab.workbench.eyebrow")}
               </span>
             </div>
             <CardTitle className="mt-3 text-2xl font-black tracking-[-0.03em] md:text-3xl">
-              Scan console
+              {t("lab.workbench.title")}
             </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
-              Upload an image or paste a payload — the result panel is the
-              source of truth for the scan. A live camera scan is available as
-              a secondary path for second-screen demos.
+              {t("lab.workbench.description")}
             </CardDescription>
           </div>
           <div className="rounded-xl border border-border/60 bg-card/72 px-3 py-2 text-sm leading-6 text-muted-foreground">
-            <span className="font-medium text-foreground">Decoder:</span>{" "}
+            <span className="font-medium text-foreground">
+              {t("lab.workbench.decoderLabel")}
+            </span>{" "}
             {decoderLabel}
           </div>
         </div>
@@ -689,9 +722,9 @@ export function ScanWorkbenchSection({
         {secureContextBlocked ? (
           <Alert>
             <CircleAlert />
-            <AlertTitle>HTTPS is required for Safari camera capture</AlertTitle>
+            <AlertTitle>{t("lab.workbench.secureContext.title")}</AlertTitle>
             <AlertDescription>
-              This browser is not giving the workbench a secure context for `getUserMedia`. Use the upload path, direct verify, or run the frontend with local HTTPS and a trusted mkcert certificate.
+              {t("lab.workbench.secureContext.body")}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -701,28 +734,29 @@ export function ScanWorkbenchSection({
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-primary/8 p-4">
               <Button disabled={isDecodingImage} onClick={openImagePicker}>
                 <Upload data-icon="inline-start" />
-                {isDecodingImage ? "Checking…" : "Upload and check QR"}
+                {isDecodingImage
+                  ? t("lab.workbench.upload.checking")
+                  : t("lab.workbench.upload.action")}
               </Button>
               <p className="text-sm leading-6 text-muted-foreground">
-                Uploaded screenshots and photos are decoded and checked
-                automatically.
+                {t("lab.workbench.upload.note")}
               </p>
             </div>
 
             <FieldGroup className="rounded-[1rem] border border-border/60 bg-card/72 p-4">
               <Field>
-                <FieldLabel htmlFor="decoded-payload">Decoded QR payload</FieldLabel>
+                <FieldLabel htmlFor="decoded-payload">
+                  {t("lab.workbench.payload.label")}
+                </FieldLabel>
                 <Textarea
                   id="decoded-payload"
                   value={scannedPayload}
                   onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setScannedPayload(event.target.value)}
-                  placeholder="The decoded QR payload will appear here after upload or live capture."
+                  placeholder={t("lab.workbench.payload.placeholder")}
                   className="min-h-[220px] bg-background/85"
                 />
                 <FieldDescription>
-                  Camera captures and uploaded images are checked automatically.
-                  Paste a payload here only when testing manually, then use
-                  Check scanned QR.
+                  {t("lab.workbench.payload.description")}
                 </FieldDescription>
               </Field>
             </FieldGroup>
@@ -733,11 +767,13 @@ export function ScanWorkbenchSection({
                 disabled={!scannedPayload.trim() || isVerifyingScanned}
               >
                 <ShieldCheck data-icon="inline-start" />
-                {isVerifyingScanned ? "Checking…" : "Check scanned QR"}
+                {isVerifyingScanned
+                  ? t("lab.workbench.check.checking")
+                  : t("lab.workbench.check.action")}
               </Button>
               <Button variant="outline" onClick={copyDecodedPayload} disabled={!scannedPayload.trim()}>
                 <Copy data-icon="inline-start" />
-                Copy decoded payload
+                {t("lab.workbench.copyPayload")}
               </Button>
             </div>
 
@@ -751,12 +787,11 @@ export function ScanWorkbenchSection({
                 >
                   <Camera data-icon="inline-start" />
                   {isCameraPanelOpen
-                    ? "Hide live camera scan"
-                    : "Try a live camera scan"}
+                    ? t("lab.workbench.cameraPanel.hide")
+                    : t("lab.workbench.cameraPanel.show")}
                 </Button>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Secondary path for second-screen demos: show the QR on one
-                  device and scan it here from another.
+                  {t("lab.workbench.cameraPanel.note")}
                 </p>
               </div>
 
@@ -810,25 +845,33 @@ export function ScanWorkbenchSection({
                     disabled={!cameraSupported || isStartingCamera || isCameraRunning}
                   >
                     <Camera data-icon="inline-start" />
-                    {isStartingCamera ? "Starting…" : "Start camera scan"}
+                    {isStartingCamera
+                      ? t("lab.workbench.camera.starting")
+                      : t("lab.workbench.camera.start")}
                   </Button>
                   <Button variant="outline" onClick={stopCamera} disabled={!isCameraRunning}>
                     <CameraOff data-icon="inline-start" />
-                    Stop camera
+                    {t("lab.workbench.camera.stop")}
                   </Button>
                   <Button variant="outline" onClick={refreshCameras} disabled={isRefreshingCameras}>
                     <RefreshCw data-icon="inline-start" />
-                    {isRefreshingCameras ? "Refreshing…" : "Refresh cameras"}
+                    {isRefreshingCameras
+                      ? t("lab.workbench.camera.refreshing")
+                      : t("lab.workbench.camera.refresh")}
                   </Button>
                 </div>
 
                 <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4 md:grid-cols-2">
                   <Field>
-                    <FieldLabel htmlFor="camera-source">Camera source</FieldLabel>
+                    <FieldLabel htmlFor="camera-source">
+                      {t("lab.workbench.cameraSource.label")}
+                    </FieldLabel>
                     {cameraDevices.length ? (
                       <Select value={selectedCameraId} onValueChange={(value: string | null) => setSelectedCameraId(value || "")}>
                         <SelectTrigger id="camera-source" className="w-full">
-                          <SelectValue placeholder="Environment-facing camera" />
+                          <SelectValue
+                            placeholder={t("lab.workbench.cameraSource.default")}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectGroup>
@@ -844,17 +887,25 @@ export function ScanWorkbenchSection({
                       <Input
                         id="camera-source"
                         disabled
-                        value={cameraSupported ? "Environment-facing camera" : "Camera capture unavailable"}
+                        value={t(
+                          cameraSupported
+                            ? "lab.workbench.cameraSource.default"
+                            : "lab.workbench.cameraSource.unavailable",
+                        )}
                       />
                     )}
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="decoder-mode">Decoder mode</FieldLabel>
+                    <FieldLabel htmlFor="decoder-mode">
+                      {t("lab.workbench.decoderMode.label")}
+                    </FieldLabel>
                     <Input id="decoder-mode" disabled value={decoderLabel} />
                     <FieldDescription>
-                      {hasNativeDetector
-                        ? "Native browser decode is active. The backend fallback is available if capture moves to upload."
-                        : "The browser has no native QR detector, so the backend fallback will decode uploads and camera frames."}
+                      {t(
+                        hasNativeDetector
+                          ? "lab.workbench.decoderMode.native"
+                          : "lab.workbench.decoderMode.fallback",
+                      )}
                     </FieldDescription>
                   </Field>
                 </div>
@@ -889,17 +940,19 @@ export function ScanWorkbenchSection({
               <DecisionPanel result={result} />
             )}
             {isCameraPanelOpen ? (
-              <StatusPanel label="Camera capture state" message={cameraMessage} />
+              <StatusPanel
+                label={t("lab.workbench.cameraState")}
+                message={cameraMessage}
+              />
             ) : null}
-            <StatusPanel label="Scan status" message={scanStatus} />
+            <StatusPanel label={t("lab.workbench.scanStatus")} message={scanStatus} />
             <div className="rounded-[1.4rem] border border-border bg-background/80 p-4">
               <Eyebrow as="div" className="flex items-center gap-2">
                 <QrCode className="size-4" />
-                Second-screen rule
+                {t("lab.workbench.secondScreen.title")}
               </Eyebrow>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Use the fullscreen QR on one device and the camera on another. Native phone camera apps still
-                open the embedded URL directly and bypass verifier behavior.
+                {t("lab.workbench.secondScreen.body")}
               </p>
             </div>
           </div>

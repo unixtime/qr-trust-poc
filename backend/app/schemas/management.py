@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from backend.app.schemas.management_contracts import (
+    DELEGATED_AUTHORITY_ID_DETAIL,
+    DELEGATED_AUTHORITY_ID_PATTERN,
+    DESTINATION_POLICY_ID_DETAIL,
+    DESTINATION_POLICY_ID_PATTERN,
+    ISSUER_ID_DETAIL,
+    ISSUER_ID_PATTERN,
+    ROOT_PROGRAM_ID_DETAIL,
+    ROOT_PROGRAM_ID_PATTERN,
     DelegatedAuthorityType,
     DestinationPolicyStatus,
     DestinationQueryPolicy,
@@ -24,6 +39,67 @@ from backend.app.schemas.management_contracts import (
     TrustKeyScope,
     TrustKeyStatus,
 )
+
+
+def _prefix_check(pattern: str, detail: str) -> AfterValidator:
+    """Enforce `pattern`, but report `detail` when it fails.
+
+    Pydantic's own `Field(pattern=...)` rejects with "String should match
+    pattern '^(?:root:|control-plane$)'", which hands an operator a regex
+    instead of the rule it encodes. Raising ValueError from an AfterValidator
+    renders as "Value error, <detail>" instead. The regex still reaches
+    generated clients through `json_schema_extra` below, so the machine
+    readable form of the constraint is not lost.
+    """
+    compiled = re.compile(pattern)
+
+    def _check(value: str) -> str:
+        if compiled.match(value) is None:
+            raise ValueError(detail)
+        return value
+
+    return AfterValidator(_check)
+
+
+# Request-side only. Responses and audit records echo whatever is already
+# stored, and rows written before this constraint existed must stay readable —
+# validating them on the way out would turn a legacy row into a 500 on a read.
+RootProgramId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description=ROOT_PROGRAM_ID_DETAIL,
+        json_schema_extra={"pattern": ROOT_PROGRAM_ID_PATTERN},
+    ),
+    _prefix_check(ROOT_PROGRAM_ID_PATTERN, ROOT_PROGRAM_ID_DETAIL),
+]
+DelegatedAuthorityId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description=DELEGATED_AUTHORITY_ID_DETAIL,
+        json_schema_extra={"pattern": DELEGATED_AUTHORITY_ID_PATTERN},
+    ),
+    _prefix_check(DELEGATED_AUTHORITY_ID_PATTERN, DELEGATED_AUTHORITY_ID_DETAIL),
+]
+IssuerId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description=ISSUER_ID_DETAIL,
+        json_schema_extra={"pattern": ISSUER_ID_PATTERN},
+    ),
+    _prefix_check(ISSUER_ID_PATTERN, ISSUER_ID_DETAIL),
+]
+DestinationPolicyId = Annotated[
+    str,
+    Field(
+        min_length=1,
+        description=DESTINATION_POLICY_ID_DETAIL,
+        json_schema_extra={"pattern": DESTINATION_POLICY_ID_PATTERN},
+    ),
+    _prefix_check(DESTINATION_POLICY_ID_PATTERN, DESTINATION_POLICY_ID_DETAIL),
+]
 
 
 class ManagementHealthResponse(BaseModel):
@@ -160,7 +236,7 @@ class VerifierClientApiKeyIssueRequest(BaseModel):
 
 
 class RootProgramUpsertRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
     name: str = Field(min_length=1)
     program_scope: str = Field(min_length=1)
     accepted_algorithm_ids: list[str] = Field(min_length=1)
@@ -174,8 +250,8 @@ class RootProgramUpsertResponse(BaseModel):
 
 
 class DelegatedAuthorityUpsertRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
     name: str = Field(min_length=1)
     authority_type: DelegatedAuthorityType
     scope: dict[str, Any] = Field(default_factory=dict)
@@ -190,9 +266,9 @@ class DelegatedAuthorityUpsertResponse(BaseModel):
 
 
 class IssuerEnrollmentRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
-    issuer_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
+    issuer_id: IssuerId
     display_name: str = Field(min_length=1)
     issuer_class: IssuerClass
     assurance_tier: IssuerAssuranceTier
@@ -205,9 +281,9 @@ class IssuerEnrollmentResponse(BaseModel):
 
 
 class IssuerStatusUpdateRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
-    issuer_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
+    issuer_id: IssuerId
     enrollment_status: IssuerEnrollmentStatus
 
 
@@ -218,9 +294,9 @@ class IssuerStatusUpdateResponse(BaseModel):
 
 
 class DomainProofUpsertRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
-    issuer_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
+    issuer_id: IssuerId
     domain: str = Field(min_length=1)
     proof_method: DomainProofMethod = "dns_txt"
     verification_status: DomainVerificationStatus = "pending"
@@ -258,10 +334,10 @@ class DestinationPolicyApprovedDestination(BaseModel):
 
 
 class DestinationPolicyUpsertRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
-    issuer_id: str = Field(min_length=1)
-    destination_policy_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
+    issuer_id: IssuerId
+    destination_policy_id: DestinationPolicyId
     usage_policy: DestinationUsagePolicy = "reusable_public"
     approved_destinations: list[DestinationPolicyApprovedDestination] = Field(
         min_length=1
@@ -278,10 +354,10 @@ class DestinationPolicyUpsertResponse(BaseModel):
 
 
 class DestinationPolicyStatusUpdateRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str = Field(min_length=1)
-    issuer_id: str = Field(min_length=1)
-    destination_policy_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId
+    issuer_id: IssuerId
+    destination_policy_id: DestinationPolicyId
     status: DestinationPolicyStatus
 
 
@@ -293,8 +369,8 @@ class DestinationPolicyStatusUpdateResponse(BaseModel):
 
 class TrustKeyUpsertRequest(BaseModel):
     key_id: str = Field(min_length=1)
-    root_program_id: str = Field(min_length=1)
-    delegated_authority_id: str | None = None
+    root_program_id: RootProgramId
+    delegated_authority_id: DelegatedAuthorityId | None = None
     signer_id: str = Field(min_length=1)
     algorithm_id: str = Field(min_length=1)
     public_key_material_ref: str = Field(min_length=1)
@@ -317,7 +393,7 @@ class TrustKeyUpsertRequest(BaseModel):
 
 
 class TrustKeyStatusUpdateRequest(BaseModel):
-    root_program_id: str = Field(min_length=1)
+    root_program_id: RootProgramId
     key_id: str = Field(min_length=1)
     key_status: TrustKeyStatus
 

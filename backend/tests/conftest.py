@@ -5,6 +5,8 @@ import socket
 import subprocess
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,7 +41,7 @@ def _pick_unused_port() -> int:
 
 
 @pytest.fixture
-def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     from backend.app.api.endpoints import verifier as verifier_endpoint
     from backend.app.core.config import config
     from backend.app.main import app
@@ -64,30 +66,63 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     verifier_endpoint._scanner_trust_records.clear()
 
 
-@pytest.fixture
-def live_verifier_server() -> LiveVerifierServer:
+DB_USER = "qr_admin"
+DB_PASSWORD = "qr_dev_password"
+DB_NAME = "qr_db"
+
+# The demo stack publishes Postgres on 5432. Over an SSH tunnel it is usually
+# 15432, so the port is the one piece that varies by host.
+DEMO_DB_PORT = int(os.environ.get("QRTRUST_TEST_DB_PORT", "5432"))
+
+
+def _demo_database_reachable() -> bool:
+    """True when the demo Postgres is up and accepting these credentials.
+
+    A bare TCP probe is not enough: something else listening on 5432 would
+    pass it and then fail the test with a confusing asyncpg error deep inside
+    a request handler. Connecting for real is the only answer that maps
+    cleanly onto run-or-skip.
+    """
+    import asyncio
+
+    import asyncpg
+
+    async def _probe() -> bool:
+        try:
+            connection = await asyncpg.connect(
+                user=DB_USER,
+                password=DB_PASSWORD,
+                database=DB_NAME,
+                host="127.0.0.1",
+                port=DEMO_DB_PORT,
+                timeout=2,
+            )
+        except Exception:
+            return False
+        try:
+            await connection.execute("select 1")
+        finally:
+            await connection.close()
+        return True
+
+    return asyncio.run(_probe())
+
+
+@contextmanager
+def _running_verifier_server(db_port: int) -> Iterator[LiveVerifierServer]:
+    """Run the app under uvicorn with its management DB aimed at `db_port`."""
     try:
         port = _pick_unused_port()
+        # An ephemeral port can land on `db_port` itself, which would aim the
+        # app's management DSN at its own uvicorn socket -- a rare collision
+        # that fails in a thoroughly confusing way when it does happen.
+        while port == db_port:
+            port = _pick_unused_port()
     except PermissionError:
         pytest.skip(
             "Socket binding is not permitted in this environment. "
             "Use backend/scripts/verifier_live_http_smoke.py against docker compose."
         )
-
-    # A port nothing is listening on, deliberately. This server is supposed to
-    # have no management database: the admin API-key endpoints answer 503
-    # "management persistence unavailable" when asyncpg cannot connect, and the
-    # live HTTP test asserts that 503. The assertion used to hold only because
-    # CI happens to run no Postgres -- an unstated precondition. Locally the
-    # demo stack publishes qr_admin/qr_db on 5432, which is exactly the
-    # credentials below, so the connect succeeded, a key was genuinely issued,
-    # and the test failed on a 200 against anyone who had run
-    # `make up-https-admin-nats` first. Pinning the DSN at a closed port makes
-    # unavailability something this fixture guarantees rather than something
-    # the host is trusted to lack.
-    db_port = _pick_unused_port()
-    while db_port == port:
-        db_port = _pick_unused_port()
 
     base_url = f"http://127.0.0.1:{port}"
     admin_token = "live-http-admin"
@@ -96,11 +131,25 @@ def live_verifier_server() -> LiveVerifierServer:
     env.update(
         {
             "SECRET_KEY": "live-http-secret-change-me",
-            "DB_USER": "qr_admin",
-            "DB_PASSWORD": "qr_dev_password",
-            "DB_NAME": "qr_db",
+            "DB_USER": DB_USER,
+            "DB_PASSWORD": DB_PASSWORD,
+            "DB_NAME": DB_NAME,
             "DB_HOST": "127.0.0.1",
             "DB_PORT": str(db_port),
+            # Both halves of the verifier-key feature must agree on where the
+            # management state lives, and they resolve it differently:
+            # `management.py` falls back to `config.sync_database_url` (which
+            # is built from the DB_* parts above), while
+            # `verifier_api_key_service` reads the raw `DATABASE_URL` field and
+            # treats "unset" as "no dynamic key store at all". Setting only the
+            # DB_* parts therefore let the admin endpoint issue a key that the
+            # verifier endpoints then rejected with 403 "Invalid verifier API
+            # key". compose.yml sets this variable on every service that
+            # touches management state, so setting it here is what makes the
+            # fixture match a real deployment.
+            "QRTRUST_NETWORK_DATABASE_URL": (
+                f"postgresql://{DB_USER}:{DB_PASSWORD}@127.0.0.1:{db_port}/{DB_NAME}"
+            ),
             "REDIS_STARTUP_ENABLED": "false",
             "VERIFIER_ADMIN_TOKENS": f'["{admin_token}"]',
             "VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED": "true",
@@ -166,6 +215,46 @@ def live_verifier_server() -> LiveVerifierServer:
 
 
 @pytest.fixture
-def live_http_client(live_verifier_server: LiveVerifierServer) -> httpx.Client:
+def live_verifier_server() -> Iterator[LiveVerifierServer]:
+    """A live server with no management database, guaranteed.
+
+    The DB port is one nothing is listening on, deliberately. The admin
+    API-key endpoints answer 503 "management persistence unavailable" when
+    asyncpg cannot connect, and the live HTTP test asserts that 503. The
+    assertion used to hold only because CI happens to run no Postgres -- an
+    unstated precondition. Locally the demo stack publishes qr_admin/qr_db on
+    5432, which is exactly the credentials this fixture uses, so the connect
+    succeeded, a key was genuinely issued, and the test failed on a 200
+    against anyone who had run `make up-https-admin-nats` first. Pinning the
+    DSN at a closed port makes unavailability something this fixture
+    guarantees rather than something the host is trusted to lack.
+
+    Tests that need persistence to *work* want `live_verifier_server_with_db`.
+    """
+    with _running_verifier_server(_pick_unused_port()) as server:
+        yield server
+
+
+@pytest.fixture
+def live_verifier_server_with_db() -> Iterator[LiveVerifierServer]:
+    """A live server wired to the demo Postgres, or a skip if it is not up.
+
+    The mirror image of `live_verifier_server`: same app, same tokens, but the
+    management endpoints actually persist. Skipping rather than failing keeps
+    `pytest` green on a machine with no Docker -- every other test in this
+    suite runs against in-process fakes, and one test silently demanding an
+    external service would make a clean checkout look broken.
+    """
+    if not _demo_database_reachable():
+        pytest.skip(
+            f"Demo Postgres is not reachable on 127.0.0.1:{DEMO_DB_PORT}. "
+            "Run `make up-https-admin-nats`, or set QRTRUST_TEST_DB_PORT."
+        )
+    with _running_verifier_server(DEMO_DB_PORT) as server:
+        yield server
+
+
+@pytest.fixture
+def live_http_client(live_verifier_server: LiveVerifierServer) -> Iterator[httpx.Client]:
     with httpx.Client(base_url=live_verifier_server.base_url, timeout=10.0) as client:
         yield client

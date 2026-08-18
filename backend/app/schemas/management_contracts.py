@@ -71,6 +71,29 @@ def validate_qrtrust_nats_subject(subject: str) -> str:
     return subject
 
 
+# Governance identifiers are URN-style: the prefix is what tells a consumer
+# which registry an id belongs to, so a bare "acme-local-authority" is not a
+# shorter spelling of an authority id, it is an unresolvable one.
+#
+# These mirror EventEnvelopeSchema in network/src/contracts.ts, which is the
+# only place the contract was previously enforced. That enforcement happens in
+# the outbox publisher — three hops after the management API accepts a
+# mutation — so an unprefixed id used to be persisted, published, and only then
+# rejected, surfacing as a retry-exhausted outbox row rather than a 422. The
+# duplication is deliberate but must stay in step; changing one side alone
+# re-opens exactly that gap.
+ROOT_PROGRAM_ID_PATTERN = r"^(?:root:|control-plane$)"
+DELEGATED_AUTHORITY_ID_PATTERN = r"^authority:"
+ISSUER_ID_PATTERN = r"^issuer:"
+DESTINATION_POLICY_ID_PATTERN = r"^policy:"
+
+ROOT_PROGRAM_ID_DETAIL = (
+    "root_program_id must start with 'root:' or be exactly 'control-plane'"
+)
+DELEGATED_AUTHORITY_ID_DETAIL = "delegated_authority_id must start with 'authority:'"
+ISSUER_ID_DETAIL = "issuer_id must start with 'issuer:'"
+DESTINATION_POLICY_ID_DETAIL = "destination_policy_id must start with 'policy:'"
+
 DELEGATED_AUTHORITY_TYPE_CHOICES = (
     "payment_operator",
     "public_service_operator",
