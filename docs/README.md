@@ -28,6 +28,9 @@ implementation, evidence, and operating paths for the QR Trust PoC.
   frontend, backend, network, and iOS commands.
 - [Open-source direction](public/OPEN_SOURCE_DIRECTION.md) — public scope and
   contribution direction.
+- [Public PoC companion plan](public/POC_PUBLIC_COMPANION_PLAN.md) —
+  preparation guide for a paper-companion repository surface; not a release
+  commitment.
 
 ## Trust and decision semantics
 
@@ -72,13 +75,21 @@ implementation, evidence, and operating paths for the QR Trust PoC.
 - [Evidence manifest](public/evidence/README.md) — what the tracked browser and
   iPhone artifacts prove.
 - [iPhone test plan](public/IPHONE_TEST_PLAN.md) — physical-device procedure.
+- [Governance fixture bundle](public/fixtures/governance/README.md) — the
+  deterministic demo artifacts the evaluation corpus references.
+- [iOS provider-profile fixtures](public/fixtures/ios/README.md) — public-safe
+  signed profile for the native import path.
 
 ## Diagrams
 
-- [Trust-model graph](public/TRUST_MODEL_GRAPH.md)
+- [Trust-model graph](public/TRUST_MODEL_GRAPH.md) — document dependency graph;
+  the [ASCII reference](public/TRUST_MODEL_GRAPH_ASCII.md) mirrors the paper's
+  Figure 3.
 - [Authority flow](public/QR_TRUST_AUTHORITY_FLOW_ASCII.md)
 - [Problem framing](public/QR_TRUST_PROBLEM_DIAGRAM_ASCII.md)
-- [Deployment rollout](public/DEPLOYMENT_ROLLOUT_GRAPH.md)
+- [Deployment rollout](public/DEPLOYMENT_ROLLOUT_GRAPH.md) — adoption ordering;
+  the [ASCII reference](public/DEPLOYMENT_ROLLOUT_GRAPH_ASCII.md) mirrors the
+  paper's Figure 4.
 
 ## Policies and contribution
 
