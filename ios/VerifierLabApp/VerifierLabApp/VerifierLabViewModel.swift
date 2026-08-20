@@ -1106,6 +1106,26 @@ final class VerifierLabViewModel: ObservableObject {
             && (destination.hasPrefix("http://") || destination.hasPrefix("https://"))
     }
 
+    /// `tone(from:)` collapses four unrelated decision states onto `.caution`, so copy
+    /// keyed only on tone prints one sentence for "no signature at all", "valid
+    /// signature from an issuer we do not accept", and "issuer known but its trust data
+    /// went stale". Colour may come from severity; wording has to come from state.
+    ///
+    /// Returns `nil` for states that carry no wording of their own, leaving the caller
+    /// on its tone-level default.
+    private func cautionIssuerMessage(for decision: ScannerDecisionResponse) -> String? {
+        switch decision.decisionState {
+        case "signed_unknown_issuer":
+            return String(localized: "This QR carries a valid signature, but its issuer is not part of a trust program this verifier accepts.")
+        case "unverified":
+            return String(localized: "No issuer signature was present, so there is no issuer identity to check against a trust program.")
+        case "stale_trust_state", "profile_stale":
+            return String(localized: "A recognized issuer signal exists, but its trust data is past the refresh window, so enrollment was not re-confirmed.")
+        default:
+            return nil
+        }
+    }
+
     private func issuerLayerMessage(for decision: ScannerDecisionResponse, tone: TrustTone) -> String {
         switch tone {
         case .trusted:
@@ -1114,11 +1134,43 @@ final class VerifierLabViewModel: ObservableObject {
             }
             return String(localized: "The issuer is recognized by the verifier profile.")
         case .caution:
-            return String(localized: "The verifier could not map this issuer to a recognized trust program.")
+            return cautionIssuerMessage(for: decision)
+                ?? String(localized: "The verifier could not map this issuer to a recognized trust program.")
         case .blocked:
             return String(localized: "The issuer trust state does not currently satisfy verifier policy.")
         default:
             return String(localized: "Issuer trust state was evaluated before showing the result.")
+        }
+    }
+
+    /// The destination-row counterpart to `cautionIssuerMessage`. The tone-level
+    /// default — "the app lacks a recognized issuer signal for it" — is only true for
+    /// `unverified`, which is why that state deliberately falls through to it. For a
+    /// signed envelope, a stale trust state, or a verified issuer over a risky
+    /// destination, the same sentence asserts the opposite of what happened.
+    ///
+    /// None of these arms claim the binding passed: a layer reaches `.caution` here
+    /// precisely because `clamped(_:evidence:)` found no passing evidence, so the copy
+    /// reports what was *not* confirmed rather than granting unearned trust.
+    private func cautionDestinationMessage(
+        for decision: ScannerDecisionResponse,
+        viaResolver: Bool
+    ) -> String? {
+        switch decision.decisionState {
+        case "signed_unknown_issuer":
+            return viaResolver
+                ? String(localized: "The QR uses a resolver and its signature is valid, but redirect policy for it would have to come from an issuer this verifier does not accept.")
+                : String(localized: "The destination came from a valid signed envelope, but its issuer is not one this verifier accepts.")
+        case "stale_trust_state", "profile_stale":
+            return viaResolver
+                ? String(localized: "The QR uses a resolver, and the issuer redirect policy for it is past the refresh window, so the hop was not re-checked.")
+                : String(localized: "The issuer binding for this destination is past the refresh window, so it was not re-checked.")
+        case "verified_issuer_destination_risky":
+            return viaResolver
+                ? String(localized: "The issuer is verified, but the resolver hop was not confirmed against issuer redirect policy.")
+                : String(localized: "The issuer is verified, but the destination was not confirmed against the issuer-approved binding.")
+        default:
+            return nil
         }
     }
 
@@ -1128,7 +1180,8 @@ final class VerifierLabViewModel: ObservableObject {
             case .trusted:
                 return String(localized: "The resolver and final destination both match issuer redirect policy.")
             case .caution:
-                return String(localized: "The QR uses a resolver, but the app lacks a recognized issuer signal for it.")
+                return cautionDestinationMessage(for: decision, viaResolver: true)
+                    ?? String(localized: "The QR uses a resolver, but the app lacks a recognized issuer signal for it.")
             case .blocked:
                 return String(localized: "The resolver flow does not match the issuer-approved final destination.")
             default:
@@ -1140,7 +1193,8 @@ final class VerifierLabViewModel: ObservableObject {
         case .trusted:
             return String(localized: "The destination is still inside the issuer-approved binding.")
         case .caution:
-            return String(localized: "The destination exists, but the app lacks a recognized issuer signal for it.")
+            return cautionDestinationMessage(for: decision, viaResolver: false)
+                ?? String(localized: "The destination exists, but the app lacks a recognized issuer signal for it.")
         case .blocked:
             return String(localized: "The destination no longer matches the issuer-approved binding.")
         default:

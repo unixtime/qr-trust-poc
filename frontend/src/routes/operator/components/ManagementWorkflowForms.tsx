@@ -1,5 +1,5 @@
 import { RotateCcw, Send } from "lucide-react"
-import { type FormEvent, type ReactNode, useReducer, useState } from "react"
+import { type ReactNode, type SubmitEvent, useReducer, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -133,7 +133,7 @@ function WorkflowFormShell({
   endpoint: string
   submitLabel: MessageKey
   isSubmitting: boolean
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (event: SubmitEvent<HTMLFormElement>) => void
   children: ReactNode
 }) {
   const t = useT()
@@ -237,7 +237,7 @@ function AuthoritySetupForm({
   const [delegatedName, setDelegatedName] = useState("ACME Local Authority")
   const [authorityType, setAuthorityType] = useState("merchant_operator")
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       root_program: {
@@ -389,7 +389,7 @@ function TrustKeyForm({
     notAfter,
   } = formState
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const keyScope = scope
     const scopedDelegatedAuthority =
@@ -619,7 +619,7 @@ function IssuerEnrollmentForm({
   const [issuerClass, setIssuerClass] = useState("business")
   const [assuranceTier, setAssuranceTier] = useState("domain_controlled")
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       root_program_id: rootProgramId.trim(),
@@ -713,7 +713,7 @@ function IssuerStatusForm({
   const [issuerId, setIssuerId] = useState(defaultIssuerId)
   const [enrollmentStatus, setEnrollmentStatus] = useState("active")
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       root_program_id: rootProgramId.trim(),
@@ -779,7 +779,7 @@ function DomainProofForm({
     "operator://local-demo/domain-proof",
   )
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       root_program_id: rootProgramId.trim(),
@@ -898,7 +898,7 @@ function DestinationPolicyForm({
     "deterministic-runtime-safety",
   )
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     const hostList = splitTextItems(allowedHosts)
     onSubmit(workflowId, {
@@ -1094,7 +1094,7 @@ function DestinationPolicyStatusForm({
   )
   const [policyStatus, setPolicyStatus] = useState("active")
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       root_program_id: rootProgramId.trim(),
@@ -1177,7 +1177,7 @@ function NatsSubscriberForm({
     ].join("\n"),
   )
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       subscriber_id: subscriberId.trim(),
@@ -1283,7 +1283,7 @@ function RuntimeProviderForm({
     setForm((current) => ({ ...current, [field]: value }))
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       provider_id: form.providerId.trim(),
@@ -1420,7 +1420,7 @@ function OutboxRemediationForm({
   const [action, setAction] = useState("retry")
   const [reason, setReason] = useState("operator reviewed event state")
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     onSubmit(workflowId, {
       event_id: eventId.trim(),

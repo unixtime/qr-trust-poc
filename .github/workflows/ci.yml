@@ -283,6 +283,14 @@ jobs:
       - name: Check network contracts
         run: make check-network-contracts
 
+      # The only part of the iOS surface that needs no Xcode: pure sh over
+      # tracked xcconfig, asserting the committed defaults never embed a local
+      # verifier endpoint and never bake QRTRUST_VERIFIER_PROFILE_STATE. The
+      # override file it also checks is gitignored, so on a default checkout
+      # that branch reports it absent and the check still passes.
+      - name: Check iOS provider config
+        run: make check-ios-provider-config
+
       # The slow one, ~5s: replays the trust-residuals corpus and re-derives
       # the formal table over 2.2M sweep comparisons, then asserts the
       # committed docs/public/evaluation/trust_residuals_results.v1.json still
@@ -382,3 +390,31 @@ jobs:
         with:
           name: route-navigation-api-log
           path: /tmp/qrcode-poc-api.log
+
+  ios-swift-parse:
+    name: iOS Swift Parse
+    runs-on: ubuntu-latest
+    # The only iOS job a linux runner can host. build-ios needs xcodebuild, so
+    # a real build would need a macOS runner. What survives the port is the
+    # front half of the compiler: `swiftc -parse` stops before name resolution,
+    # so it never looks for SwiftUI or UIKit and needs only a toolchain. It
+    # catches syntax that would redden an Xcode build; it does not catch a
+    # missing symbol or a type error.
+    #
+    # Pinned rather than `swift:latest` so a new compiler cannot start
+    # rejecting committed sources without a deliberate bump here.
+    container: swift:6.0
+    steps:
+      # The Swift image is Ubuntu-based and carries the toolchain but not make.
+      - name: Install make
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends make
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run Swift parse check
+        run: |
+          swift --version
+          make check-ios-swift-parse
