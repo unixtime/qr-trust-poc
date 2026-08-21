@@ -52,10 +52,40 @@ markdown_extensions:
   - admonition
   - attr_list
   - def_list
-  - fenced_code
   - tables
   - toc:
       permalink: true
+  # The theme has always shipped the Pygments stylesheet, but base fenced_code
+  # emits a bare <code> block with no token spans for it to colour, so every
+  # sample rendered flat. pymdownx.highlight is what produces those spans.
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  # superfences replaces fenced_code (do not enable both). Left alone it would
+  # also claim ```mermaid and hand it to Pygments as an unknown language, so
+  # mermaid is registered as a custom fence instead.
+  #
+  # It must be fence_mermaid, not fence_mermaid_custom, even though mermaid2
+  # advertises the latter as the Material variant. That advice assumes Material's
+  # own built-in mermaid mount does the rendering; this site instead pins mermaid
+  # via the mermaid2 plugin above so the privacy plugin can self-host it. The two
+  # mounts collide: Material's selector is literally pre.mermaid, so the <pre>
+  # that fence_mermaid_custom emits gets claimed by the theme, replaced with an
+  # empty <div class="mermaid">, and never rendered -- silently, with no console
+  # error. fence_mermaid emits <div class="mermaid">, which that selector does not
+  # match, leaving the block to the pinned mermaid build.
+  #
+  # Neither formatter escapes < or >, so a raw <br/> in a node label is a real DOM
+  # node either way. mermaid reads innerHTML and normalizes <br>, so the line break
+  # survives; Material's mount reads textContent, which drops the tag and welds the
+  # neighbouring words together.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
 
 extra_css:
   # ?v= busts the Cloudflare CDN cache (keyed on full URL, 4h TTL for .css);
@@ -88,6 +118,7 @@ nav:
   - Home: README.md
   - Project:
       - Overview: public/PROJECT_OVERVIEW.md
+      - Problem framing: public/QR_TRUST_PROBLEM_DIAGRAM.md
       - Quishing threat evidence: public/QUISHING_THREAT_EVIDENCE.md
       - Run guide: public/RUN_GUIDE.md
       - Citing this work: public/CITING.md
@@ -96,6 +127,7 @@ nav:
       - Trust model: public/TRUST_MODEL.md
       - Trust-residual decision semantics: public/TRUST_RESIDUALS_DECISION_SEMANTICS.md
       - Trust-model graph: public/TRUST_MODEL_GRAPH.md
+      - Authority flow: public/QR_TRUST_AUTHORITY_FLOW.md
       - Trust layers: public/TRUST_LAYERS.md
       - Trust tiers: public/TRUST_TIERS.md
       - Verifier profile: public/VERIFIER_PROFILE.md

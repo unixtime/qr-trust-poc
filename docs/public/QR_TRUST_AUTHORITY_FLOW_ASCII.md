@@ -3,6 +3,7 @@
 Source figure:
 - `Figure 2` in the [published QR trust paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478)
 - visual asset: [QR_TRUST_AUTHORITY_FLOW.svg](./QR_TRUST_AUTHORITY_FLOW.svg)
+- rendered diagram: [QR_TRUST_AUTHORITY_FLOW.md](./QR_TRUST_AUTHORITY_FLOW.md)
 
 This ASCII version captures the intended governance semantics. It is the reference to use when refining the Figma version.
 

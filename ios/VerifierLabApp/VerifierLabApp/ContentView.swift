@@ -3038,8 +3038,11 @@ private enum DomainEmphasis {
         guard labels.count > 1 else { return labels.first }
 
         // A bare IP address has no registrable domain; splitting it would
-        // emphasise "1.5" out of "192.168.1.5", which reads as a domain and
-        // isn't one.
+        // emphasise "113.5" out of "203.0.113.5", which reads as a domain and
+        // isn't one. The example is from the RFC 5737 documentation range on
+        // purpose: the release audit bans private-range literals tree-wide,
+        // because a hardcoded LAN address here is how a developer's home
+        // network reaches a public repo.
         if labels.allSatisfy({ $0.allSatisfy(\.isNumber) }) { return cleaned }
 
         if labels.count >= 3, secondLevelSuffixes.contains(labels[labels.count - 2]) {

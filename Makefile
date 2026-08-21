@@ -1058,8 +1058,21 @@ docs-build:
 	test -f site/public/assets/javascripts/diagram-explorer.js
 	test -f site/backend/app/services/narrowed_verifier_poc.py/index.html
 	rg -q 'Public source file' site/backend/app/services/narrowed_verifier_poc.py/index.html
+# <div>, not <pre>: mkdocs-material ships its own mermaid mount whose selector
+# is literally pre.mermaid. The <pre> that mermaid2's fence_mermaid_custom emits
+# is therefore claimed by the theme, blanked to an empty <div class="mermaid">,
+# and never rendered -- with no console error, so the build still looks green.
+# Only a browser catches it. Assert both halves so the swap cannot come back.
 	rg -q '<div class="mermaid">' site/public/TRUST_MODEL_GRAPH/index.html
+	! rg -q '<pre class="mermaid">' site/public/TRUST_MODEL_GRAPH/index.html
+# The other failure here is superfences claiming the fence itself and handing
+# it to Pygments as an unknown language, which renders the diagram as source.
 	! rg -q 'class="language-mermaid"' site/public/TRUST_MODEL_GRAPH/index.html
+# Highlighting is invisible in the theme's CSS alone: mkdocs-material always
+# ships the Pygments stylesheet, so a page can look styled while every fence is
+# a bare <code> with nothing to colour. Assert the token spans themselves.
+	rg -q '<div class="language-bash highlight">' site/public/RUN_GUIDE/index.html
+	rg -q '<span class="nv">' site/public/RUN_GUIDE/index.html
 	rg -q 'assets/stylesheets/diagram-explorer\.css' site/public/TRUST_MODEL_GRAPH/index.html
 	rg -q 'assets/javascripts/diagram-explorer\.js' site/public/TRUST_MODEL_GRAPH/index.html
 # --strict cannot see the source-view routes the mkdocs_source_pages hook

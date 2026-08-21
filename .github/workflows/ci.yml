@@ -394,12 +394,13 @@ jobs:
   ios-swift-parse:
     name: iOS Swift Parse
     runs-on: ubuntu-latest
-    # The only iOS job a linux runner can host. build-ios needs xcodebuild, so
-    # a real build would need a macOS runner. What survives the port is the
-    # front half of the compiler: `swiftc -parse` stops before name resolution,
-    # so it never looks for SwiftUI or UIKit and needs only a toolchain. It
-    # catches syntax that would redden an Xcode build; it does not catch a
-    # missing symbol or a type error.
+    # The only iOS job a linux runner can host, and the only one GitLab can
+    # run at all -- every runner on that instance is linux/amd64. What survives
+    # the port is the front half of the compiler: `swiftc -parse` stops before
+    # name resolution, so it never looks for SwiftUI or UIKit and needs only a
+    # toolchain. It catches syntax that would redden an Xcode build; it does
+    # not catch a missing symbol or a type error. The build-ios job below does,
+    # but only here, and only after the push.
     #
     # Pinned rather than `swift:latest` so a new compiler cannot start
     # rejecting committed sources without a deliberate bump here.
@@ -418,3 +419,35 @@ jobs:
         run: |
           swift --version
           make check-ios-swift-parse
+
+  build-ios:
+    name: iOS Build
+    runs-on: macos-latest
+    # The half of the iOS target ios-swift-parse cannot reach: a real compile,
+    # so this is what catches a missing symbol, a type error, or a SwiftUI API
+    # that moved under the sources.
+    #
+    # This job has no counterpart in .gitlab-ci.yml and cannot have one. Every
+    # runner on that instance is linux/amd64, and xcodebuild exists only on
+    # macOS. GitHub-hosted runners are free and unmetered for public
+    # repositories, so the macOS runner this needs costs nothing -- but it is
+    # reachable only from the published tree, which means iOS is the one
+    # surface the review mirror cannot gate ahead of the push.
+    #
+    # Not pinned, unlike ios-swift-parse's swift:6.0 container. The reasoning
+    # there -- a new compiler must not start rejecting committed sources
+    # without a deliberate bump -- applies just as well to Xcode, but GitHub
+    # retires macOS image labels outright, so a pin eventually stops
+    # scheduling rather than failing loudly. Drift is the cheaper failure.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      # make build-ios targets the simulator SDK with CODE_SIGNING_ALLOWED=NO,
+      # so it needs no development team, certificate, or provisioning profile
+      # -- nothing here holds signing credentials, and nothing here should.
+      - name: Build iOS app
+        run: make build-ios

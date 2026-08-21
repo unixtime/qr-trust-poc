@@ -44,7 +44,22 @@ DerivedData/
 *.xcuserstate
 xcuserdata/
 ios/VerifierLabApp/VerifierLabApp.xcodeproj/project.xcworkspace/
-ios/VerifierLabApp/VerifierLabApp.xcodeproj/xcshareddata/
+# xcshareddata is ignored except for xcschemes, which has to be tracked: a
+# shared scheme is how `xcodebuild -scheme` finds the target, and without one
+# in the checkout build-ios fails on CI while succeeding locally, because
+# Xcode autocreates a private copy under the ignored xcuserdata. The glob is
+# `/*` rather than `/` so git descends into the directory -- a trailing-slash
+# exclude cannot be undone by a later negation.
+# Tracking it means Xcode writes into a tracked file: editing scheme
+# environment variables in the UI bakes the developer's own host into the
+# scheme, and `QRTRUST_VERIFIER_BASE_URLS` there beats the generated
+# LocalProvider.xcconfig (ProcessInfo wins over the bundle value in
+# VerifierAPI). Put machine-specific endpoints in the ignored
+# LocalProvider.xcconfig via scripts/write_ios_local_provider_config.sh and
+# keep the scheme free of them; only the maintainer `make release-audit`
+# catches a leak here, never CI (see release/public_release_checklist.md §6e).
+ios/VerifierLabApp/VerifierLabApp.xcodeproj/xcshareddata/*
+!ios/VerifierLabApp/VerifierLabApp.xcodeproj/xcshareddata/xcschemes/
 
 # Local archive
 archive/

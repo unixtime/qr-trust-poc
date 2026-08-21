@@ -134,8 +134,15 @@ fail() {
 # maintainer workspace; a public clone simply has no such paths to skip.
 # Exit status is rg's own, so callers keep inspecting it: 0 = matched,
 # 1 = clean, >1 = the scan itself failed and must never read as clean.
+#
+# --hidden is required (.gitlab-ci.yml and .github/ ship), which is also why
+# .git/** has to be excluded by hand: none of it is published -- the exported
+# repo is built fresh -- and COMMIT_EDITMSG, the reflog and ORIG_HEAD diffs
+# all quote content that no longer exists in the tree. Without this glob a
+# commit message describing a leak reads as the leak itself.
 scan_shipping_tree() {
   rg --hidden \
+    --glob '!.git/**' \
     --glob '!archive/**' \
     --glob '!private/**' \
     --glob '!local/**' \
@@ -144,6 +151,50 @@ scan_shipping_tree() {
     --glob '!backend/.env' \
     "$@" \
     .
+}
+
+# Report every occurrence of a personal-artifact pattern in the shipping tree.
+# These scans are the half of the sensitive boundary that runs in every role:
+# their vocabulary is closed, so unlike the private-pattern scan they need no
+# gitignored input and survive the trip to a CI runner.
+#
+# Callers pass a label, an rg pattern, a hint naming the fix, and optionally an
+# allowlist alternation of legitimate whole tokens. scan_shipping_tree is used
+# with -n -o, so each line is ./path:LINE:TOKEN and the allowlist anchors on
+# ":token" at end of line.
+#
+# Write patterns escaped (\. rather than .) even where a bare dot would match:
+# an escaped pattern cannot match its own source text, which is what lets this
+# script hold the very literals it bans without flagging itself.
+scan_for_personal_artifact() {
+  scan_label="$1"
+  scan_pattern="$2"
+  scan_hint="$3"
+  scan_allowlist="${4:-}"
+
+  scan_status=0
+  scan_matches="$(scan_shipping_tree -n -o "$scan_pattern")" || scan_status=$?
+
+  # rg's own status decides first: 0 = matches, 1 = clean, anything higher means
+  # the scan itself failed, and a failed scan must never be reported as clean.
+  if [ "$scan_status" -gt 1 ]; then
+    fail "$scan_label scan failed (rg exit $scan_status); refusing to fail open"
+    return
+  fi
+
+  if [ -n "$scan_allowlist" ]; then
+    scan_matches="$(
+      printf '%s\n' "$scan_matches" | grep -Ev ":($scan_allowlist)\$" || true
+    )"
+  fi
+  scan_matches="$(printf '%s\n' "$scan_matches" | grep -v '^$' || true)"
+
+  if [ -n "$scan_matches" ]; then
+    fail "$scan_label ($scan_hint):"
+    printf "%s\n" "$scan_matches"
+  else
+    pass "no $scan_label in the shipping tree"
+  fi
 }
 
 require_file() {
@@ -555,6 +606,48 @@ case "$sensitive_scan_state" in
     fail "unknown sensitive-scan state \"$sensitive_scan_state\"; refusing to fail open"
     ;;
 esac
+
+# The scan above reads local/release_audit_private_patterns.txt, so it runs only
+# for the maintainer; every CI role takes the public-clone branch, records the
+# NOTE, and skips it (release/public_release_checklist.md 6e). The three scans
+# below are the half that always runs, in every role. That matters: a developer
+# hostname reached main in the iOS shared scheme past a fully green pipeline,
+# because no role-independent check existed to see it.
+
+# A blanket ban on the mDNS suffix is impossible -- qrtrust.local is canonical
+# across the published network contracts -- but the legitimate set is small and
+# closed, so an unlisted host is by construction someone's machine. A new
+# legitimate name costs one deliberate line here; a leaked one is never on the
+# list.
+#
+# s.local is the tail of the `https://%s.local:PORT` printf template in the
+# Makefile, which resolves the host from `scutil --get LocalHostName` at run
+# time. That is the sanctioned way to reach a developer machine, and the reason
+# a baked-in hostname is never the answer.
+allowed_local_hosts='qrtrust\.local|qrtrust-lab\.local|providers\.local|env\.local|s\.local'
+
+scan_for_personal_artifact \
+  'unlisted .local hostnames' \
+  '[A-Za-z0-9][A-Za-z0-9-]*\.local\b' \
+  'a developer machine, or a new name to add to allowed_local_hosts' \
+  "$allowed_local_hosts"
+
+# Private-range literals need no allowlist at all: the tree reaches real hosts
+# through the Makefile template above, and prose examples use the RFC 5737
+# documentation range. Requiring all four octets is what makes that true --
+# a looser pattern matches npm semver ("10.8.0") throughout the lockfile.
+scan_for_personal_artifact \
+  'private-range IP literals' \
+  '\b(10\.[0-9]{1,3}|172\.(1[6-9]|2[0-9]|3[01])|192\.168)\.[0-9]{1,3}\.[0-9]{1,3}\b' \
+  'use the RFC 5737 documentation range in prose, and resolve real hosts at run time'
+
+# An absolute home path names its owner and breaks on every other machine, so
+# it is both a privacy leak and a portability bug. Repository-relative paths
+# are the fix in every case.
+scan_for_personal_artifact \
+  'absolute home-directory paths' \
+  '/Users/[A-Za-z0-9._-]+' \
+  'reference a repository-relative path instead of a developer home directory'
 
 fixture_private_key_file="network/src/fixtures/demo-signing-private-keys.ts"
 # rg's own status must be inspected before its output is piped anywhere:

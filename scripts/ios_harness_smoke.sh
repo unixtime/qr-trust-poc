@@ -53,7 +53,21 @@ assert_contains "$PROJECT_FILE" "TARGETED_DEVICE_FAMILY = 1" "iPhone-only scanne
 assert_contains "$PROJECT_FILE" "LocalProvider.defaults.xcconfig" "tracked local provider defaults"
 assert_not_contains "$PROJECT_FILE" "INFOPLIST_KEY_QRTRUST_VERIFIER_PROFILE_STATE" "compiled verifier profile state key"
 assert_not_contains "$PROJECT_FILE" "INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads" "arbitrary transport exception"
-assert_not_contains "$PROJECT_FILE" "MacBook-Pro.local" "personal Mac hostname"
+# The personal-hostname guard that used to sit here now lives in
+# scripts/public_release_audit.sh as the unlisted *.local scan. It covers the
+# whole shipping tree instead of these two files, and runs in every audit role
+# instead of only in this manual job -- so naming the banned host here would
+# only cause the audit to flag its own guard. Spell it "*.local" in prose and
+# never join a word to it with a hyphen: that scan accepts a hyphen mid-token,
+# so a hyphenated phrase reads as a hostname and this comment would fail the
+# audit. The word `make` needs the same discipline: the export's Make-target
+# scan reads whatever word follows it as a target name, anywhere under
+# scripts/ and .github/workflows/, comments included -- so the phrasing that
+# used to sit on this line was reported as a missing target called "the".
+# Backticks are the escape hatch: the scan requires whitespace right after
+# the word, so `make` in prose never reads as an invocation.
+# The 192.168.0. assertions stay: they are file-scoped on purpose, because
+# RFC1918 literals appear legitimately in prose elsewhere in the tree.
 assert_not_contains "$PROJECT_FILE" "192.168.0." "stale physical iPhone verifier target"
 
 assert_contains "$APP_DIR/LocalProvider.defaults.xcconfig" "QRTRUST_VERIFIER_BASE_URLS" "local provider defaults key"
@@ -76,7 +90,9 @@ assert_contains "$APP_DIR/VerifierAPI.swift" "waitsForConnectivity = false" "no 
 assert_contains "$APP_DIR/VerifierAPI.swift" "http://127.0.0.1:8000" "simulator verifier target"
 assert_contains "$APP_DIR/VerifierAPI.swift" "Do not guess a local" "no physical-device hostname guessing"
 assert_not_contains "$APP_DIR/VerifierAPI.swift" "https://qrtrust.local:8443" "physical-device hostname fallback"
-assert_not_contains "$APP_DIR/VerifierAPI.swift" "MacBook-Pro.local" "personal Mac hostname"
+# Personal-hostname guard moved to the unlisted *.local scan in
+# scripts/public_release_audit.sh; see the note above the first
+# 192.168.0. assertion.
 assert_not_contains "$APP_DIR/VerifierAPI.swift" "192.168.0." "stale physical iPhone verifier target"
 assert_not_contains "$APP_DIR/VerifierAPI.swift" "/verifier/admin/api-keys/issue" "developer key issue endpoint"
 assert_not_contains "$APP_DIR/VerifierAPI.swift" "/verifier/demo-sessions" "developer demo session endpoint"
@@ -101,7 +117,12 @@ assert_contains "$APP_DIR/VerifierLabViewModel.swift" "Use caution" "orange user
 assert_contains "$APP_DIR/VerifierLabViewModel.swift" "High-risk QR" "red warning user copy"
 assert_contains "$APP_DIR/VerifierLabViewModel.swift" "trustLayers(for:" "decision path trust layer mapping"
 assert_contains "$APP_DIR/VerifierLabViewModel.swift" "ebVWLo/mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ=" "deterministic provider-profile fixture public key"
-assert_contains "$APP_DIR/ContentView.swift" "Orange, protection service unavailable" "service outage is caution copy"
+# "Orange outline" rather than "Orange": .unavailable is the one tone drawn as
+# a hollow ring, and the label has to carry that shape because it shares the
+# orange of .caution. Assert the whole literal -- the "Orange" prefix is the
+# point of the check, so a copy edit that drops it must fail here, not pass a
+# looser substring.
+assert_contains "$APP_DIR/ContentView.swift" "Orange outline, protection service unavailable" "service outage is caution copy"
 assert_not_contains "$APP_DIR/VerifierLabViewModel.swift" "adminToken" "developer admin state"
 assert_not_contains "$APP_DIR/VerifierLabViewModel.swift" "generateDemo" "developer demo generation"
 

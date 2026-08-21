@@ -3,6 +3,7 @@
 Source figure:
 - `Figure 1` in the [published QR trust paper](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478)
 - visual asset: [QR_TRUST_PROBLEM_DIAGRAM.svg](./QR_TRUST_PROBLEM_DIAGRAM.svg)
+- rendered diagram: [QR_TRUST_PROBLEM_DIAGRAM.md](./QR_TRUST_PROBLEM_DIAGRAM.md)
 
 This ASCII version is the semantic reference for the figure. It prioritizes flow and box relationships over exact layout.
 

@@ -85,8 +85,13 @@ implementation, evidence, and operating paths for the QR Trust PoC.
 - [Trust-model graph](public/TRUST_MODEL_GRAPH.md) — document dependency graph;
   the [ASCII reference](public/TRUST_MODEL_GRAPH_ASCII.md) mirrors the paper's
   Figure 3.
-- [Authority flow](public/QR_TRUST_AUTHORITY_FLOW_ASCII.md)
-- [Problem framing](public/QR_TRUST_PROBLEM_DIAGRAM_ASCII.md)
+- [Authority flow](public/QR_TRUST_AUTHORITY_FLOW.md) — governance, publication,
+  and scan-time validation; the
+  [ASCII reference](public/QR_TRUST_AUTHORITY_FLOW_ASCII.md) mirrors the paper's
+  Figure 2.
+- [Problem framing](public/QR_TRUST_PROBLEM_DIAGRAM.md) — why decoding is not
+  trust; the [ASCII reference](public/QR_TRUST_PROBLEM_DIAGRAM_ASCII.md) mirrors
+  the paper's Figure 1.
 - [Deployment rollout](public/DEPLOYMENT_ROLLOUT_GRAPH.md) — adoption ordering;
   the [ASCII reference](public/DEPLOYMENT_ROLLOUT_GRAPH_ASCII.md) mirrors the
   paper's Figure 4.

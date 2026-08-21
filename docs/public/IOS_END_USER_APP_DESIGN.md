@@ -148,21 +148,27 @@ Goal:
 
 Layout:
 
-```text
-┌──────────────────────────────┐
-│ QR Trust                     │
-│ Verify before opening        │
-├──────────────────────────────┤
-│                              │
-│        camera preview        │
-│      rounded scan frame      │
-│                              │
-├──────────────────────────────┤
-│ Ready to scan                │
-│ We check issuer, destination │
-│ and current safety first.    │
-└──────────────────────────────┘
+```mermaid
+graph TD
+    subgraph SCREEN["Scan screen"]
+        direction TB
+        TITLE["QR Trust<br/>Verify before opening"]
+        CAM["camera preview<br/>rounded scan frame"]
+        STATUS["Ready to scan<br/>We check issuer, destination<br/>and current safety first."]
+        TITLE ~~~ CAM ~~~ STATUS
+    end
+
+    classDef header fill:#e8eefc,stroke:#334e9a,color:#172554,stroke-width:2px;
+    classDef viewport fill:#f1edff,stroke:#7c3aed,color:#2e2153,stroke-width:1.5px;
+    classDef status fill:#e8f8f5,stroke:#0f766e,color:#123c38,stroke-width:1.5px;
+
+    class TITLE header;
+    class CAM viewport;
+    class STATUS status;
 ```
+
+The three regions stack in that order; the connectors are layout only and carry
+no flow meaning.
 
 Interactions:
 - scan automatically when QR is centered
@@ -231,30 +237,172 @@ program.
 [Why this matters]
 ```
 
+### 5.2.1 Rendered decision states
+
+The frames below are design renders exported from the `Scanner UX States — iOS`
+Figma board. They are not captures of a running build, and the reference
+implementation does not yet emit every state shown here.
+
+They serve both this section and §5.3: each frame is iPhone 393 x 852 and shows
+the decision sheet with the trust strip already expanded, so one set of images
+covers the sheet and its explanation.
+
+The board follows [`SCANNER_UX_STATES.md`](SCANNER_UX_STATES.md), which
+enumerates seven scanner decision states. The four sheets sketched above are
+archetypes; these seven are the states those archetypes are drawn from.
+
+Read colour and wording as two separate channels. Colour follows severity,
+wording follows state. States 1, 2 and 5 all render amber and are unrelated to
+each other — the headline, not the colour, is what distinguishes them.
+
+**State 0 — unreadable capture** (`unreadable_capture`)
+
+![State 0 of the QR Trust scanner: a neutral grey circle above the headline
+"Couldn't read that code", explanatory body text, and a card giving the likely
+cause as glare on the code. No trust-layer strip is shown, because nothing was
+decoded and so no layer was evaluated.](assets/images/ios-scanner-states/state-0-unreadable-capture.png){ width="300" }
+
+Decoding failed, so no trust layer ran. This is the one state with no trust
+strip: there is no evaluation to explain.
+
+**State 1 — unverified** (`unverified`)
+
+![State 1 of the QR Trust scanner: an amber circle above the headline "No trust
+signal on this code", the destination example-retailer.com/promo/spring, and a
+four-step trust strip reading No enrollment found, Not asserted, No current
+concerns, Orange status.](assets/images/ios-scanner-states/state-1-unverified.png){ width="300" }
+
+An ordinary QR code with no trust signal attached. Absence of a signal is not
+evidence of harm, and the copy must not imply otherwise.
+
+**State 2 — signed, unaccepted issuer** (`signed_unknown_issuer`)
+
+![State 2 of the QR Trust scanner: an amber circle above the headline "Signed,
+but not by an issuer we accept", a card showing the signer
+did:web:promos.example-brand.com, and a trust strip reading Not accepted, Bound
+as signed, No current concerns, Orange status.](assets/images/ios-scanner-states/state-2-signed-unaccepted-issuer.png){ width="300" }
+
+The signature verifies, but the issuer is outside the accepted set. The wire
+label is `signed_unknown_issuer`, retained for compatibility after the state was
+renamed — "unaccepted" is a policy decision, not a failure to recognise.
+
+**State 3 — verified issuer** (`verified_issuer`)
+
+![State 3 of the QR Trust scanner: a green circle with a checkmark above the
+headline "Verified issuer", a card naming Example Brand, Inc. with a TIER 2
+ENROLLED badge and the destination example-brand.com/spring/offer, and a trust
+strip reading Enrolled, Matches approved, No current concerns, Green
+status.](assets/images/ios-scanner-states/state-3-verified-issuer.png){ width="300" }
+
+All four layers pass. This is the only state that offers a plain primary action
+with no friction.
+
+**State 4 — destination changed** (no wire label assigned)
+
+![State 4 of the QR Trust scanner: a red circle with a warning triangle above
+the headline "This code no longer goes where the issuer approved", a card
+contrasting the issuer-approved example-brand.com/spring/offer against the
+current destination promo-redirect.example.net/x9f2 in red, and a trust strip
+reading Enrolled, Does not match, Not reached, Red warning. The actions are Back
+to scanner and a hold-to-open escape
+hatch.](assets/images/ios-scanner-states/state-4-destination-changed.png){ width="300" }
+
+Specified but not yet emitted. `SCANNER_UX_STATES.md` assigns this state no wire
+label and instructs implementers not to infer one, which is why this frame
+carries no state chip while the others do.
+
+Two things follow for implementation. Runtime safety reads `Not reached`, not
+`clean` — binding failed before any risk check ran, and reporting an unrun check
+as passing would overstate what is known. And the severity is red while the
+semantics are a strong warning, not a hard block: the escape hatch is present,
+deliberately behind a hold gesture.
+
+**State 5 — verified issuer, destination risky** (`verified_issuer_destination_risky`)
+
+![State 5 of the QR Trust scanner: an amber circle above the headline "Trusted
+issuer, risky destination", a card noting the destination is flagged for
+credential phishing reported four hours ago, and a trust strip reading Enrolled,
+Matches approved, Active concerns, Orange status. The only action is a
+hold-to-open control with a hold
+hint.](assets/images/ios-scanner-states/state-5-verified-issuer-destination-risky.png){ width="300" }
+
+Issuer trust and destination safety disagree. The issuer did nothing wrong, so
+the copy blames the destination rather than the brand.
+
+**State 6 — blocked** (`blocked`)
+
+![State 6 of the QR Trust scanner: a red circle above the headline "Blocked — do
+not continue", a card explaining that the issuing profile was revoked and noting
+that malformed signed state, replay or policy failure, and known-malicious
+destinations also collapse into this state, and a trust strip reading Revoked,
+Not trusted, Known malicious, Red status. No escape hatch is
+offered.](assets/images/ios-scanner-states/state-6-blocked.png){ width="300" }
+
+The only state with no escape hatch. Several distinct failures collapse here, so
+the sheet says so rather than implying a single cause.
+
+Coverage: the board covers this section and §5.3 only. §5.1 Scan Screen, §5.4
+History, §5.5 Learn and §5.6 Settings have no Figma frames yet — the wireframes
+and prose in those sections remain their only reference.
+
+Sample identity: the ASCII blocks in §5.2 predate the board and still use
+`Acme Example` / `acme.example/pay`, while the renders and
+`SCANNER_UX_STATES.md` use `Example Brand, Inc.` / `example-brand.com`. Both are
+illustrative, but the two should be reconciled the next time §5.2 is edited.
+
 ### 5.3 Explanation View
 
 Goal:
 - teach the model only after the user asks for detail
 
-Use a compact vertical trust strip:
+Use a compact trust strip that walks the layers in order:
 
-```text
-Issuer          recognized
-Destination     approved
-Runtime safety  clean
-Decision        open allowed
+```mermaid
+graph LR
+    I["Issuer<br/>recognized"] --> D["Destination<br/>approved"]
+    D --> R["Runtime safety<br/>clean"]
+    R --> O["Decision<br/>open allowed"]
+
+    classDef pass fill:#e8f8f5,stroke:#0f766e,color:#123c38,stroke-width:1.5px;
+    classDef allow fill:#dcfce7,stroke:#15803d,color:#052e16,stroke-width:2px;
+
+    class I,D,R pass;
+    class O allow;
 ```
 
-For failures, highlight the first blocking layer:
+For failures, highlight the first blocking layer and show the ones after it as
+unevaluated rather than passing:
 
-```text
-Issuer          recognized
-Destination     changed
-Runtime safety  not reached
-Decision        blocked
+```mermaid
+graph LR
+    I["Issuer<br/>recognized"] --> D["Destination<br/>changed"]
+    D --> R["Runtime safety<br/>not reached"]
+    R --> O["Decision<br/>blocked"]
+
+    classDef pass fill:#e8f8f5,stroke:#0f766e,color:#123c38,stroke-width:1.5px;
+    classDef breaks fill:#fee2e2,stroke:#b91c1c,color:#450a0a,stroke-width:2px;
+    classDef unrun fill:#eef1f5,stroke:#94a3b8,color:#334155,stroke-width:1.5px,stroke-dasharray:4 3;
+
+    class I pass;
+    class D,O breaks;
+    class R unrun;
 ```
+
+Runtime safety is drawn dashed because binding failed before that check ran.
+Reporting an unrun check as `clean` would overstate what is known.
 
 This maps directly to the paper without showing a dense academic diagram.
+
+Rendered, this strip appears inline in every frame in §5.2.1 — the pass example
+above is State 3, the failure example is State 4.
+
+The failure chain ending in `blocked` is not a discrepancy: `blocked` is the
+`decision_state` the backend actually emits for a destination mismatch, which it
+distinguishes from other blocking failures with
+`verifier_stage: "payload_revalidation"`. Severity is read from the decision
+state and wording from the stage, so `blocked` selects the red treatment and
+forces the hold gesture while the stage supplies the "Destination changed" copy.
+The escape hatch survives — State 6 is the only state that withdraws it.
 
 ### 5.4 History
 
