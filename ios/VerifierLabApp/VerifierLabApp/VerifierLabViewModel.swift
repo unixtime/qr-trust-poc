@@ -829,6 +829,17 @@ final class VerifierLabViewModel: ObservableObject {
         )
     }
 
+    /// Maps the wire `decision_state` onto the three-tone end-user vocabulary.
+    ///
+    /// A changed destination -- State 4 in SCANNER_UX_STATES.md -- has no
+    /// `decision_state` of its own. That doc leaves its wire label deliberately
+    /// unassigned, so the verifier collapses a destination mismatch onto
+    /// "blocked" and distinguishes it with `verifier_stage:
+    /// "payload_revalidation"`. The tone is therefore already right here
+    /// without a case of its own; the stage steers only the copy, in
+    /// `title(for:)` and `message(for:)`. Do not add a State 4 case to this
+    /// switch on the strength of the UX doc alone -- there is no string for it
+    /// to match until the doc assigns one.
     private func tone(from decision: ScannerDecisionResponse) -> TrustTone {
         switch decision.decisionState {
         case "verified_issuer":
@@ -837,9 +848,16 @@ final class VerifierLabViewModel: ObservableObject {
             return .caution
         case "signed_unknown_issuer", "unverified", "stale_trust_state", "profile_stale":
             return .caution
-        case "profile_revoked":
+        // Spelled out rather than left to `default`, even though the fallback
+        // returns the same tone: these are the states the verifier is
+        // specified to emit as red, so naming them keeps this switch readable
+        // beside SCANNER_DECISION_MATRIX.md and makes the omission of any
+        // future red state visible as a diff.
+        case "blocked", "profile_revoked":
             return .blocked
         default:
+            // Fail closed. An unrecognised state is one this build does not
+            // understand, which is not grounds for reassuring the user.
             return .blocked
         }
     }
