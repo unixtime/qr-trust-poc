@@ -114,14 +114,22 @@
   scrollbar-color: #b8c4d4 transparent;
 }
 
+/* Mermaid renders each diagram as <svg width="100%" style="max-width: Npx">,
+   where N is the diagram's natural width -- "fill the column, never magnify
+   past natural size". A min-width here would defeat that contract entirely:
+   min-width is resolved after max-width in CSS width computation, so it beats
+   even mermaid's inline max-width. The card used to carry min-width: 100% (and
+   min-width: 64rem for .qr-diagram-card--wide), which rendered a 346px-wide
+   diagram at 1280px -- 3.7x magnification overflowing the card by 654px, hidden
+   behind macOS overlay scrollbars. Magnification belongs to the modal, which
+   owns zoom, pan, and fit; the card just shows the diagram at its natural size.
+   diagram-explorer.js still adds .qr-diagram-card--wide for aspect ratio > 2.1;
+   the class is now styling-inert and kept only as a hook. */
 .qr-diagram-card > .mermaid > svg {
   display: block;
-  min-width: 100%;
+  max-width: 100%;
+  height: auto;
   margin: 0 auto;
-}
-
-.qr-diagram-card--wide > .mermaid > svg {
-  min-width: 64rem;
 }
 
 .qr-diagram-card > .mermaid:focus-visible,
