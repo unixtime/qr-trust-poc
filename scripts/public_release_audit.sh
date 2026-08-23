@@ -382,7 +382,6 @@ for file in \
   SECURITY.md \
   SUPPORT.md \
   compose.shared-infra.yml \
-  .github/dependabot.yml \
   .github/PULL_REQUEST_TEMPLATE.md \
   .github/ISSUE_TEMPLATE/bug_report.yml \
   .github/ISSUE_TEMPLATE/config.yml \

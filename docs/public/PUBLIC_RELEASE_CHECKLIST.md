@@ -191,7 +191,6 @@ Existing docs and validation hooks:
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `.github/ISSUE_TEMPLATE/bug_report.yml`
 - `.github/ISSUE_TEMPLATE/research_or_vector.yml`
-- `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
 - `.github/workflows/native-ios.yml`
 - `docs/public/RELEASE_CANDIDATE_STATUS.md`
