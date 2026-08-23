@@ -61,8 +61,14 @@ if config.SECRET_KEY == DEFAULT_SECRET_KEY:
 # same-origin by default and does not need wildcard cross-origin access.
 if config.CORS_ORIGINS:
     allow_all_origins = "*" in config.CORS_ORIGINS
+    # wildcard-cors flags the literal ["*"], and it is right that a wildcard
+    # origin is reachable -- but only when an operator writes "*" into
+    # CORS_ORIGINS themselves. The combination the rule actually guards against,
+    # wildcard origins *with* credentials, cannot be configured: the line below
+    # allow_origins forces allow_credentials to False in exactly that case.
     app.add_middleware(
         CORSMiddleware,  # type: ignore
+        # nosemgrep: python.fastapi.security.wildcard-cors.wildcard-cors
         allow_origins=["*"] if allow_all_origins else config.CORS_ORIGINS,
         allow_credentials=False if allow_all_origins else config.CORS_ALLOW_CREDENTIALS,
         allow_methods=["*"],

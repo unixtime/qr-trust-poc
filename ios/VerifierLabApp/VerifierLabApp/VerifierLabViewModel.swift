@@ -66,10 +66,6 @@ final class VerifierLabViewModel: ObservableObject {
         Self.normalizedProviderProfileState(api.providerProfileState) ?? "active"
     }
 
-    var canOpenDestination: Bool {
-        result.destination != nil
-    }
-
     private static func normalizedProviderProfileState(_ rawValue: String?) -> String? {
         guard let state = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
               !state.isEmpty,
@@ -711,7 +707,19 @@ final class VerifierLabViewModel: ObservableObject {
             signals: localProfileStateTrustLayers(
                 profileState: normalizedProfileState,
                 fallbackURL: fallbackURL
-            )
+            ),
+            // A revoked provider profile is a refusal this scanner makes itself,
+            // not an absent answer: the gate fires before the verifier is ever
+            // called, and the title it renders is literally "Do not open".
+            // State 6 in IOS_END_USER_APP_DESIGN.md documents this exact case as
+            // the one state where "no escape hatch is offered", so say false
+            // rather than nil and let the open affordance disappear.
+            //
+            // Stale stays nil. Its tone is .caution and its own copy says a
+            // destination may still be visible, so the documented cautioned
+            // open is correct there -- a refusal would be a claim we have not
+            // earned.
+            openAllowed: isRevoked ? false : nil
         )
     }
 
@@ -825,7 +833,8 @@ final class VerifierLabViewModel: ObservableObject {
             cacheExpiresAt: decision.governance?.cacheExpiresAt,
             verifierProfileState: activeVerifierProfileState,
             scannerUX: decision.scannerUX,
-            signals: trustLayers(for: decision, tone: tone)
+            signals: trustLayers(for: decision, tone: tone),
+            openAllowed: decision.openAllowed
         )
     }
 

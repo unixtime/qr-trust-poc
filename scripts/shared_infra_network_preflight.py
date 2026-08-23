@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import os
 import socket
-import subprocess
+
+# B404 fires on the import itself, which carries no signal on its own -- the
+# call site is what matters, and check_postgres() below is the only one.
+import subprocess  # nosec B404
 import sys
 import urllib.error
 import urllib.request
@@ -110,7 +113,12 @@ def check_postgres(config: Config, failures: list[str]) -> None:
     env = os.environ.copy()
     env["PGPASSWORD"] = config.db_password
     try:
-        subprocess.run(
+        # B603: the argument list is fixed here and every interpolated value is
+        # a config field, never shell-parsed -- there is no shell=True.
+        # B607: "psql" is deliberately a partial path. This preflight checks the
+        # developer's own host tooling, where psql's location varies by install
+        # method; hardcoding one would break the check on most machines.
+        subprocess.run(  # nosec B603 B607
             [
                 "psql",
                 "--host",
@@ -175,7 +183,13 @@ def check_redis(config: Config, failures: list[str]) -> None:
 def check_nats_monitor(config: Config, warnings: list[str]) -> None:
     url = f"http://{config.nats_monitor_host}:{config.nats_monitor_port}/varz"
     try:
-        with urllib.request.urlopen(url, timeout=2.0) as response:
+        # B310 guards against a caller-supplied scheme reaching urlopen (file://,
+        # ftp://). The scheme here is the literal "http" in the f-string above,
+        # pointing at a loopback monitoring port, so no scheme can be injected.
+        # semgrep's dynamic-urllib-use-detected raises the same objection and
+        # needs its own marker -- a `# nosec` does not suppress semgrep.
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+        with urllib.request.urlopen(url, timeout=2.0) as response:  # nosec B310
             if response.status != 200:
                 warnings.append(f"NATS monitor returned HTTP {response.status}; run make up-nats.")
                 return

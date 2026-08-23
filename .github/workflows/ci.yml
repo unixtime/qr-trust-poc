@@ -86,6 +86,46 @@ jobs:
         working-directory: network
         run: npm audit --audit-level=high
 
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+
+      # No `uv sync` step: the scanners come from uvx at pinned versions and
+      # none of backend's own dependencies are imported. The version pins and
+      # scan scopes live in the Makefile; every threshold lives in
+      # scripts/security_audit.py, which is stdlib-only.
+
+      # bandit over backend/app and scripts. The scope is explicit because the
+      # repo carries stale copies of these files under local/public_export and
+      # site/backend, and a repo-root scan would report findings against code
+      # nothing builds. The gate also asserts a line-count floor, so a renamed
+      # path fails loudly instead of scanning nothing and exiting 0.
+      - name: Run bandit over the Python backend and scripts
+        run: make security-audit-python
+
+      # uv export flattens the lockfile to a hash-pinned requirements file, so
+      # what is audited is exactly what `uv sync --frozen` installs rather than
+      # whatever a local .venv happens to hold.
+      - name: Audit backend dependencies for known advisories
+        run: make security-audit-deps
+
+      # semgrep runs with --error because it otherwise exits 0 even with
+      # blocking findings. Suppressions are inline `# nosemgrep` markers that
+      # name their rule id, so each one is readable beside the code it excuses.
+      - name: Run semgrep over the backend, scripts, frontend, and network
+        run: make security-audit-semgrep
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -185,8 +225,8 @@ jobs:
 
       # Umbrella target: runs the verifier and lab pytest slice, then chains
       # check-frontend-vite-config, check-frontend-trust-tone,
-      # check-frontend-scanner-contract and
-      # check-frontend-scanner-open-contract. Targets added to that chain
+      # check-frontend-scanner-contract, check-frontend-scanner-open-contract
+      # and check-ios-scanner-open-contract. Targets added to that chain
       # are covered here without editing this workflow.
       - name: Run verifier lab stability checks
         run: make check-python-verifier-lab-stability

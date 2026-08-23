@@ -580,7 +580,7 @@ struct ContentView: View {
         switch result.tone {
         case .trusted:
             HStack(spacing: 10) {
-                if result.destination != nil {
+                if openableURL(for: result) != nil {
                     Button("Open site") {
                         prepareOpenDestination(result)
                     }
@@ -595,7 +595,7 @@ struct ContentView: View {
             }
         case .caution, .blocked:
             VStack(spacing: 10) {
-                if result.destination != nil {
+                if openableURL(for: result) != nil {
                     Button(openActionTitle(for: result)) {
                         prepareOpenDestination(result)
                     }
@@ -622,7 +622,7 @@ struct ContentView: View {
                     }
                     .buttonStyle(FilledCapsuleButtonStyle(tint: AppTheme.orange, foreground: .white))
 
-                    if result.destination != nil {
+                    if openableURL(for: result) != nil {
                         Button("Open anyway") {
                             prepareOpenDestination(result)
                         }
@@ -726,14 +726,20 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-            if item.destination != nil {
+            if openableURL(for: item) != nil {
                 Button {
                     prepareOpenDestination(item)
                 } label: {
                     Label(item.tone == .trusted ? "Open" : "Review", systemImage: "safari")
                 }
                 .tint(visual.color)
+            }
 
+            // Copy stays available even when the verifier refused the open --
+            // that is the server's own fallback pairing ("Do not open" plus a
+            // copy action), and it leaves the user a way to inspect or report a
+            // destination they must not visit.
+            if item.destination != nil {
                 Button {
                     UIPasteboard.general.string = item.destination
                 } label: {
@@ -1527,7 +1533,23 @@ struct ContentView: View {
         }
     }
 
+    /// The URL this result may be opened with, or nil if it must not be opened.
+    ///
+    /// Single chokepoint for every open path: it decides whether the affordance
+    /// renders at all (`actionRow`, the history swipe action), whether the
+    /// review sheet presents (`prepareOpenDestination`), and whether the sheet
+    /// body draws. Both questions -- "are we permitted?" and "with what URL?" --
+    /// answer here on purpose, so no caller can obtain the URL without also
+    /// clearing the permission check.
     private func openableURL(for result: ScanResult) -> URL? {
+        // An explicit verifier refusal outranks everything below. The server
+        // returns no open action in this case and the web client renders none;
+        // a scanner that offers "open anyway" after its own verifier said no is
+        // the client-side trust widening this project argues against.
+        guard !result.verifierRefusedOpen else {
+            return nil
+        }
+
         let candidates = [result.destination, result.finalURL].compactMap { $0 }
         for value in candidates {
             guard

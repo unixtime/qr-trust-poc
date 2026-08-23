@@ -1,6 +1,7 @@
-.PHONY: help up up-admin up-lan up-lan-admin up-https-admin ensure-shared-infra-db check-shared-infra-network apply-backend-migrations check-backend-migrations apply-network-reference-schema apply-network-migrations check-network-migrations check-network-stack-ready check-network-worker-drill up-nats up-network-outbox-worker logs-network-outbox-worker up-network-governance-subscriber-worker logs-network-governance-subscriber-worker up-network-runtime-subscriber-worker logs-network-runtime-subscriber-worker qrtrustctl-container-help up-secondary-verifier-node up-secondary-verifier-node-shared-infra logs-secondary-verifier-node up-network-artifact-publication-worker logs-network-artifact-publication-worker up-network-verifier-cache-worker logs-network-verifier-cache-worker down-nats up-https-admin-shared-infra up-https-admin-shared-infra-nats down logs status smoke-compose smoke-compose-https dev-frontend dev-frontend-https check-route-navigation check-frontend-vite-config check-frontend-trust-tone check-frontend-scanner-contract check-frontend-scanner-open-contract check-python-verifier-lab-stability capture-browser-evidence check-browser-evidence smoke-ios ios-provider-config check-ios-provider-config check-ios-swift-parse ios-provider-profile-fixture check-ios-provider-profile-fixture ios-provider-profile-evidence-packet ios-provider-profile-evidence-status import-ios-provider-profile-evidence check-ios-provider-profile-evidence iphone-evidence-preflight iphone-evidence-packet iphone-evidence-status import-iphone-evidence check-iphone-evidence scanner-release-evidence-packet scanner-release-evidence-export-status scanner-release-evidence-downloads-status import-scanner-release-evidence-export import-scanner-release-evidence-downloads scanner-release-evidence-status check-trust-residuals-evaluation check-governance-fixtures check-network-contracts check-network-services check-network-services-offline check-network-services-runtime check-network-signing-custody-audit-export check-network-signing-custody-publication-audit check-network-artifact-publication-supervisor check-network-outbox-supervisor check-network-runtime-observations check-network-verifier-cache-supervisor check-network-verifier-cache-read-model check-network-scanner-decision-http-runtime check-network-scanner-fleet-evidence check-network-cross-surface-evidence check-network-worker-operations-evidence check-network-restore-automation-evidence check-network-packaged-deployment-approval-evidence check-network-operator-evidence-index check-network-production-evidence-requirements check-network-production-evidence-collection-template check-network-production-evidence-closure-bundle check-network-production-evidence-gap-report check-network-production-evidence-intake check-network-production-evidence-private-index check-network-adoption-stage check-network-reference-handoff-bundle scanner-fleet-evidence-artifacts-status scanner-fleet-capture-drill check-network-scanner-fleet-evidence-artifacts check-network-verifier-profile network-verifier-profile-distribution-report network-production-evidence-collection-template network-production-evidence-gap-report network-production-evidence-intake network-production-evidence-closure-bundle network-production-evidence-private-template check-network-live-postgres check-network-live-outbox-metrics check-network-live-nats check-network-live-outbox-worker check-network-live-authority-outbox check-network-live-outbox-retry check-network-live-verifier-cache check-network-live-scanner-decision network-adoption-stage-report network-adoption-stage-production-drill network-readiness-report network-readiness-bundle network-readiness-report-production network-readiness-report-production-drill network-readiness-bundle-production-drill network-reference-handoff-bundle network-reference-handoff-production-drill network-deployed-scanner-readiness-report release-readiness-report check-release-readiness-report release-audit release-audit-strict docs-build docs-serve test-backend build-frontend lint-frontend build-ios
+.PHONY: help up up-admin up-lan up-lan-admin up-https-admin ensure-shared-infra-db check-shared-infra-network apply-backend-migrations check-backend-migrations apply-network-reference-schema apply-network-migrations check-network-migrations check-network-stack-ready check-network-worker-drill up-nats up-network-outbox-worker logs-network-outbox-worker up-network-governance-subscriber-worker logs-network-governance-subscriber-worker up-network-runtime-subscriber-worker logs-network-runtime-subscriber-worker qrtrustctl-container-help up-secondary-verifier-node up-secondary-verifier-node-shared-infra logs-secondary-verifier-node up-network-artifact-publication-worker logs-network-artifact-publication-worker up-network-verifier-cache-worker logs-network-verifier-cache-worker down-nats up-https-admin-shared-infra up-https-admin-shared-infra-nats down logs status smoke-compose smoke-compose-https dev-frontend dev-frontend-https check-route-navigation check-frontend-vite-config check-frontend-trust-tone check-frontend-scanner-contract check-frontend-scanner-open-contract check-python-verifier-lab-stability capture-browser-evidence check-browser-evidence smoke-ios ios-provider-config check-ios-provider-config check-ios-swift-parse check-ios-scanner-open-contract ios-provider-profile-fixture check-ios-provider-profile-fixture ios-provider-profile-evidence-packet ios-provider-profile-evidence-status import-ios-provider-profile-evidence check-ios-provider-profile-evidence iphone-evidence-preflight iphone-evidence-packet iphone-evidence-status import-iphone-evidence check-iphone-evidence scanner-release-evidence-packet scanner-release-evidence-export-status scanner-release-evidence-downloads-status import-scanner-release-evidence-export import-scanner-release-evidence-downloads scanner-release-evidence-status check-trust-residuals-evaluation check-governance-fixtures check-network-contracts check-network-services check-network-services-offline check-network-services-runtime check-network-signing-custody-audit-export check-network-signing-custody-publication-audit check-network-artifact-publication-supervisor check-network-outbox-supervisor check-network-runtime-observations check-network-verifier-cache-supervisor check-network-verifier-cache-read-model check-network-scanner-decision-http-runtime check-network-scanner-fleet-evidence check-network-cross-surface-evidence check-network-worker-operations-evidence check-network-restore-automation-evidence check-network-packaged-deployment-approval-evidence check-network-operator-evidence-index check-network-production-evidence-requirements check-network-production-evidence-collection-template check-network-production-evidence-closure-bundle check-network-production-evidence-gap-report check-network-production-evidence-intake check-network-production-evidence-private-index check-network-adoption-stage check-network-reference-handoff-bundle scanner-fleet-evidence-artifacts-status scanner-fleet-capture-drill check-network-scanner-fleet-evidence-artifacts check-network-verifier-profile network-verifier-profile-distribution-report network-production-evidence-collection-template network-production-evidence-gap-report network-production-evidence-intake network-production-evidence-closure-bundle network-production-evidence-private-template check-network-live-postgres check-network-live-outbox-metrics check-network-live-nats check-network-live-outbox-worker check-network-live-authority-outbox check-network-live-outbox-retry check-network-live-verifier-cache check-network-live-scanner-decision network-adoption-stage-report network-adoption-stage-production-drill network-readiness-report network-readiness-bundle network-readiness-report-production network-readiness-report-production-drill network-readiness-bundle-production-drill network-reference-handoff-bundle network-reference-handoff-production-drill network-deployed-scanner-readiness-report release-readiness-report check-release-readiness-report release-audit release-audit-strict docs-build docs-serve test-backend build-frontend lint-frontend build-ios
 .PHONY: generate-trust-residuals-fixtures
 .PHONY: up-https-admin-nats demo-bootstrap check-stack-settled
+.PHONY: security-audit security-audit-python security-audit-deps security-audit-semgrep
 
 VERIFIER_ADMIN_TOKENS ?= ["local-lab-admin"]
 VERIFIER_SMOKE_ADMIN_TOKEN ?= local-lab-admin
@@ -102,6 +103,44 @@ IPHONE_EVIDENCE_SOURCE_DIR ?=
 IOS_PROVIDER_PROFILE_EVIDENCE_SOURCE_DIR ?=
 SCANNER_RELEASE_EVIDENCE_SOURCE_DIR ?=
 SCANNER_RELEASE_EVIDENCE_DOWNLOADS_DIR ?= $(HOME)/Downloads
+
+# Security scanner pins and scan scopes. The versions are pinned because an
+# unpinned scanner turns every upgrade into an unannounced CI failure, and the
+# scopes are explicit because the repo carries stale copies of these same
+# files under local/public_export and site/backend -- a repo-root recursive
+# scan would report findings against code nothing builds.
+#
+# The three floors below (expected skips, minimum lines, minimum targets) are
+# measured values, not guesses. They exist because both scanners exit 0 when
+# they match nothing at all, so a gate that only checks the exit code goes
+# permanently green the moment a path is renamed.
+BANDIT_VERSION ?= 1.9.4
+BANDIT_SCOPE ?= backend/app scripts
+BANDIT_EXPECTED_SKIPS ?= 9
+BANDIT_MIN_LOC ?= 15000
+SEMGREP_VERSION ?= 1.172.0
+SEMGREP_CONFIG ?= p/default
+SEMGREP_SCOPE ?= backend/app scripts frontend/src network
+SEMGREP_MIN_TARGETS ?= 300
+# One residual parse error is expected: semgrep's bash parser chokes on the
+# "&" characters inside the query-string default in
+# scripts/compose_workbench_smoke.sh:7. The cap exists because a burst of
+# matching errors silently suppresses real findings -- three Pro-only rules
+# once crashed the matcher 600 times and hid half the results.
+SEMGREP_MAX_ERRORS ?= 1
+# The three rules below are Pro-only. On the free engine they do not just skip,
+# they crash the matcher on every candidate file and take unrelated analysis
+# down with them.
+SEMGREP_EXCLUDED_RULES ?= --exclude-rule javascript.crypto-js.cryptojs-weak-algorithm.cryptojs-weak-algorithm \
+  --exclude-rule javascript.express.web.cors-default-config-express.cors-default-config-express \
+  --exclude-rule javascript.koa.web.cors-default-config-koa.cors-default-config-koa
+PIP_AUDIT_VERSION ?= 2.9.0
+# PYSEC-2026-1325 (CVE-2024-23342, Minerva timing attack on P-256) has no fixed
+# version. ecdsa reaches this project only through python-jose, and
+# app/core/config.py pins ALGORITHM to HS256 -- symmetric HMAC, which never
+# touches a curve. Unreachable, so it is ignored by id rather than tolerated
+# by lowering the severity floor.
+PIP_AUDIT_IGNORED_VULNS ?= --ignore-vuln PYSEC-2026-1325
 
 help:
 	@printf "Targets:\n"
@@ -238,6 +277,10 @@ help:
 	@printf "  make build-frontend Build the React frontend.\n"
 	@printf "  make lint-frontend  Lint the React frontend.\n"
 	@printf "  make build-ios      Build the native iPhone scanner app for iOS Simulator.\n"
+	@printf "  make security-audit Run every static and dependency security gate.\n"
+	@printf "  make security-audit-python Run bandit over the Python backend and scripts.\n"
+	@printf "  make security-audit-deps Audit the exported backend dependency set for known advisories.\n"
+	@printf "  make security-audit-semgrep Run semgrep over the backend, scripts, frontend, and network.\n"
 
 up:
 	API_PUBLISH_HOST='$(API_PUBLISH_HOST)' \
@@ -751,6 +794,7 @@ check-python-verifier-lab-stability:
 	@$(MAKE) check-frontend-trust-tone
 	@$(MAKE) check-frontend-scanner-contract
 	@$(MAKE) check-frontend-scanner-open-contract
+	@$(MAKE) check-ios-scanner-open-contract
 
 capture-browser-evidence:
 	FRONTEND_BASE_URL='http://$(FRONTEND_DEV_HOST):$(FRONTEND_DEV_PORT)' \
@@ -779,6 +823,12 @@ check-ios-provider-config:
 # the same language mode Xcode compiles in rather than the toolchain default.
 check-ios-swift-parse:
 	swiftc -parse -swift-version 5 ios/VerifierLabApp/VerifierLabApp/*.swift
+
+# The iOS counterpart to check-frontend-scanner-open-contract: it pins that the
+# scanner never offers to open a destination the verifier refused. Like the
+# parse check it is pure text analysis, so CI runs it without a macOS runner.
+check-ios-scanner-open-contract:
+	./backend/.venv/bin/python scripts/ios_scanner_open_contract_check.py
 
 ios-provider-profile-fixture:
 	mkdir -p .build/swift-module-cache
@@ -1036,6 +1086,57 @@ release-audit:
 
 release-audit-strict:
 	STRICT_RELEASE_AUDIT=true sh ./scripts/public_release_audit.sh
+
+# Both scanners exit 0 in situations that are not clean: semgrep without
+# --error reports blocking findings and still exits 0, and either one exits 0
+# when its scope matched no files at all. So the tools run here and their JSON
+# is handed to scripts/security_audit.py, which owns every threshold. The
+# report goes to mktemp rather than the working tree so release-audit's
+# clean-tree check stays green.
+security-audit-python:
+	report="$$(mktemp "$${TMPDIR:-/tmp}/qrtrust-bandit.XXXXXX")"; \
+	status=0; \
+	uvx bandit@$(BANDIT_VERSION) -r $(BANDIT_SCOPE) -q -f json -o "$$report" || status=$$?; \
+	python3 scripts/security_audit.py --tool-status "$$status" bandit "$$report" \
+	  --expected-skips $(BANDIT_EXPECTED_SKIPS) --min-loc $(BANDIT_MIN_LOC); \
+	verdict=$$?; \
+	rm -f "$$report"; \
+	exit $$verdict
+
+# pip-audit is the one gate with no parser: its own exit code is the verdict,
+# because it fails on any advisory it was not explicitly told to ignore.
+# uv export flattens the lockfile to a hash-pinned requirements file, so what
+# is audited is exactly what uv sync --frozen would install -- not whatever
+# the local .venv happens to hold.
+#
+# --disable-pip is what keeps this offline-safe: pip-audit's -r source builds a
+# throwaway virtualenv unconditionally, and ensurepip aborts inside it here.
+# --no-deps does not skip that step; only --disable-pip does. It is legal for
+# this input because uv export emits a --hash=sha256: line for every package,
+# and pip-audit derives require_hashes from the file itself.
+security-audit-deps:
+	requirements="$$(mktemp "$${TMPDIR:-/tmp}/qrtrust-requirements.XXXXXX")"; \
+	(cd backend && uv export --frozen --no-dev --no-emit-project --output-file "$$requirements") \
+	  || { rm -f "$$requirements"; exit 1; }; \
+	status=0; \
+	uvx pip-audit@$(PIP_AUDIT_VERSION) -r "$$requirements" --disable-pip $(PIP_AUDIT_IGNORED_VULNS) || status=$$?; \
+	rm -f "$$requirements"; \
+	exit $$status
+
+# --error is not optional. Without it semgrep exits 0 even with sixteen
+# blocking findings, which makes the whole job a permanently-green no-op.
+security-audit-semgrep:
+	report="$$(mktemp "$${TMPDIR:-/tmp}/qrtrust-semgrep.XXXXXX")"; \
+	status=0; \
+	uvx semgrep@$(SEMGREP_VERSION) scan --config $(SEMGREP_CONFIG) --metrics=off --error \
+	  $(SEMGREP_EXCLUDED_RULES) --json -o "$$report" $(SEMGREP_SCOPE) || status=$$?; \
+	python3 scripts/security_audit.py --tool-status "$$status" semgrep "$$report" \
+	  --min-targets $(SEMGREP_MIN_TARGETS) --max-errors $(SEMGREP_MAX_ERRORS); \
+	verdict=$$?; \
+	rm -f "$$report"; \
+	exit $$verdict
+
+security-audit: security-audit-python security-audit-deps security-audit-semgrep
 
 docs-build:
 	cd backend && uv sync --frozen

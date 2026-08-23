@@ -3,7 +3,11 @@ from typing import Any, Dict, List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-DEFAULT_SECRET_KEY = "local-dev-secret-change-me"
+# B105 reads this as a hardcoded credential. It is the opposite: a named
+# sentinel whose only consumer is the startup check in app/main.py, which
+# compares SECRET_KEY against it to detect an unconfigured deployment. The
+# string is meant to be recognisable, not secret.
+DEFAULT_SECRET_KEY = "local-dev-secret-change-me"  # nosec B105
 
 
 class Settings(BaseSettings):

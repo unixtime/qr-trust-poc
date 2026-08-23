@@ -85,6 +85,10 @@ else
     fail "local provider override uses raw //; use scripts/write_ios_local_provider_config.sh so xcconfig comments do not truncate the URL"
   else
     old_ifs="$IFS"
+    # Splitting the comma-separated candidate list is the whole point of the
+    # loop below. The previous IFS is saved on the line above and restored
+    # immediately after `done`, so the change never escapes this branch.
+    # nosemgrep: bash.lang.security.ifs-tampering.ifs-tampering
     IFS=','
     for candidate in $local_value; do
       trimmed="$(printf "%s\n" "$candidate" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
@@ -95,6 +99,9 @@ else
         fail "invalid provider candidate ${trimmed}; expected https:/$()/host:8443"
       fi
     done
+    # The restore half of the save-set-restore pair opened above: the rule is
+    # flagging the very line that undoes what it objects to.
+    # nosemgrep: bash.lang.security.ifs-tampering.ifs-tampering
     IFS="$old_ifs"
   fi
 

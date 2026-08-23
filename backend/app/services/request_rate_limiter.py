@@ -124,7 +124,12 @@ class RequestRateLimiter:
         window_id = now // window_seconds
         window_key = f"rate_limit:{key}:{window_id}"
         client = redis_service.redis_client
-        assert client is not None
+        # B101 is right that `python -O` strips this, but not that it matters:
+        # the caller wraps this method in `except Exception` and falls back to
+        # the in-memory limiter, so a None client raises AttributeError one line
+        # down and lands in the same fallback. The limiter does not fail open
+        # either way -- the assert only makes the failure legible.
+        assert client is not None  # nosec B101
 
         current_count = await client.incr(window_key)
         if current_count == 1:

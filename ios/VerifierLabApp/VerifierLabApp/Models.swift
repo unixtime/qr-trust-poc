@@ -430,6 +430,37 @@ struct ScanResult: Identifiable, Equatable, Codable {
     let scannerUX: ScannerDecisionUX?
     let signals: [TrustLayerSignal]
 
+    /// The verifier's `open_allowed` answer, or nil when no verifier answered.
+    ///
+    /// Optional for two reasons. Scan history is persisted as `[ScanResult]` and
+    /// decoded with `try?` over the whole array, so a non-optional field would
+    /// make one pre-existing record discard every stored scan. And several
+    /// results are built locally with no decision behind them at all -- camera
+    /// failure, unreadable payload, provider unreachable -- where "the verifier
+    /// said no" would be a claim we cannot make.
+    ///
+    /// Private so callers cannot write `openAllowed != false` and silently turn
+    /// "no answer" into "allowed". Read it through `verifierRefusedOpen`.
+    private let openAllowed: Bool?
+
+    /// Whether the verifier explicitly refused to permit opening this
+    /// destination -- the one condition under which the UI must offer no open
+    /// affordance at all.
+    ///
+    /// Mirrors the server contract: `_scanner_actions` in the backend verifier
+    /// returns no open action of any kind when `open_allowed` is false, only
+    /// "Do not open" plus a copy action, and the web client enforces the same
+    /// gate in ScanWorkbenchSection.tsx. A client that offers to open anyway
+    /// widens a trust decision the verifier already made -- exactly the failure
+    /// this project exists to argue against.
+    ///
+    /// Deliberately false when `openAllowed` is nil: absent a decision the app
+    /// keeps its documented degraded behaviour (show the destination, require a
+    /// hold, leave the choice with the user) rather than inventing a refusal.
+    /// Nil is never attacker-influenced -- `open_allowed` is non-optional on the
+    /// wire, so every server-derived result carries a real answer.
+    var verifierRefusedOpen: Bool { openAllowed == false }
+
     init(
         id: UUID = UUID(),
         tone: TrustTone,
@@ -450,7 +481,8 @@ struct ScanResult: Identifiable, Equatable, Codable {
         cacheExpiresAt: String? = nil,
         verifierProfileState: String? = nil,
         scannerUX: ScannerDecisionUX? = nil,
-        signals: [TrustLayerSignal] = []
+        signals: [TrustLayerSignal] = [],
+        openAllowed: Bool? = nil
     ) {
         self.id = id
         self.tone = tone
@@ -472,6 +504,7 @@ struct ScanResult: Identifiable, Equatable, Codable {
         self.verifierProfileState = verifierProfileState
         self.scannerUX = scannerUX
         self.signals = signals
+        self.openAllowed = openAllowed
     }
 
     static let empty = ScanResult(

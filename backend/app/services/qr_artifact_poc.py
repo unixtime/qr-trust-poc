@@ -993,9 +993,11 @@ def decode_qr_payload_from_png_bytes(png_bytes: bytes) -> str:
         result = zxingcpp.read_barcode(image)
         if result and result.text:
             return _validate_qr_payload_size(result.text)
-    except Exception:
+    except Exception:  # nosec B110
         # Fall through to the OpenCV path for environments where zxing-cpp
-        # cannot decode a given payload or image variant.
+        # cannot decode a given payload or image variant. B110 flags
+        # try/except/pass as a swallowed error; here the fallback below is the
+        # handler, and a decode that fails in both engines still raises.
         pass
 
     cv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)

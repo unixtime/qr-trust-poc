@@ -338,6 +338,11 @@ async def _request_identity_key(request: Request) -> str:
                 digest = sha256(provided_api_key.encode("utf-8")).hexdigest()[:16]
                 return f"key:{digest}"
         except Exception as exc:
+            # The rule fires on a logger call inside a function that holds a
+            # credential-named variable. What is logged is the exception, not
+            # provided_api_key -- and the key never leaves this scope except as
+            # the truncated sha256 digest above.
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure
             logger.warning("verifier_api_key_identity_unavailable: %s", exc)
 
     client = request.client.host if request.client else "unknown"
@@ -359,6 +364,10 @@ async def _enforce_verifier_api_key(request: Request) -> None:
         if await verifier_api_key_service.has_valid_key(provided_api_key):
             return
     except VerifierAPIKeyStoreUnavailable as exc:
+        # Same shape as the identity path above: the store is unreachable, so
+        # there is no credential to disclose. The exception is what gets logged,
+        # and the request then fails closed with a 503.
+        # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure
         logger.warning("verifier_api_key_store_unavailable: %s", exc)
         raise HTTPException(
             status_code=503,
@@ -419,6 +428,11 @@ async def _request_has_valid_management_credential(request: Request) -> bool:
         connection = await asyncpg.connect(_asyncpg_dsn(dsn))
         principal = await load_management_principal(connection, provided_token)
     except Exception as exc:
+        # The connect/lookup pair failed, so no principal was resolved and
+        # provided_token is never interpolated into the message. Logging the
+        # exception is what makes an unreachable management database
+        # diagnosable; the function still returns False and denies the request.
+        # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure
         logger.warning("management_status_credential_unavailable: %s", exc)
         return False
     finally:

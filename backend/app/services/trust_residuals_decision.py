@@ -150,7 +150,10 @@ def compute_residuals(case: dict[str, Any]) -> dict[str, str]:
         "redirect_flow": map_status(
             evidence["redirect_flow"],
             {
-                "pass": "pass",
+                # B105 matches any literal whose name looks like "pass", so this
+                # project's verdict vocabulary reads to it as a credential. These
+                # are decision outcomes -- the value is meant to be published.
+                "pass": "pass",  # nosec B105
                 "fail": "fail",
                 "warn": "warn",
                 "not_applicable": "not-applicable",
@@ -185,7 +188,8 @@ def compute_residuals(case: dict[str, Any]) -> dict[str, str]:
         "artifact_integrity": map_status(
             evidence["artifact_integrity"],
             {
-                "pass": "pass",
+                # Same B105 false positive as redirect_flow above.
+                "pass": "pass",  # nosec B105
                 "warn": "warn",
                 "fail": "fail",
                 "block": "block",

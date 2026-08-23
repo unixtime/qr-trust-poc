@@ -168,6 +168,11 @@ async def issue_management_key(
             "management_keys:write",
         )
         async with connection.transaction():
+            # asyncpg-sqli fires on any query argument that is not an inline
+            # literal, and this one is the module constant _MANAGEMENT_KEY_INSERT
+            # -- a fixed statement with numbered $n placeholders. asyncpg binds
+            # the values that follow server-side; nothing is interpolated.
+            # nosemgrep: python.lang.security.audit.sqli.asyncpg-sqli.asyncpg-sqli
             row = await connection.fetchrow(
                 _MANAGEMENT_KEY_INSERT,
                 key_id,
@@ -1502,6 +1507,12 @@ async def remediate_outbox_event(
                     "attempts": _int_field(row["attempts"]),
                     "last_error": _optional_str(row["last_error"]),
                 }
+                # Both SQL-injection rules fire here because the argument list
+                # contains an f-string. That f-string is a *value* bound to $3 in
+                # _MANAGEMENT_AUDIT_INSERT, a module constant whose twelve
+                # placeholders are all numbered; asyncpg never concatenates it
+                # into the statement text.
+                # nosemgrep: python.lang.security.audit.sqli.asyncpg-sqli.asyncpg-sqli, python.django.security.injection.sql.sql-injection-using-db-cursor-execute.sql-injection-db-cursor-execute
                 await connection.execute(
                     _MANAGEMENT_AUDIT_INSERT,
                     principal.operator_id,

@@ -247,6 +247,10 @@ function statusMentionsColor(
 }
 
 function fieldValue(text: string, fieldName: string): string | undefined {
+  // detect-non-literal-regexp wants a literal pattern. The only interpolated
+  // value is fieldName, and it passes through escapeRegExp first -- the
+  // mitigation the rule exists to demand is inside the flagged expression.
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const fieldPattern = new RegExp(
     `^\\s*${escapeRegExp(fieldName)}\\s*:\\s*(.+?)\\s*$`,
     "im",
