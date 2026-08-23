@@ -1,5 +1,6 @@
-import { mkdirSync, writeFileSync } from "node:fs"
-import { dirname } from "node:path"
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { Console, Effect } from "effect"
@@ -15,7 +16,7 @@ import {
 } from "../index.js"
 
 const ROOT_DIR = fileURLToPath(new URL("../../../", import.meta.url))
-const SMOKE_DIR = "/private/tmp/qrtrust-network-readiness-bundle-smoke/"
+const SMOKE_DIR = `${mkdtempSync(join(tmpdir(), "qrtrust-network-readiness-bundle-smoke-"))}/`
 const REPORT_JSON = `${SMOKE_DIR}network-readiness-report.json`
 const REPORT_MARKDOWN = `${SMOKE_DIR}network-readiness-report.md`
 const BROKEN_EVIDENCE_MAP = `${SMOKE_DIR}broken-deployment-readiness-evidence-map.json`
