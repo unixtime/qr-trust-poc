@@ -2013,7 +2013,7 @@ def test_scan_activity_reports_one_time_replay_guard_state(
 ) -> None:
     fingerprint = nonce_fingerprint("api-scan-activity-one-time-001")
 
-    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+    async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
         assert requested_fingerprint == fingerprint
         return _scan_activity_fixture(fingerprint, usage_policy="one_time")
 
@@ -2070,6 +2070,84 @@ def test_scan_activity_uses_caller_usage_policy_when_store_is_unconfigured(
     assert response.json()["replay_guard"]["state"] == "unused"
 
 
+def test_scan_activity_scopes_history_to_the_issuance(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed lab nonce is reused across regenerations, so the card asks about
+    one issuance: history before ``issued_at`` belongs to an earlier code."""
+    captured: dict[str, Any] = {}
+
+    async def fake_load(requested_fingerprint: str, **kwargs: Any) -> ScanActivityResponse:
+        captured["fingerprint"] = requested_fingerprint
+        captured.update(kwargs)
+        return _scan_activity_fixture(requested_fingerprint, usage_policy="reusable_public")
+
+    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
+    response = client.get(
+        "/verifier/scan-activity",
+        params={
+            "nonce": "api-scan-activity-issued-001",
+            "usage_policy": "reusable_public",
+            "issued_at": "2026-08-25T17:36:59Z",
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["fingerprint"] == nonce_fingerprint("api-scan-activity-issued-001")
+    assert captured["issued_at"] == datetime(2026, 8, 25, 17, 36, 59, tzinfo=timezone.utc)
+
+
+def test_scan_activity_rejects_an_unparseable_issued_at(client: TestClient) -> None:
+    response = client.get(
+        "/verifier/scan-activity",
+        params={"nonce": "api-scan-activity-issued-002", "issued_at": "yesterday"},
+    )
+    assert response.status_code == 422
+
+
+def test_scan_activity_scopes_cached_hits_to_the_issuance(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    nonce = "api-verdict-cache-issuance-001"
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": nonce, "usage_policy": "reusable_public"},
+    )
+    assert demo_response.status_code == 200
+    demo = demo_response.json()
+    issued_at = demo["verify_request"]["envelope"]["claims"]["issued_at"]
+    base_params = {"nonce": nonce, "usage_policy": "reusable_public"}
+
+    try:
+        first = client.post("/scanner/decisions", json={"qr_payload": demo["qr_payload"]})
+        second = client.post("/scanner/decisions", json={"qr_payload": demo["qr_payload"]})
+        unscoped = client.get("/verifier/scan-activity", params=base_params)
+        this_issuance = client.get(
+            "/verifier/scan-activity",
+            params={**base_params, "issued_at": issued_at},
+        )
+        # The same nonce regenerated later: a fresh code with no scans yet.
+        later_issuance = client.get(
+            "/verifier/scan-activity",
+            params={**base_params, "issued_at": "2036-01-01T00:00:00Z"},
+        )
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert second.headers["X-QR-Trust-Verdict"] == "cached"
+    assert unscoped.json()["throttle"]["cached_verdicts"] == 1
+    assert this_issuance.json()["throttle"]["cached_verdicts"] == 1
+    assert later_issuance.json()["issued_at"] == "2036-01-01T00:00:00Z"
+    assert later_issuance.json()["throttle"]["cached_verdicts"] == 0
+    assert later_issuance.json()["throttle"]["last_cached_at"] is None
+    # The nonce budget is the flood control; it must not reset on reissue.
+    assert (
+        later_issuance.json()["throttle"]["nonce_budget_remaining"]
+        == this_issuance.json()["throttle"]["nonce_budget_remaining"]
+    )
+
+
 def _scan_activity_ux_event(decision_id: str, event_type: str) -> dict[str, Any]:
     return {
         "request_id": f"scanner-request-{decision_id}",
@@ -2094,7 +2172,7 @@ def test_scan_activity_reports_destination_outcome_from_ux_events(
 ) -> None:
     fingerprint = nonce_fingerprint("api-scan-activity-outcome-001")
 
-    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+    async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
         return _scan_activity_fixture(fingerprint, usage_policy="reusable_public")
 
     monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
@@ -2137,7 +2215,7 @@ def test_scan_activity_omits_destination_outcome_without_a_latest_decision(
 ) -> None:
     fingerprint = nonce_fingerprint("api-scan-activity-unscanned-002")
 
-    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+    async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
         return _scan_activity_fixture(fingerprint, usage_policy="reusable_public").model_copy(
             update={
                 "scan_count": 0,

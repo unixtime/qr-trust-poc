@@ -317,6 +317,12 @@ export type ScanActivity = {
   nonce_fingerprint: string
   persistence_state: "observable" | "unconfigured" | "unavailable"
   lookback_seconds: number
+  /**
+   * Echo of the `issued_at` the poll asked about. When set, every count and
+   * `latest` covers this issuance only — a regenerated lab code with a fixed
+   * nonce does not inherit the earlier code's scans.
+   */
+  issued_at: string | null
   scan_count: number
   green_count: number
   orange_count: number

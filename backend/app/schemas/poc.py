@@ -514,6 +514,10 @@ class ScanActivityResponse(BaseModel):
     nonce_fingerprint: str
     persistence_state: ScannerDecisionPersistenceState
     lookback_seconds: int = Field(ge=1)
+    # When set, every count and ``latest`` below is scoped to scans at or after
+    # this issuance: a lab nonce is reused across regenerations, and a fresh
+    # code must not inherit an earlier code's history.
+    issued_at: str | None = None
     scan_count: int = Field(ge=0)
     green_count: int = Field(ge=0)
     orange_count: int = Field(ge=0)

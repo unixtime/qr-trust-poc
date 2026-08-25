@@ -10,6 +10,31 @@ function clockTimestamp() {
   })
 }
 
+/** `HH:MM:SS` on the viewer's local 24-hour clock; null for a missing stamp. */
+export function formatLocalClock(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })
+}
+
+/**
+ * `YYYY-MM-DD HH:MM:SS` in the viewer's local time, so the ISSUED row and the
+ * scan rows on the sealed-QR card read on one clock.
+ */
+export function formatLocalDateTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  const pad = (value: number) => String(value).padStart(2, "0")
+  const day = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+  return `${day} ${formatLocalClock(iso)}`
+}
+
 export function toneForDecision(result: VerifierDecision): Tone {
   return result.allowed ? "success" : "blocked"
 }

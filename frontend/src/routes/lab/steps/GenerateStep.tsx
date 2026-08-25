@@ -19,6 +19,7 @@ import {
   ScanFeedbackRows,
 } from "@/routes/lab/components/ScanFeedback"
 import type { HistoryEntry } from "@/routes/lab/types"
+import { formatLocalDateTime } from "@/routes/lab/utils"
 
 const nonceModeLabelKeys: Record<NonceMode, MessageKey> = {
   fixed: "lab.generate.nonce.fixed",
@@ -218,9 +219,7 @@ export default function GenerateStep({
                 {t("lab.generate.sealed.issued")}
               </dt>
               <dd className="truncate text-foreground/90">
-                {demo.verify_request.envelope.claims.issued_at
-                  .replace("T", " ")
-                  .slice(0, 19)}
+                {formatLocalDateTime(demo.verify_request.envelope.claims.issued_at)}
               </dd>
             </div>
             <ClaimExpiryRow expiresAt={demo.verify_request.envelope.claims.expires_at} />

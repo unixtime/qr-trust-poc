@@ -1291,17 +1291,49 @@ def _signed_unknown_issuer_decision(
     )
 
 
-def _scanned_nonce_fingerprint(qr_payload: str) -> str | None:
-    """Fingerprint of the signed envelope's nonce, or None for URL/unreadable payloads."""
+def _scanned_issuance(qr_payload: str) -> tuple[str | None, datetime | None]:
+    """``(nonce fingerprint, issued_at)`` of the signed envelope, or Nones for
+    URL/unreadable payloads."""
     trimmed_payload = qr_payload.strip()
     if not trimmed_payload or _looks_like_url(trimmed_payload):
-        return None
+        return None, None
     try:
         envelope = decode_envelope_from_qr_payload(trimmed_payload)
     except QRArtifactError:
-        return None
+        return None, None
     nonce = envelope.claims.nonce
-    return _nonce_fingerprint(nonce) if nonce else None
+    fingerprint = _nonce_fingerprint(nonce) if nonce else None
+    return fingerprint, _parse_issued_at(envelope.claims.issued_at)
+
+
+def _parse_issued_at(value: str | None) -> datetime | None:
+    """Envelope ``issued_at`` as an aware UTC datetime; None when unreadable."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return _as_utc(parsed)
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _issuance_hit_key(fingerprint: str, issued_at: datetime | None) -> str:
+    """Verdict-cache hit key for one issuance of a nonce.
+
+    Cached hits carry no timestamps, so a time gate could not split them across
+    issuances; keying per issuance is what lets the lab card count only the
+    scans of the code it is showing. Without ``issued_at`` the plain
+    fingerprint key holds every issuance's hits.
+    """
+    if issued_at is None:
+        return fingerprint
+    return "%s:%d" % (fingerprint, int(issued_at.timestamp()))
 
 
 def _scanner_claimed_destination_from_payload(
@@ -2269,6 +2301,13 @@ async def get_scan_activity(
     request_context: Request,
     nonce: str = Query(min_length=1, max_length=512),
     usage_policy: UsagePolicy | None = Query(default=None),
+    issued_at: datetime | None = Query(
+        default=None,
+        description=(
+            "The envelope's issued_at claim. When given, counts, latest decision "
+            "and cached-verdict hits are scoped to this issuance of the nonce."
+        ),
+    ),
 ) -> ScanActivityResponse:
     """
     Report whether the QR carrying ``nonce`` has been scanned, by whom, and how
@@ -2278,7 +2317,8 @@ async def get_scan_activity(
     await _enforce_verifier_api_key(request_context)
     await _enforce_verifier_rate_limit(request_context, bucket="scan_activity")
     fingerprint = _nonce_fingerprint(nonce)
-    activity = await load_scan_activity(fingerprint)
+    issuance = _as_utc(issued_at) if issued_at is not None else None
+    activity = await load_scan_activity(fingerprint, issued_at=issuance)
     # The caller knows its own policy even when the evidence store is
     # unconfigured; the recorded policy is the fallback.
     effective_policy = usage_policy or (activity.latest.usage_policy if activity.latest else None)
@@ -2288,17 +2328,21 @@ async def get_scan_activity(
         "destination_outcome": _scan_activity_destination_outcome(activity.latest),
     }
     if effective_policy in _SCAN_FLOOD_BUDGETED_POLICIES:
-        update.update(await _scan_activity_throttle_update(activity, fingerprint))
+        update.update(await _scan_activity_throttle_update(activity, fingerprint, issuance))
     return activity.model_copy(update=update)
 
 
 async def _scan_activity_throttle_update(
     activity: ScanActivityResponse,
     fingerprint: str,
+    issued_at: datetime | None,
 ) -> dict[str, Any]:
     """The ``throttle`` block for a budgeted code, plus the cached scans folded
-    into the counts when there is a real evidence store to fold them into."""
-    hits = await _verdict_cache.hit_summary(fingerprint)
+    into the counts when there is a real evidence store to fold them into.
+
+    Cached hits follow the issuance; the nonce budget deliberately does not,
+    since it is the flood control and must survive a reissue."""
+    hits = await _verdict_cache.hit_summary(_issuance_hit_key(fingerprint, issued_at))
     limit = config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS
     window_seconds = config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS
     remaining = await _request_rate_limiter.remaining(
@@ -2467,17 +2511,21 @@ async def decide_scanned_qr(
     )
     decorated_response = _with_scanner_ux(response, request=request)
     _set_verdict_source_header(http_response, decorated_response.verdict_source)
-    fingerprint = _scanned_nonce_fingerprint(request.qr_payload)
+    fingerprint, issued_at = _scanned_issuance(request.qr_payload)
     if decorated_response.verdict_source == "cached":
         # A cached verdict writes no evidence row; count it so the lab card's
-        # scan count stays honest without paying for a row per scan.
+        # scan count stays honest without paying for a row per scan. The hit
+        # is recorded for every issuance and for this one, so both scoped and
+        # unscoped readers see it.
         contract = decorated_response.contract
         if fingerprint is not None and contract is not None:
-            await _verdict_cache.record_hit(
-                fingerprint,
-                contract.decision_color,
-                window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
-            )
+            hit_keys = {fingerprint, _issuance_hit_key(fingerprint, issued_at)}
+            for hit_key in hit_keys:
+                await _verdict_cache.record_hit(
+                    hit_key,
+                    contract.decision_color,
+                    window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
+                )
         return decorated_response
     recording_result = await record_scanner_evidence(
         decorated_response,

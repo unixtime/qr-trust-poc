@@ -8,6 +8,7 @@ import type {
   UsagePolicy,
 } from "@/lib/verifier-client"
 import { cn } from "@/lib/utils"
+import { formatLocalClock } from "@/routes/lab/utils"
 
 /**
  * Phone-scan feedback for the demo QR, fed by `GET /verifier/scan-activity`.
@@ -99,20 +100,6 @@ const destinationKeys: Record<ScanDestinationOutcome, MessageKey> = {
   unreported: "lab.scanFeedback.destination.unreported",
 }
 
-function formatScanClock(iso: string | null | undefined) {
-  if (!iso) return null
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  // 24-hour clock so it reads alongside the ISSUED row (`HH:MM:SS`) rather
-  // than as a second, differently formatted time base on the same card.
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  })
-}
-
 function formatDuration(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000))
   const hours = Math.floor(total / 3600)
@@ -158,7 +145,7 @@ export function ScanFeedbackOverlay(props: ScanFeedbackProps) {
   const t = useT()
   const state = pillStateFor(props)
   const consumed = isOneTimeConsumed(props)
-  const time = formatScanClock(props.activity?.last_scanned_at)
+  const time = formatLocalClock(props.activity?.last_scanned_at)
 
   const label =
     state === "green" || state === "orange" || state === "red"
@@ -346,7 +333,7 @@ export function ScanFeedbackRows({
 
   // Only meaningful once there is more than one scan to span.
   const firstScan =
-    activity.scan_count > 1 ? formatScanClock(activity.first_scanned_at) : null
+    activity.scan_count > 1 ? formatLocalClock(activity.first_scanned_at) : null
 
   // Only from a real throttle block: the verifier omits it for one-time
   // codes and the card never guesses a budget.
@@ -365,8 +352,8 @@ export function ScanFeedbackRows({
     : null
 
   const guard = activity.replay_guard
-  const guardExpiry = formatScanClock(guard.expires_at)
-  const usedAt = formatScanClock(activity.first_verified_at)
+  const guardExpiry = formatLocalClock(guard.expires_at)
+  const usedAt = formatLocalClock(activity.first_verified_at)
   const oneTime =
     usagePolicy === "one_time" && guard.applies && guard.state !== "not_applicable"
       ? guard.state === "consumed" && usedAt
@@ -396,7 +383,7 @@ export function ScanFeedbackRows({
       ) : null}
       <Row
         label={t("lab.scanFeedback.rows.lastScan")}
-        value={formatScanClock(activity.last_scanned_at) ?? t("lab.scanFeedback.value.none")}
+        value={formatLocalClock(activity.last_scanned_at) ?? t("lab.scanFeedback.value.none")}
         testId="scan-feedback-last-scan"
       />
       <Row label={t("lab.scanFeedback.rows.scanner")} value={scanner} testId="scan-feedback-scanner" />

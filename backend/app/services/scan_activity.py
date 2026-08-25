@@ -39,6 +39,7 @@ with matched as (
     and created_at >= (
       $2::timestamptz - make_interval(secs => $3::integer)
     )
+    and ($4::timestamptz is null or created_at >= $4::timestamptz)
 )
 select
   count(*)::integer as scan_count,
@@ -87,18 +88,23 @@ async def load_scan_activity(
     fingerprint: str,
     *,
     lookback_seconds: int = DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
+    issued_at: datetime | None = None,
 ) -> ScanActivityResponse:
     """Read back every recorded scan of one QR from the evidence store.
 
+    ``issued_at`` narrows the read to this issuance of the nonce: scans recorded
+    before it belong to an earlier code that happened to carry the same nonce.
     The replay-guard view is left at ``not_applicable``; the endpoint layers the
     live one-time state on top because the guard is process-local, not stored.
     """
+    issued_at_text = _optional_timestamp(issued_at)
     dsn = config.QRTRUST_NETWORK_DATABASE_URL
     if not dsn:
         return ScanActivityResponse(
             nonce_fingerprint=fingerprint,
             persistence_state="unconfigured",
             lookback_seconds=lookback_seconds,
+            issued_at=issued_at_text,
             scan_count=0,
             green_count=0,
             orange_count=0,
@@ -119,6 +125,7 @@ async def load_scan_activity(
             fingerprint,
             observed_at,
             lookback_seconds,
+            issued_at,
         )
         if row is None:
             raise RuntimeError("Scan activity query returned no row.")
@@ -126,6 +133,7 @@ async def load_scan_activity(
             nonce_fingerprint=fingerprint,
             persistence_state="observable",
             lookback_seconds=lookback_seconds,
+            issued_at=issued_at_text,
             scan_count=_int_field(row["scan_count"]),
             green_count=_int_field(row["green_count"]),
             orange_count=_int_field(row["orange_count"]),
@@ -142,6 +150,7 @@ async def load_scan_activity(
             nonce_fingerprint=fingerprint,
             persistence_state="unavailable",
             lookback_seconds=lookback_seconds,
+            issued_at=issued_at_text,
             scan_count=0,
             green_count=0,
             orange_count=0,

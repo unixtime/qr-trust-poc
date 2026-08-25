@@ -255,8 +255,16 @@ card renders and names `Destination binding` for the documented pairs.
 ### Phone-scan feedback
 
 When the sealed QR is on screen (step 2, or the full-screen display), the
-workbench polls `GET /verifier/scan-activity?nonce=<nonce>&usage_policy=<policy>`
-every 5 seconds and shows what the verifier recorded for **that nonce**:
+workbench polls
+`GET /verifier/scan-activity?nonce=<nonce>&usage_policy=<policy>&issued_at=<claims.issued_at>`
+every 5 seconds and shows what the verifier recorded for **this issuance of
+that nonce**. The lab scenarios reuse fixed nonces (`lab-valid-fixed-001` and
+friends) across regenerations and across usage policies, so `issued_at` — the
+sealed claim, echoed back in the response — is what keeps a freshly generated
+code from inheriting an earlier code's scans: rows and cached verdicts recorded
+before the issuance are left out, while the scan-flood budget stays per nonce
+because a reissue must not reset it. Without `issued_at` the endpoint returns
+the whole 24-hour history of the nonce. The card shows:
 
 - a status pill on the QR image: **Waiting for a phone scan**, then
   **Scanned · verified / needs review / blocked `<time>`** in the verdict colour

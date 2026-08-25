@@ -538,6 +538,7 @@ export function useLabController() {
 
   const demoNonce = demo?.verify_request.envelope.claims.nonce ?? null
   const demoUsagePolicy = demo?.verify_request.envelope.claims.usage_policy ?? null
+  const demoIssuedAt = demo?.verify_request.envelope.claims.issued_at ?? null
 
   // Phone-scan feedback for the sealed QR: poll the verifier's per-nonce
   // activity while a demo is on screen. Keyed on the nonce, not the demo
@@ -554,6 +555,9 @@ export function useLabController() {
       try {
         const params = new URLSearchParams({ nonce })
         if (demoUsagePolicy) params.set("usage_policy", demoUsagePolicy)
+        // Scope the card to this issuance: lab scenarios reuse fixed nonces
+        // across regenerations, so the nonce alone would inherit old scans.
+        if (demoIssuedAt) params.set("issued_at", demoIssuedAt)
         const activity = await requestJson<ScanActivity>(
           `/verifier/scan-activity?${params.toString()}`,
           {
@@ -587,7 +591,7 @@ export function useLabController() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [demoNonce, demoUsagePolicy])
+  }, [demoNonce, demoUsagePolicy, demoIssuedAt])
 
   const scanActivity =
     scanActivityState?.nonce === demoNonce ? scanActivityState.activity : null
