@@ -2219,6 +2219,13 @@ def test_scanner_decision_skips_nonce_fingerprint_for_plain_urls(
 
 def _clear_verifier_rate_limiter() -> None:
     verifier_endpoint._request_rate_limiter._records.clear()
+    verifier_endpoint._verdict_cache.clear()
+
+
+def _disable_verdict_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The budget tests replay one envelope; with the cache on, the replay is
+    # a hit and never reaches the budget. Turn it off to test the budget alone.
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_VERDICT_CACHE_TTL_SECONDS", 0)
 
 
 def _demo_verify_request(client: TestClient, nonce: str, usage_policy: str) -> dict[str, Any]:
@@ -2234,6 +2241,7 @@ def test_verifier_nonce_budget_rejects_flood_before_signature_verification(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _disable_verdict_cache(monkeypatch)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS", 60)
     _clear_verifier_rate_limiter()
@@ -2268,6 +2276,7 @@ def test_scanner_decision_nonce_budget_returns_429_without_recording_evidence(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _disable_verdict_cache(monkeypatch)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
     demo_response = client.post(
@@ -2303,6 +2312,7 @@ def test_verifier_nonce_budget_is_scoped_to_the_nonce_and_skips_one_time(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _disable_verdict_cache(monkeypatch)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
     reusable_a = _demo_verify_request(client, "api-nonce-budget-a", "reusable_public")
@@ -2331,6 +2341,7 @@ def test_verifier_issuer_budget_counts_only_signature_verified_requests(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _disable_verdict_cache(monkeypatch)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
     verify_request = _demo_verify_request(client, "api-issuer-budget-001", "reusable_public")
@@ -2372,3 +2383,202 @@ def test_verifier_status_reports_scan_flood_budgets(
 
     monkeypatch.setattr(verifier_endpoint.config, "FORWARDED_ALLOW_IPS", "127.0.0.1,203.0.113.0/24")
     assert client.get("/verifier/status").json()["forwarded_ip_trust_configured"] is True
+
+
+def _count_signature_checks(monkeypatch: pytest.MonkeyPatch) -> list[int]:
+    checks = [0]
+    original_verify = verifier_endpoint._verifier.verify_presented_code
+
+    async def counting_verify(*args: Any, **kwargs: Any) -> Any:
+        checks[0] += 1
+        return await original_verify(*args, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint._verifier, "verify_presented_code", counting_verify)
+    return checks
+
+
+def test_verifier_verdict_cache_serves_repeat_scan_without_signature_check(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-verdict-cache-001", "reusable_public")
+    checks = _count_signature_checks(monkeypatch)
+
+    try:
+        first = client.post("/verifier/verify", json=verify_request)
+        second = client.post("/verifier/verify", json=verify_request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert first.headers["X-QR-Trust-Verdict"] == "computed"
+    assert first.json()["verdict_source"] == "computed"
+    assert second.status_code == 200
+    assert second.headers["X-QR-Trust-Verdict"] == "cached"
+    second_body = second.json()
+    assert second_body["verdict_source"] == "cached"
+    # Same verdict, only the provenance differs.
+    assert {**second_body, "verdict_source": "computed"} == first.json()
+    assert checks[0] == 1
+
+
+def test_verifier_verdict_cache_wins_over_nonce_budget_but_not_for_tampered_envelope(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-verdict-cache-budget-001", "reusable_public")
+    tampered = copy.deepcopy(verify_request)
+    tampered["envelope"]["signature"] = "AAAA" + tampered["envelope"]["signature"][4:]
+
+    try:
+        first = client.post("/verifier/verify", json=verify_request)
+        replay = client.post("/verifier/verify", json=verify_request)
+        forged = client.post("/verifier/verify", json=tampered)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    # A crowd scanning the same poster gets the cached verdict, not a 429 ...
+    assert replay.status_code == 200
+    assert replay.headers["X-QR-Trust-Verdict"] == "cached"
+    # ... while a different envelope under the same nonce still meets the budget.
+    assert forged.status_code == 429
+    assert forged.json()["detail"] == "Rate limit exceeded for this QR code"
+
+
+def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_verifier_rate_limiter()
+    nonce = "api-verdict-cache-scanner-001"
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": nonce, "usage_policy": "reusable_public"},
+    )
+    assert demo_response.status_code == 200
+    qr_payload = demo_response.json()["qr_payload"]
+
+    recorded_fingerprints: list[str | None] = []
+    original_record = verifier_endpoint.record_scanner_evidence
+
+    async def tracking_record(*args: Any, **kwargs: Any) -> Any:
+        recorded_fingerprints.append(kwargs.get("nonce_fingerprint"))
+        return await original_record(*args, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", tracking_record)
+
+    try:
+        first = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
+        second = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
+        activity = client.get(
+            "/verifier/scan-activity",
+            params={"nonce": nonce, "usage_policy": "reusable_public"},
+        )
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert first.json()["verdict_source"] == "computed"
+    assert second.status_code == 200
+    assert second.headers["X-QR-Trust-Verdict"] == "cached"
+    assert second.json()["verdict_source"] == "cached"
+    assert second.json()["decision_state"] == first.json()["decision_state"]
+    # The cached scan wrote no evidence row; it is counted in the throttle block.
+    assert recorded_fingerprints == [nonce_fingerprint(nonce)]
+
+    assert activity.status_code == 200
+    payload = activity.json()
+    throttle = payload["throttle"]
+    assert throttle["cached_verdicts"] == 1
+    assert throttle["last_cached_at"]
+    assert throttle["verdict_cache_ttl_seconds"] == config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
+    assert throttle["nonce_budget_limit"] == config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS
+    assert throttle["nonce_budget_window_seconds"] == config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS
+    # Only the computed scan spent budget.
+    assert throttle["nonce_budget_remaining"] == config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS - 1
+    # Without an evidence store the row counts stay honest: no fabricated scans.
+    assert payload["persistence_state"] == "unconfigured"
+    assert payload["scan_count"] == 0
+
+
+def test_verifier_verdict_cache_skips_one_time_codes(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_verifier_rate_limiter()
+    nonce = "api-verdict-cache-one-time-001"
+    verify_request = _demo_verify_request(client, nonce, "one_time")
+    checks = _count_signature_checks(monkeypatch)
+
+    try:
+        first = client.post("/verifier/verify", json=verify_request)
+        second = client.post("/verifier/verify", json=verify_request)
+        activity = client.get(
+            "/verifier/scan-activity",
+            params={"nonce": nonce, "usage_policy": "one_time"},
+        )
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert first.json()["allowed"] is True
+    assert second.status_code == 200
+    assert second.headers["X-QR-Trust-Verdict"] == "computed"
+    assert second.json()["stage"] == "replay_guard"
+    assert checks[0] == 2
+    # one_time codes have no scan-flood budget or cache, so no throttle block.
+    assert activity.json()["throttle"] is None
+
+
+def test_verifier_verdict_cache_misses_when_issuer_state_changes(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-verdict-cache-revoked-001", "reusable_public")
+    revoked = copy.deepcopy(verify_request)
+    revoked["issuer_state"]["certificate_revoked"] = True
+    revoked["issuer_state"]["certificate_revocation_reason"] = "key_compromise"
+
+    try:
+        first = client.post("/verifier/verify", json=verify_request)
+        after_revocation = client.post("/verifier/verify", json=revoked)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.json()["allowed"] is True
+    # Revocation changes the request, so it is a miss: never a stale green.
+    assert after_revocation.headers["X-QR-Trust-Verdict"] == "computed"
+    assert after_revocation.json()["allowed"] is False
+
+
+def test_verifier_verdict_cache_disabled_by_zero_ttl(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _disable_verdict_cache(monkeypatch)
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-verdict-cache-off-001", "reusable_public")
+    checks = _count_signature_checks(monkeypatch)
+
+    try:
+        client.post("/verifier/verify", json=verify_request)
+        second = client.post("/verifier/verify", json=verify_request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert second.headers["X-QR-Trust-Verdict"] == "computed"
+    assert checks[0] == 2
+    status = client.get("/verifier/status").json()
+    assert status["verdict_cache_enabled"] is False
+    assert status["verdict_cache_ttl_seconds"] == 0
+
+
+def test_verifier_status_reports_verdict_cache(client: TestClient) -> None:
+    payload = client.get("/verifier/status").json()
+    assert payload["verdict_cache_enabled"] is True
+    assert payload["verdict_cache_ttl_seconds"] == 30

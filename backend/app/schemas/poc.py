@@ -5,6 +5,9 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 UsagePolicy = Literal["reusable_public", "one_time", "time_limited"]
+# Whether a verdict was computed for this request or served from the
+# short-lived verdict cache that reusable codes share (see verdict_cache.py).
+VerdictSource = Literal["computed", "cached"]
 GovernanceCacheProfile = Literal["fresh", "stale", "expired"]
 ArtifactRenderProfile = Literal["clean", "low-quiet-zone", "payload-mismatch"]
 VerifierProfileState = Literal["active", "stale", "revoked"]
@@ -285,6 +288,7 @@ class ScannerDecisionResponse(BaseModel):
     verifier_stage: str = Field(min_length=1, max_length=64)
     verifier_reason: str = Field(min_length=1, max_length=512)
     request_id: str | None = Field(default=None, max_length=128)
+    verdict_source: VerdictSource = "computed"
 
 
 class NarrowedVerifierResponse(BaseModel):
@@ -295,6 +299,7 @@ class NarrowedVerifierResponse(BaseModel):
     canonical_claims_sha256: str | None
     matched_rule: str | None
     reservation_state: str | None
+    verdict_source: VerdictSource = "computed"
 
 
 class DemoMaterialsRequest(BaseModel):
@@ -481,6 +486,23 @@ class ScanActivityReplayGuardResponse(BaseModel):
     expires_at: str | None = None
 
 
+class ScanActivityThrottleResponse(BaseModel):
+    """Scan-flood state for one reusable QR, overlaid by the endpoint.
+
+    ``cached_verdicts`` counts scans answered from the verdict cache (no
+    evidence row is written for those; the counter is a fixed window that
+    starts at the first cached hit). ``nonce_budget_remaining`` is what is left
+    of the per-QR budget in the current limiter window.
+    """
+
+    cached_verdicts: int = Field(ge=0)
+    last_cached_at: str | None = None
+    verdict_cache_ttl_seconds: int = Field(ge=0)
+    nonce_budget_limit: int = Field(ge=1)
+    nonce_budget_remaining: int = Field(ge=0)
+    nonce_budget_window_seconds: int = Field(ge=1)
+
+
 class ScanActivityResponse(BaseModel):
     """Per-QR scan feedback for the workbench.
 
@@ -508,6 +530,9 @@ class ScanActivityResponse(BaseModel):
     # Overlaid by the endpoint from its in-memory UX-event log; None without a
     # latest decision to match events against.
     destination_outcome: ScanActivityDestinationOutcome | None = None
+    # Overlaid by the endpoint for reusable_public / time_limited codes only;
+    # None for one_time codes, which have no scan-flood budget or cache.
+    throttle: ScanActivityThrottleResponse | None = None
     error: str | None = None
 
 
@@ -549,6 +574,8 @@ class VerifierStatusResponse(BaseModel):
     nonce_rate_limit_window_seconds: int = Field(ge=1)
     nonce_rate_limit_max_requests: int = Field(ge=1)
     issuer_rate_limit_max_requests: int = Field(ge=1)
+    verdict_cache_enabled: bool
+    verdict_cache_ttl_seconds: int = Field(ge=0)
     forwarded_ip_trust_configured: bool
     max_qr_payload_chars: int = Field(ge=1)
     max_decode_image_bytes: int = Field(ge=1)

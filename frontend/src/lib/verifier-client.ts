@@ -298,6 +298,21 @@ export type ScanDestinationOutcome =
  * `unconfigured`/`unavailable` say the evidence store cannot report phone
  * scans, not that none happened.
  */
+/**
+ * Scan-flood state for a reusable code (`reusable_public`, `time_limited`):
+ * verdicts served from the short-lived cache write no evidence row, so they
+ * are counted here instead, next to the per-code budget that still applies
+ * to the scans the cache does not absorb. Absent (`null`) for `one_time`.
+ */
+export type ScanActivityThrottle = {
+  cached_verdicts: number
+  last_cached_at: string | null
+  verdict_cache_ttl_seconds: number
+  nonce_budget_limit: number
+  nonce_budget_remaining: number
+  nonce_budget_window_seconds: number
+}
+
 export type ScanActivity = {
   nonce_fingerprint: string
   persistence_state: "observable" | "unconfigured" | "unavailable"
@@ -315,6 +330,7 @@ export type ScanActivity = {
   latest: ScanActivityDecision | null
   replay_guard: ScanActivityReplayGuard
   destination_outcome: ScanDestinationOutcome | null
+  throttle: ScanActivityThrottle | null
   error: string | null
 }
 

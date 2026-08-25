@@ -226,6 +226,11 @@ export const en = {
   "lab.scanFeedback.rows.verdict": "Verdict",
   "lab.scanFeedback.rows.destination": "Destination",
   "lab.scanFeedback.rows.vouchedBy": "Vouched by",
+  "lab.scanFeedback.rows.throttle": "Throttle",
+  "lab.scanFeedback.throttle.value":
+    "{cached} cached · {remaining} of {limit} scans left per {window}",
+  "lab.scanFeedback.throttle.windowMinute": "minute",
+  "lab.scanFeedback.throttle.windowSeconds": "{seconds} s",
   "lab.scanFeedback.rows.expires": "Expires",
   "lab.scanFeedback.verdict.risk": "risk {score}/100",
   "lab.scanFeedback.verdict.hold": "hold to open",

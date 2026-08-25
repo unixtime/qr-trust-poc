@@ -8,12 +8,12 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from ipaddress import ip_address
 from secrets import compare_digest
-from typing import cast
+from typing import Any, cast
 from urllib.parse import ParseResult, urlparse
 from uuid import uuid4
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from backend.app.core.config import config
 from backend.app.core.request_id import safe_request_id
@@ -21,6 +21,7 @@ from backend.app.schemas.poc import (
     ScanActivityDestinationOutcome,
     ScanActivityReplayGuardResponse,
     ScanActivityResponse,
+    ScanActivityThrottleResponse,
     UsagePolicy,
     CertificateRecordInput,
     DemoMaterialsRequest,
@@ -108,11 +109,13 @@ from backend.app.services.runtime_observation_status import (
     load_runtime_observation_operator_status,
 )
 from backend.app.services.scan_activity import (
+    DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
     load_scan_activity,
     nonce_fingerprint as _nonce_fingerprint,
 )
 from backend.app.services.scanner_decision_status import load_scanner_decision_operator_status
 from backend.app.services.scanner_ux_ab_fixture import build_scanner_ux_ab_fixture
+from backend.app.services.verdict_cache import VerdictCache
 from backend.app.services.signed_schema_poc import (
     CertificateAuthorityRecord,
     SUPPORTED_ALGORITHM_ID,
@@ -138,6 +141,7 @@ logger = logging.getLogger(__name__)
 _replay_guard = InMemoryReplayGuard()
 _verifier = NarrowedVerifierService(_replay_guard)
 _request_rate_limiter = RequestRateLimiter()
+_verdict_cache = VerdictCache()
 _scanner_ux_event_log: deque[ScannerUXEventLogEntry] = deque(maxlen=500)
 _LEGACY_VERIFIER_ADMIN_API_KEYS_DETAIL = (
     "Verifier API key management moved to /admin/verifier-clients/api-keys. "
@@ -526,6 +530,42 @@ def _issuer_budget_key(certificate_ref: str) -> str:
     return sha256(certificate_ref.encode("utf-8")).hexdigest()[:16]
 
 
+_VERDICT_SOURCE_HEADER = "X-QR-Trust-Verdict"
+
+
+def _verdict_cache_key(request: NarrowedVerifierRequest, fingerprint: str) -> str:
+    """``(nonce_fingerprint, envelope_hash)``: the hash covers the whole request
+    except the replay-guard TTLs, so a tampered signature, a different
+    certificate, or a revoked issuer state is a miss rather than a stale hit."""
+    material = request.model_dump_json(
+        exclude={"reservation_ttl_seconds", "consumed_ttl_seconds"},
+    )
+    return f"{fingerprint}:{sha256(material.encode('utf-8')).hexdigest()[:32]}"
+
+
+def _verdict_cache_ttl_seconds(expires_at: str) -> int:
+    """min(configured TTL, seconds until the claims expire); 0 means do not cache."""
+    ttl = config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
+    if ttl <= 0:
+        return 0
+    try:
+        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return 0
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    until_expiry = int((expiry - datetime.now(timezone.utc)).total_seconds())
+    return max(0, min(ttl, until_expiry))
+
+
+def _set_verdict_source_header(response: Response, source: str) -> None:
+    response.headers[_VERDICT_SOURCE_HEADER] = source
+
+
+def _scan_flood_budget_key(bucket: str, subject: str) -> str:
+    return f"{bucket}:{subject}"
+
+
 async def _enforce_scan_flood_budget(
     *,
     bucket: str,
@@ -540,7 +580,7 @@ async def _enforce_scan_flood_budget(
     per-client limit: Redis-coordinated when connected, per-process otherwise.
     """
     decision = await _request_rate_limiter.check(
-        f"{bucket}:{subject}",
+        _scan_flood_budget_key(bucket, subject),
         limit=limit,
         window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
     )
@@ -1454,6 +1494,8 @@ async def _build_verifier_status_response(
         nonce_rate_limit_window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
         nonce_rate_limit_max_requests=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
         issuer_rate_limit_max_requests=config.VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS,
+        verdict_cache_enabled=config.VERIFIER_VERDICT_CACHE_TTL_SECONDS > 0,
+        verdict_cache_ttl_seconds=max(0, config.VERIFIER_VERDICT_CACHE_TTL_SECONDS),
         forwarded_ip_trust_configured=_forwarded_ip_trust_configured(),
         max_qr_payload_chars=config.MAX_QR_PAYLOAD_CHARS,
         max_decode_image_bytes=config.MAX_DECODE_IMAGE_BYTES,
@@ -2023,6 +2065,7 @@ def _scanner_decision_from_result(
         actions=_scanner_actions(decision_state=decision_state, open_allowed=open_allowed),
         verifier_stage=verifier_stage,
         verifier_reason=verifier_reason,
+        verdict_source=result.verdict_source,
         request_id=request_id,
     )
 
@@ -2116,11 +2159,24 @@ async def _run_narrowed_verifier(
     )
 
     budgeted_policy = claims.usage_policy in _SCAN_FLOOD_BUDGETED_POLICIES
+    cache_key: str | None = None
+    cache_ttl = 0
     if budgeted_policy and claims.nonce:
+        fingerprint = _nonce_fingerprint(claims.nonce)
+        cache_ttl = _verdict_cache_ttl_seconds(claims.expires_at)
+        if cache_ttl > 0:
+            # Cache first: a crowd scanning one poster gets the verdict computed
+            # moments ago without a signature check, a budget spend, or a row.
+            cache_key = _verdict_cache_key(request, fingerprint)
+            cached = await _verdict_cache.get(cache_key)
+            if cached is not None:
+                return NarrowedVerifierResponse.model_validate(
+                    {**cached, "verdict_source": "cached"}
+                )
         # Before the signature check: a forged flood must be cheap to refuse.
         await _enforce_scan_flood_budget(
             bucket="nonce",
-            subject=_nonce_fingerprint(claims.nonce),
+            subject=fingerprint,
             limit=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
             detail="Rate limit exceeded for this QR code",
         )
@@ -2143,7 +2199,7 @@ async def _run_narrowed_verifier(
             detail="Rate limit exceeded for this issuer",
         )
 
-    return NarrowedVerifierResponse(
+    response = NarrowedVerifierResponse(
         allowed=result.allowed,
         stage=result.stage,
         reason=result.reason,
@@ -2152,6 +2208,11 @@ async def _run_narrowed_verifier(
         matched_rule=result.matched_rule,
         reservation_state=result.reservation_state,
     )
+    if cache_key is not None and result.stage != "signed_schema":
+        # Never cache a forgery verdict: the next forged envelope hashes
+        # differently anyway, and a real one must be checked, not remembered.
+        await _verdict_cache.set(cache_key, response.model_dump(), cache_ttl)
+    return response
 
 
 async def _run_scanned_verifier(
@@ -2216,19 +2277,59 @@ async def get_scan_activity(
     """
     await _enforce_verifier_api_key(request_context)
     await _enforce_verifier_rate_limit(request_context, bucket="scan_activity")
-    activity = await load_scan_activity(_nonce_fingerprint(nonce))
-    replay_guard = await _scan_activity_replay_guard(
-        nonce,
-        # The caller knows its own policy even when the evidence store is
-        # unconfigured; the recorded policy is the fallback.
-        usage_policy or (activity.latest.usage_policy if activity.latest else None),
+    fingerprint = _nonce_fingerprint(nonce)
+    activity = await load_scan_activity(fingerprint)
+    # The caller knows its own policy even when the evidence store is
+    # unconfigured; the recorded policy is the fallback.
+    effective_policy = usage_policy or (activity.latest.usage_policy if activity.latest else None)
+    replay_guard = await _scan_activity_replay_guard(nonce, effective_policy)
+    update: dict[str, Any] = {
+        "replay_guard": replay_guard,
+        "destination_outcome": _scan_activity_destination_outcome(activity.latest),
+    }
+    if effective_policy in _SCAN_FLOOD_BUDGETED_POLICIES:
+        update.update(await _scan_activity_throttle_update(activity, fingerprint))
+    return activity.model_copy(update=update)
+
+
+async def _scan_activity_throttle_update(
+    activity: ScanActivityResponse,
+    fingerprint: str,
+) -> dict[str, Any]:
+    """The ``throttle`` block for a budgeted code, plus the cached scans folded
+    into the counts when there is a real evidence store to fold them into."""
+    hits = await _verdict_cache.hit_summary(fingerprint)
+    limit = config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS
+    window_seconds = config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS
+    remaining = await _request_rate_limiter.remaining(
+        _scan_flood_budget_key("nonce", fingerprint),
+        limit=limit,
+        window_seconds=window_seconds,
     )
-    return activity.model_copy(
-        update={
-            "replay_guard": replay_guard,
-            "destination_outcome": _scan_activity_destination_outcome(activity.latest),
-        }
-    )
+    update: dict[str, Any] = {
+        "throttle": ScanActivityThrottleResponse(
+            cached_verdicts=hits.total,
+            last_cached_at=hits.last_hit_at,
+            verdict_cache_ttl_seconds=max(0, config.VERIFIER_VERDICT_CACHE_TTL_SECONDS),
+            nonce_budget_limit=limit,
+            nonce_budget_remaining=remaining,
+            nonce_budget_window_seconds=window_seconds,
+        )
+    }
+    if hits.total and activity.persistence_state == "observable":
+        # Cached scans are real scans; without a store the counts stay at
+        # zero rather than showing hits against an empty history.
+        update.update(
+            scan_count=activity.scan_count + hits.total,
+            green_count=activity.green_count + hits.green,
+            orange_count=activity.orange_count + hits.orange,
+            red_count=activity.red_count + hits.red,
+        )
+        if hits.last_hit_at and (
+            activity.last_scanned_at is None or hits.last_hit_at > activity.last_scanned_at
+        ):
+            update["last_scanned_at"] = hits.last_hit_at
+    return update
 
 
 _DESTINATION_OUTCOME_BY_EVENT: dict[str, ScanActivityDestinationOutcome] = {
@@ -2289,26 +2390,32 @@ async def _scan_activity_replay_guard(
 async def verify_presented_code(
     request_context: Request,
     request: NarrowedVerifierRequest,
+    response: Response,
 ) -> NarrowedVerifierResponse:
     """
     Run the narrowed verifier reference pipeline against a presented code.
     """
     await _enforce_verifier_api_key(request_context)
     await _enforce_verifier_rate_limit(request_context, bucket="verify")
-    return await _run_narrowed_verifier(request)
+    result = await _run_narrowed_verifier(request)
+    _set_verdict_source_header(response, result.verdict_source)
+    return result
 
 
 @router.post("/verify-scanned", response_model=NarrowedVerifierResponse)
 async def verify_scanned_code(
     request_context: Request,
     request: ScannedVerifierRequest,
+    response: Response,
 ) -> NarrowedVerifierResponse:
     """
     Run the narrowed verifier pipeline against a scanned QR payload string.
     """
     await _enforce_verifier_api_key(request_context)
     await _enforce_verifier_rate_limit(request_context, bucket="verify_scanned")
-    return await _run_scanned_verifier(request)
+    result = await _run_scanned_verifier(request)
+    _set_verdict_source_header(response, result.verdict_source)
+    return result
 
 
 @scanner_router.get("/provider-profile", response_model=VerifierProviderProfileResponse)
@@ -2344,6 +2451,7 @@ async def get_scanner_provider_profile(
 async def decide_scanned_qr(
     request_context: Request,
     request: ScannerDecisionRequest,
+    http_response: Response,
 ) -> ScannerDecisionResponse:
     """
     End-user scanner decision endpoint.
@@ -2358,9 +2466,22 @@ async def decide_scanned_qr(
         request_id=_request_id_for_context(request_context),
     )
     decorated_response = _with_scanner_ux(response, request=request)
+    _set_verdict_source_header(http_response, decorated_response.verdict_source)
+    fingerprint = _scanned_nonce_fingerprint(request.qr_payload)
+    if decorated_response.verdict_source == "cached":
+        # A cached verdict writes no evidence row; count it so the lab card's
+        # scan count stays honest without paying for a row per scan.
+        contract = decorated_response.contract
+        if fingerprint is not None and contract is not None:
+            await _verdict_cache.record_hit(
+                fingerprint,
+                contract.decision_color,
+                window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
+            )
+        return decorated_response
     recording_result = await record_scanner_evidence(
         decorated_response,
-        nonce_fingerprint=_scanned_nonce_fingerprint(request.qr_payload),
+        nonce_fingerprint=fingerprint,
         client_platform=request.client.platform if request.client else None,
     )
     if recording_result is not None and recording_result.error:

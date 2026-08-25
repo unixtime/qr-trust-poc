@@ -348,6 +348,22 @@ export function ScanFeedbackRows({
   const firstScan =
     activity.scan_count > 1 ? formatScanClock(activity.first_scanned_at) : null
 
+  // Only from a real throttle block: the verifier omits it for one-time
+  // codes and the card never guesses a budget.
+  const throttle = activity.throttle
+    ? t("lab.scanFeedback.throttle.value", {
+        cached: activity.throttle.cached_verdicts,
+        remaining: activity.throttle.nonce_budget_remaining,
+        limit: activity.throttle.nonce_budget_limit,
+        window:
+          activity.throttle.nonce_budget_window_seconds === 60
+            ? t("lab.scanFeedback.throttle.windowMinute")
+            : t("lab.scanFeedback.throttle.windowSeconds", {
+                seconds: activity.throttle.nonce_budget_window_seconds,
+              }),
+      })
+    : null
+
   const guard = activity.replay_guard
   const guardExpiry = formatScanClock(guard.expires_at)
   const usedAt = formatScanClock(activity.first_verified_at)
@@ -408,6 +424,9 @@ export function ScanFeedbackRows({
       ) : null}
       {oneTime ? (
         <Row label={t("lab.scanFeedback.rows.oneTime")} value={oneTime} testId="scan-feedback-one-time" />
+      ) : null}
+      {throttle ? (
+        <Row label={t("lab.scanFeedback.rows.throttle")} value={throttle} testId="scan-feedback-throttle" />
       ) : null}
     </>
   )

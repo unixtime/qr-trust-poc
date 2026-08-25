@@ -104,6 +104,10 @@ class Settings(BaseSettings):
     VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS: int = 60
     VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS: int = 300
     VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS: int = 3000
+    # Verdict cache for the same policies: an identical envelope scanned again
+    # within this many seconds (clamped to the claims' expires_at) is answered
+    # from cache without a signature check or evidence row. 0 disables it.
+    VERIFIER_VERDICT_CACHE_TTL_SECONDS: int = 30
     # uvicorn reads the same variable for --forwarded-allow-ips; empty means the
     # loopback-only default, so X-Forwarded-For from a real proxy is ignored.
     FORWARDED_ALLOW_IPS: str = ""

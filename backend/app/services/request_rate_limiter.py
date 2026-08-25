@@ -60,6 +60,20 @@ class InMemoryRequestRateLimiter:
             bucket.append(now)
             return RateLimitDecision(allowed=True)
 
+    async def remaining(
+        self,
+        key: str,
+        *,
+        limit: int,
+        window_seconds: int,
+    ) -> int:
+        """Requests left in the window without spending one; read-only."""
+        cutoff = time.monotonic() - window_seconds
+        async with self._lock:
+            bucket = self._records.get(key)
+            used = sum(1 for stamp in bucket if stamp > cutoff) if bucket else 0
+        return max(0, limit - used)
+
     async def reset(self) -> None:
         async with self._lock:
             self._records.clear()
@@ -144,6 +158,28 @@ class RequestRateLimiter:
             allowed=False,
             retry_after_seconds=retry_after,
         )
+
+    async def remaining(
+        self,
+        key: str,
+        *,
+        limit: int,
+        window_seconds: int,
+    ) -> int:
+        """Requests left in the current window; mirrors ``check`` without spending."""
+        client = redis_service.redis_client
+        if client is None:
+            return await self._fallback.remaining(key, limit=limit, window_seconds=window_seconds)
+        window_key = f"rate_limit:{key}:{int(time.time()) // window_seconds}"
+        try:
+            count = await client.get(window_key)
+        except Exception as exc:
+            logger.warning(
+                "Redis-backed rate limit read unavailable, using in-memory limiter: %s",
+                exc,
+            )
+            return await self._fallback.remaining(key, limit=limit, window_seconds=window_seconds)
+        return max(0, limit - int(count or 0))
 
     async def reset(self) -> None:
         await self._fallback.reset()

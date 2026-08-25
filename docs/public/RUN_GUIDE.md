@@ -147,6 +147,8 @@ Notes:
 - reusable QR codes (`reusable_public`, `time_limited`) also carry two scan-flood budgets that a flood spread across many source addresses cannot dodge: a per-QR-code budget (`VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS`, default 300 per `VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS`, default 60) checked before the signature is verified, and a per-issuer budget (`VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS`, default 3000) that only signature-valid scans spend; `one_time` codes are exempt because the replay guard already limits them to one accepted scan; an exhausted budget returns `429` with `Retry-After` and records no scanner evidence
 - behind a reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address (uvicorn's own setting; the compose files default it to `127.0.0.1`) so the per-client limit keys on the real client address instead of the proxy's; `GET /verifier/status` reports `forwarded_ip_trust_configured`, which is true only when something beyond loopback is trusted
 - without Redis every limit is per-process and in-memory, so budgets do not add up across API replicas; the API logs a startup warning when it falls back
+- verdicts for reusable codes are served from a short-lived cache: the first scan of an envelope in each window pays for the signature check, the budget spend and the evidence write, and identical scans inside the window get the same verdict back with `X-QR-Trust-Verdict: cached` (`computed` otherwise) and no evidence row. `VERIFIER_VERDICT_CACHE_TTL_SECONDS` (default `30`) caps the window, the code's own `expires_at` caps it further, and `0` disables the cache. Cached scans are still counted per code (a counter, not a row) so the workbench card stays honest; without Redis that counter, like the cache itself, is per API replica
+- at the edge, add a rate limit the application cannot see past: a Cloudflare or WAF rule of about 100 requests a minute per client address on `/verifier/*`, with a challenge on bursts, absorbs the volumetric flood before it reaches the per-code budget
 - DB-backed verifier-client keys protect verifier POST routes; static
   `VERIFIER_API_KEYS` require explicit `VERIFIER_STATIC_API_KEYS_ENABLED=true`
   local opt-in
@@ -170,6 +172,18 @@ Then open:
 The API is headless: `GET /` returns a JSON service descriptor, and the React
 workbench in [frontend](../../frontend) is the interactive client. There are no
 server-rendered HTML pages.
+
+### Choosing a usage policy
+
+The `usage_policy` on a signed payload decides how much a code that has been
+photographed is worth to an attacker, so pick it by how long the code has to
+stay valid rather than by habit:
+
+| Policy | Use it for | What limits replay |
+|---|---|---|
+| `time_limited` | Public codes with a natural end — a campaign poster, an event week, a batch of packaging | The signed `expires_at`: the replay window closes with the campaign. Also covered by the per-code budget and the verdict cache. **Prefer this for anything printed in public.** |
+| `one_time` | Tickets, vouchers, hand-offs where a second scan must fail | The replay guard consumes the nonce on the first green verdict; every later scan is a cheap red verdict, so no budget or cache is needed |
+| `reusable_public` | Signage or documentation that genuinely cannot carry an expiry | Only the per-code budget, the verdict cache and the edge rate limit; the code stays replayable for as long as the issuer's certificate is valid. Re-issue it with an expiry whenever one is possible |
 
 ## React Verifier Workbench
 
@@ -272,7 +286,12 @@ every 5 seconds and shows what the verifier recorded for **that nonce**:
   (`Unused`, `Reserved · verifying`) that becomes
   **`Used <time> · will not verify again`** once the guard has consumed the
   nonce — with `· replay blocked ×N` appended as later scans of the same nonce
-  are refused — plus a **Used** stamp across the code.
+  are refused — plus a **Used** stamp across the code;
+- for reusable codes, a `Throttle` row read from the scan-flood state the
+  verifier reports for that code — how many scans were answered from the
+  verdict cache and how much of the per-code budget is left in the current
+  window (`3 cached · 297 of 300 scans left per minute`). It is omitted for
+  `one_time` codes, which the replay guard limits instead.
 
 Everything on the card is read back from data the verifier actually holds; a
 row whose data is missing is omitted rather than filled in (there is no

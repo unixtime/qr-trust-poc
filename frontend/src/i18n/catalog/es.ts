@@ -169,6 +169,11 @@ export const es: Record<MessageKey, string> = {
   "lab.scanFeedback.rows.verdict": "Veredicto",
   "lab.scanFeedback.rows.destination": "Destino",
   "lab.scanFeedback.rows.vouchedBy": "Avalado por",
+  "lab.scanFeedback.rows.throttle": "Límite",
+  "lab.scanFeedback.throttle.value":
+    "{cached} en caché · quedan {remaining} de {limit} escaneos por {window}",
+  "lab.scanFeedback.throttle.windowMinute": "minuto",
+  "lab.scanFeedback.throttle.windowSeconds": "{seconds} s",
   "lab.scanFeedback.rows.expires": "Caduca",
   "lab.scanFeedback.verdict.risk": "riesgo {score}/100",
   "lab.scanFeedback.verdict.hold": "mantener para abrir",

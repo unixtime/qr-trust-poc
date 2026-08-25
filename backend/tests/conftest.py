@@ -56,6 +56,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setattr(config, "REDIS_STARTUP_ENABLED", False)
     verifier_endpoint._replay_guard._records.clear()
     verifier_endpoint._scanner_trust_records.clear()
+    verifier_endpoint._verdict_cache.clear()
     app.dependency_overrides = {}
 
     with TestClient(app) as test_client:
@@ -64,6 +65,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     verifier_endpoint._replay_guard._records.clear()
     verifier_endpoint._request_rate_limiter._records.clear()
     verifier_endpoint._scanner_trust_records.clear()
+    verifier_endpoint._verdict_cache.clear()
 
 
 DB_USER = "qr_admin"
