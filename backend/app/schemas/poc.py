@@ -580,6 +580,11 @@ class VerifierStatusResponse(BaseModel):
     issuer_rate_limit_max_requests: int = Field(ge=1)
     verdict_cache_enabled: bool
     verdict_cache_ttl_seconds: int = Field(ge=0)
+    scan_spike_alerts_enabled: bool
+    scan_spike_window_seconds: int = Field(ge=1)
+    scan_spike_baseline_seconds: int = Field(ge=1)
+    scan_spike_ratio: float = Field(ge=0)
+    scan_spike_min_scans: int = Field(ge=0)
     forwarded_ip_trust_configured: bool
     max_qr_payload_chars: int = Field(ge=1)
     max_decode_image_bytes: int = Field(ge=1)

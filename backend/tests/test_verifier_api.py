@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import copy
+import time
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
@@ -2583,6 +2585,39 @@ def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
     assert payload["scan_count"] == 0
 
 
+def test_scanner_decision_cached_verdict_counts_toward_spike_detection(
+    client: TestClient,
+) -> None:
+    _clear_verifier_rate_limiter()
+    nonce = "api-verdict-cache-spike-001"
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": nonce, "usage_policy": "reusable_public"},
+    )
+    assert demo_response.status_code == 200
+    qr_payload = demo_response.json()["qr_payload"]
+
+    try:
+        sources = [
+            client.post("/scanner/decisions", json={"qr_payload": qr_payload}).json()["verdict_source"]
+            for _ in range(3)
+        ]
+        # Cached scans write no evidence row, so the cache keeps its own
+        # per-minute counter that the spike detector merges with the rows.
+        # Read it before the helper below wipes the cache.
+        now = time.time()
+        cached_scans = asyncio.run(
+            verifier_endpoint._verdict_cache.cached_scan_count(
+                nonce_fingerprint(nonce), since=now - 60, until=now
+            )
+        )
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert sources == ["computed", "cached", "cached"]
+    assert cached_scans == 2
+
+
 def test_verifier_verdict_cache_skips_one_time_codes(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -2660,3 +2695,12 @@ def test_verifier_status_reports_verdict_cache(client: TestClient) -> None:
     payload = client.get("/verifier/status").json()
     assert payload["verdict_cache_enabled"] is True
     assert payload["verdict_cache_ttl_seconds"] == 30
+
+
+def test_verifier_status_reports_scan_spike_settings(client: TestClient) -> None:
+    payload = client.get("/verifier/status").json()
+    assert payload["scan_spike_alerts_enabled"] is False
+    assert payload["scan_spike_window_seconds"] == 60
+    assert payload["scan_spike_baseline_seconds"] == 3600
+    assert payload["scan_spike_ratio"] == 10.0
+    assert payload["scan_spike_min_scans"] == 30

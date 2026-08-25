@@ -246,4 +246,5 @@ const eventTypeToSubjectTail: Readonly<Record<string, string>> = {
   "nats.subscriber.authorization.changed":
     "authority.nats-subscriber.authorization.changed",
   "scanner.decision.recorded": "scanner.decision.recorded",
+  "scanner.spike.detected": "scanner.spike.detected",
 }

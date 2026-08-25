@@ -31,8 +31,11 @@ logger = logging.getLogger("qrcode_api")
 
 VERDICT_KEY_PREFIX = "verdict:"
 VERDICT_HITS_KEY_PREFIX = "verdict_hits:"
+VERDICT_RATE_KEY_PREFIX = "verdict_rate:"
+RATE_BUCKET_SECONDS = 60
 _HIT_COLOURS = ("green", "orange", "red")
 _LAST_HIT_FIELD = "last_hit_at"
+_RATE_PRUNE_INTERVAL_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -57,6 +60,23 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _rate_bucket(timestamp: float) -> int:
+    return int(timestamp) // RATE_BUCKET_SECONDS
+
+
+def _rate_buckets(since: float, until: float) -> range:
+    """Minute buckets overlapping ``[since, until]``; empty when the window is inverted."""
+    first = _rate_bucket(since)
+    last = _rate_bucket(until)
+    if last < first:
+        return range(0)
+    return range(first, last + 1)
+
+
+def _rate_key(fingerprint: str, bucket: int) -> str:
+    return f"{VERDICT_RATE_KEY_PREFIX}{fingerprint}:{bucket}"
+
+
 async def _resolve(value: Any) -> Any:
     """redis-py types hash commands as if synchronous; await them when they are not."""
     if inspect.isawaitable(value):
@@ -70,6 +90,9 @@ class InMemoryVerdictCache:
     def __init__(self) -> None:
         self._entries: dict[str, tuple[float, dict[str, Any]]] = {}
         self._hits: dict[str, _InMemoryHits] = {}
+        # (fingerprint, minute bucket) -> (expires_at wall-clock, cached scans)
+        self._rate: dict[tuple[str, int], tuple[float, int]] = {}
+        self._next_rate_prune = 0.0
         self._lock = asyncio.Lock()
 
     async def get(self, key: str) -> dict[str, Any] | None:
@@ -106,10 +129,35 @@ class InMemoryVerdictCache:
                 return VerdictHitSummary()
             return _summary_from_counts(hits.counts, hits.last_hit_at)
 
+    async def record_cached_scan(self, fingerprint: str, *, retain_seconds: int) -> None:
+        async with self._lock:
+            now = time.time()
+            if now >= self._next_rate_prune:
+                self._rate = {key: value for key, value in self._rate.items() if value[0] > now}
+                self._next_rate_prune = now + _RATE_PRUNE_INTERVAL_SECONDS
+            key = (fingerprint, _rate_bucket(now))
+            entry = self._rate.get(key)
+            if entry is None or entry[0] <= now:
+                self._rate[key] = (now + retain_seconds, 1)
+            else:
+                self._rate[key] = (entry[0], entry[1] + 1)
+
+    async def cached_scan_count(self, fingerprint: str, *, since: float, until: float) -> int:
+        async with self._lock:
+            now = time.time()
+            total = 0
+            for bucket in _rate_buckets(since, until):
+                entry = self._rate.get((fingerprint, bucket))
+                if entry is not None and entry[0] > now:
+                    total += entry[1]
+            return total
+
     def clear(self) -> None:
         """Synchronous reset for tests; the endpoint never calls this."""
         self._entries.clear()
         self._hits.clear()
+        self._rate.clear()
+        self._next_rate_prune = 0.0
 
 
 def _summary_from_counts(counts: dict[str, Any], last_hit_at: str | None) -> VerdictHitSummary:
@@ -195,6 +243,46 @@ class VerdictCache:
         last_hit_at = raw.get(_LAST_HIT_FIELD)
         return _summary_from_counts(raw, str(last_hit_at) if last_hit_at else None)
 
+    async def record_cached_scan(self, fingerprint: str, *, retain_seconds: int) -> None:
+        """Count one cached scan in the current minute bucket.
+
+        Cached verdicts write no evidence row and spend no nonce budget, so the
+        spike detector reads these buckets to see the part of a flood the cache
+        absorbed. One key per (nonce, minute) keeps the read a bounded MGET.
+        """
+        client = redis_service.redis_client
+        if client is None:
+            await self._fallback.record_cached_scan(fingerprint, retain_seconds=retain_seconds)
+            return
+        rate_key = _rate_key(fingerprint, _rate_bucket(time.time()))
+        try:
+            count = await _resolve(client.incr(rate_key))
+            if count == 1:
+                await _resolve(client.expire(rate_key, retain_seconds))
+        except Exception as exc:  # pragma: no cover - exercised only with a live Redis
+            logger.warning("verdict_cache_redis_rate_failed key=%s error=%s", rate_key, exc)
+            await self._fallback.record_cached_scan(fingerprint, retain_seconds=retain_seconds)
+
+    async def cached_scan_count(self, fingerprint: str, *, since: float, until: float) -> int:
+        """Cached scans of one nonce across the minute buckets overlapping the window."""
+        client = redis_service.redis_client
+        if client is None:
+            return await self._fallback.cached_scan_count(fingerprint, since=since, until=until)
+        keys = [_rate_key(fingerprint, bucket) for bucket in _rate_buckets(since, until)]
+        if not keys:
+            return 0
+        try:
+            values = await _resolve(client.mget(keys))
+        except Exception as exc:  # pragma: no cover - exercised only with a live Redis
+            logger.warning("verdict_cache_redis_rate_read_failed key=%s error=%s", keys[0], exc)
+            return await self._fallback.cached_scan_count(fingerprint, since=since, until=until)
+        return sum(int(value) for value in values if value)
+
     def clear(self) -> None:
         """Reset the fallback store (tests run without Redis)."""
         self._fallback.clear()
+
+
+# One process-wide cache: the scanner endpoint records into it and the spike
+# monitor reads from it, so both must share the same fallback when Redis is off.
+shared_verdict_cache = VerdictCache()

@@ -3096,3 +3096,94 @@ def test_audit_log_accepts_local_admin_token(
     assert connection.closed is True
     assert len(connection.fetch_calls) == 1
     assert "qr_trust.governance_audit_log" in connection.fetch_calls[0][0]
+
+
+class FakeScanAccountingConnection:
+    def __init__(self) -> None:
+        self.fetch_calls: list[tuple[str, tuple[Any, ...]]] = []
+        self.execute_calls: list[tuple[str, tuple[Any, ...]]] = []
+        self.closed = False
+
+    async def fetch(self, query: str, *args: Any) -> list[dict[str, Any]]:
+        self.fetch_calls.append((query, args))
+        if "date_trunc" in query:
+            return [
+                {
+                    "issuer_id": "issuer-a",
+                    "day": datetime(2026, 8, 25, tzinfo=timezone.utc),
+                    "scan_count": 42,
+                    "green_count": 40,
+                    "orange_count": 1,
+                    "red_count": 1,
+                    "distinct_nonces": 7,
+                }
+            ]
+        return [
+            {
+                "nonce_fingerprint": "fp-burst",
+                "issuer_id": "issuer-a",
+                "root_program_id": "root:program-a",
+                "usage_policy": "reusable_public",
+                "recent_count": 60,
+                "baseline_count": 120,
+            }
+        ]
+
+    async def execute(self, query: str, *args: Any) -> str:
+        self.execute_calls.append((query, args))
+        return "INSERT 0 1"
+
+    async def close(self) -> None:
+        self.closed = True
+
+
+def test_scan_accounting_accepts_local_admin_token(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeScanAccountingConnection()
+
+    async def _connect(*args: Any, **kwargs: Any) -> FakeScanAccountingConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr")
+    monkeypatch.setattr(config, "VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _connect)
+
+    response = client.get(
+        "/admin/scan-accounting?days=3&limit=50",
+        headers={"X-Admin-Token": "local-lab-admin"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["days"] == 3
+    assert payload["issuers"] == [
+        {
+            "issuer_id": "issuer-a",
+            "day": "2026-08-25",
+            "scan_count": 42,
+            "green_count": 40,
+            "orange_count": 1,
+            "red_count": 1,
+            "distinct_nonces": 7,
+        }
+    ]
+    assert len(payload["spikes"]) == 1
+    assert payload["spikes"][0]["nonce_fingerprint"] == "fp-burst"
+    assert payload["spikes"][0]["recent_count"] == 60
+    assert payload["spikes"][0]["cached_recent_count"] == 0
+    assert payload["spike_alerts_enabled"] is True
+    assert payload["spike_threshold_ratio"] == 10.0
+    assert payload["spike_min_scans"] == 30
+    # The on-demand view never emits outbox events.
+    assert connection.execute_calls == []
+    assert connection.closed is True
+
+
+def test_scan_accounting_requires_credential(client: TestClient) -> None:
+    response = client.get("/admin/scan-accounting")
+    assert response.status_code == 401

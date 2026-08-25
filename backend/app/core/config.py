@@ -108,6 +108,18 @@ class Settings(BaseSettings):
     # within this many seconds (clamped to the claims' expires_at) is answered
     # from cache without a signature check or evidence row. 0 disables it.
     VERIFIER_VERDICT_CACHE_TTL_SECONDS: int = 30
+    # Per-nonce scan-spike alert (reusable QR flood detection). Every
+    # INTERVAL seconds the API compares each nonce's scans in the trailing
+    # WINDOW against its per-window average over the trailing BASELINE and
+    # writes a scanner.spike.detected outbox event when the burst is at least
+    # RATIO times the baseline and at least MIN_SCANS scans. INTERVAL 0
+    # disables the monitor; the /admin/scan-accounting view still evaluates
+    # the same detector on demand.
+    VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS: int = 60
+    VERIFIER_SCAN_SPIKE_WINDOW_SECONDS: int = 60
+    VERIFIER_SCAN_SPIKE_BASELINE_SECONDS: int = 3600
+    VERIFIER_SCAN_SPIKE_RATIO: float = 10.0
+    VERIFIER_SCAN_SPIKE_MIN_SCANS: int = 30
     # uvicorn reads the same variable for --forwarded-allow-ips; empty means the
     # loopback-only default, so X-Forwarded-For from a real proxy is ignored.
     FORWARDED_ALLOW_IPS: str = ""

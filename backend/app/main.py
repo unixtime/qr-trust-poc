@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 from time import perf_counter
 from backend.app.api.routes import router
 from backend.app.core.config import config, DEFAULT_SECRET_KEY
@@ -34,10 +35,38 @@ async def lifespan(app: FastAPI):
             "and per-process without Redis; budgets do not add up across API replicas"
         )
 
+    # Per-nonce scan-spike monitor: reads the evidence store on a timer and
+    # writes scanner.spike.detected outbox events. Needs the network database.
+    from backend.app.services import scan_accounting
+
+    spike_monitor: asyncio.Task[None] | None = None
+    if scan_accounting.scan_spike_monitor_enabled():
+        spike_monitor = asyncio.create_task(
+            scan_accounting.run_scan_spike_monitor(), name="scan-spike-monitor"
+        )
+        logger.info(
+            "Scan-spike monitor started (every %ss, window %ss, baseline %ss, ratio %s, min %s)",
+            config.VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS,
+            config.VERIFIER_SCAN_SPIKE_WINDOW_SECONDS,
+            config.VERIFIER_SCAN_SPIKE_BASELINE_SECONDS,
+            config.VERIFIER_SCAN_SPIKE_RATIO,
+            config.VERIFIER_SCAN_SPIKE_MIN_SCANS,
+        )
+    else:
+        logger.info(
+            "Scan-spike monitor disabled (needs QRTRUST_NETWORK_DATABASE_URL and "
+            "VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS > 0)"
+        )
+
     yield
 
     # Shutdown
     logger.info("Application shutdown")
+    if spike_monitor is not None:
+        spike_monitor.cancel()
+        with suppress(asyncio.CancelledError):
+            await spike_monitor
+        logger.info("Scan-spike monitor stopped")
     try:
         await redis_service.disconnect()
         logger.info("Redis disconnected")

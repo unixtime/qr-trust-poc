@@ -55,3 +55,25 @@ def test_hits_count_per_colour_in_a_fixed_window(monkeypatch: pytest.MonkeyPatch
     assert (during.total, during.green, during.orange, during.red) == (3, 2, 0, 1)
     assert during.last_hit_at is not None
     assert after == VerdictHitSummary()
+
+
+def test_cached_scans_are_counted_in_minute_buckets(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = [1_700_000_000.0]
+    monkeypatch.setattr(verdict_cache_module.time, "time", lambda: clock[0])
+    cache = InMemoryVerdictCache()
+
+    async def scenario() -> tuple[int, int, int, int]:
+        await cache.record_cached_scan("fp-a", retain_seconds=3600)
+        await cache.record_cached_scan("fp-a", retain_seconds=3600)
+        await cache.record_cached_scan("fp-short", retain_seconds=120)
+        clock[0] += 600.0
+        await cache.record_cached_scan("fp-a", retain_seconds=3600)
+        now = clock[0]
+        recent = await cache.cached_scan_count("fp-a", since=now - 60, until=now)
+        hour = await cache.cached_scan_count("fp-a", since=now - 3600, until=now)
+        other = await cache.cached_scan_count("fp-b", since=now - 3600, until=now)
+        # fp-short's bucket is inside the hour window but its retention has lapsed.
+        expired = await cache.cached_scan_count("fp-short", since=now - 3600, until=now)
+        return recent, hour, other, expired
+
+    assert asyncio.run(scenario()) == (1, 3, 0, 0)

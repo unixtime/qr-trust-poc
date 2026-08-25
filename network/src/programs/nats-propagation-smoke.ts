@@ -180,6 +180,11 @@ const managementEventSubjectExpectations: ReadonlyArray<{
     subject: "qrtrust.root-qrtrust-demo-2026.root.program.upserted.v1",
   },
   {
+    type: "scanner.spike.detected",
+    artifact_id: "evt_scan_spike_smoke",
+    subject: "qrtrust.root-qrtrust-demo-2026.scanner.spike.detected.v1",
+  },
+  {
     type: "delegated_authority.upserted",
     artifact_id: "authority:qrtrust-demo:merchant-web",
     subject: "qrtrust.root-qrtrust-demo-2026.authority.delegated.upserted.v1",

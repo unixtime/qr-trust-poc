@@ -97,6 +97,7 @@ from backend.app.services.trust_residuals_decision import (
     Decision,
     decide as decide_trust_residuals,
 )
+from backend.app.services import scan_accounting
 from backend.app.services.network_outbox_status import load_network_outbox_operator_status
 from backend.app.services.network_evidence_recorder import record_scanner_evidence
 from backend.app.services.management_auth import (
@@ -115,7 +116,7 @@ from backend.app.services.scan_activity import (
 )
 from backend.app.services.scanner_decision_status import load_scanner_decision_operator_status
 from backend.app.services.scanner_ux_ab_fixture import build_scanner_ux_ab_fixture
-from backend.app.services.verdict_cache import VerdictCache
+from backend.app.services.verdict_cache import shared_verdict_cache
 from backend.app.services.signed_schema_poc import (
     CertificateAuthorityRecord,
     SUPPORTED_ALGORITHM_ID,
@@ -141,7 +142,7 @@ logger = logging.getLogger(__name__)
 _replay_guard = InMemoryReplayGuard()
 _verifier = NarrowedVerifierService(_replay_guard)
 _request_rate_limiter = RequestRateLimiter()
-_verdict_cache = VerdictCache()
+_verdict_cache = shared_verdict_cache
 _scanner_ux_event_log: deque[ScannerUXEventLogEntry] = deque(maxlen=500)
 _LEGACY_VERIFIER_ADMIN_API_KEYS_DETAIL = (
     "Verifier API key management moved to /admin/verifier-clients/api-keys. "
@@ -1528,6 +1529,11 @@ async def _build_verifier_status_response(
         issuer_rate_limit_max_requests=config.VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS,
         verdict_cache_enabled=config.VERIFIER_VERDICT_CACHE_TTL_SECONDS > 0,
         verdict_cache_ttl_seconds=max(0, config.VERIFIER_VERDICT_CACHE_TTL_SECONDS),
+        scan_spike_alerts_enabled=scan_accounting.scan_spike_monitor_enabled(),
+        scan_spike_window_seconds=max(1, config.VERIFIER_SCAN_SPIKE_WINDOW_SECONDS),
+        scan_spike_baseline_seconds=max(1, config.VERIFIER_SCAN_SPIKE_BASELINE_SECONDS),
+        scan_spike_ratio=max(0.0, config.VERIFIER_SCAN_SPIKE_RATIO),
+        scan_spike_min_scans=max(0, config.VERIFIER_SCAN_SPIKE_MIN_SCANS),
         forwarded_ip_trust_configured=_forwarded_ip_trust_configured(),
         max_qr_payload_chars=config.MAX_QR_PAYLOAD_CHARS,
         max_decode_image_bytes=config.MAX_DECODE_IMAGE_BYTES,
@@ -2526,6 +2532,12 @@ async def decide_scanned_qr(
                     contract.decision_color,
                     window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
                 )
+            # The spike detector reads this minute bucket; without it a warm
+            # cache would hide the flood (no evidence row, no budget spend).
+            await _verdict_cache.record_cached_scan(
+                fingerprint,
+                retain_seconds=max(1, config.VERIFIER_SCAN_SPIKE_BASELINE_SECONDS) + 60,
+            )
         return decorated_response
     recording_result = await record_scanner_evidence(
         decorated_response,

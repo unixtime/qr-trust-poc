@@ -499,6 +499,53 @@ class ManagementOutboxStatusResponse(BaseModel):
     recent_events: list[ManagementOutboxEventRecord]
 
 
+class ScanAccountingIssuerDayRecord(BaseModel):
+    """Scans attributed to one issuer on one UTC day (None = unattributed)."""
+
+    issuer_id: str | None
+    day: str
+    scan_count: int = Field(ge=0)
+    green_count: int = Field(ge=0)
+    orange_count: int = Field(ge=0)
+    red_count: int = Field(ge=0)
+    distinct_nonces: int = Field(ge=0)
+
+
+class ScanSpikeRecord(BaseModel):
+    """One nonce whose recent scan burst exceeds its own baseline."""
+
+    nonce_fingerprint: str
+    issuer_id: str | None
+    # Root program the nonce was verified under; None for unsigned payloads.
+    root_program_id: str | None = None
+    usage_policy: str | None
+    recent_count: int = Field(ge=0)
+    baseline_count: int = Field(ge=0)
+    # Portion of the counts above served from the verdict cache (no evidence row).
+    cached_recent_count: int = Field(default=0, ge=0)
+    cached_baseline_count: int = Field(default=0, ge=0)
+    baseline_per_window: float = Field(ge=0)
+    ratio: float | None = Field(default=None, ge=0)
+    threshold_ratio: float = Field(ge=0)
+    min_scans: int = Field(ge=0)
+    window_seconds: int = Field(ge=1)
+    baseline_seconds: int = Field(ge=1)
+    observed_at: str
+
+
+class ScanAccountingResponse(BaseModel):
+    window_start: str
+    window_end: str
+    days: int = Field(ge=1)
+    issuers: list[ScanAccountingIssuerDayRecord]
+    spikes: list[ScanSpikeRecord]
+    spike_alerts_enabled: bool
+    spike_window_seconds: int = Field(ge=1)
+    spike_baseline_seconds: int = Field(ge=1)
+    spike_threshold_ratio: float = Field(ge=0)
+    spike_min_scans: int = Field(ge=0)
+
+
 class ManagementOutboxEventRemediationRequest(BaseModel):
     event_id: str = Field(min_length=1)
     action: OutboxEventRemediationAction

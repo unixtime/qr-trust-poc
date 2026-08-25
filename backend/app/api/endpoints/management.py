@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 from typing import Any
 from urllib.parse import urlparse
@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, s
 
 from backend.app.core.config import config
 from backend.app.schemas.management import (
+    ScanAccountingResponse,
     DelegatedAuthorityUpsertRequest,
     DelegatedAuthorityUpsertResponse,
     DestinationPolicyApprovedDestination,
@@ -68,6 +69,8 @@ from backend.app.schemas.management_contracts import (
     build_verifier_client_key_id,
     validate_qrtrust_nats_subject,
 )
+from backend.app.services import scan_accounting
+from backend.app.services.verdict_cache import shared_verdict_cache
 from backend.app.services.management_auth import (
     ManagementPrincipal,
     ManagementUnauthorized,
@@ -1449,6 +1452,72 @@ async def management_outbox_status(
             )
             for row in event_rows
         ],
+    )
+
+
+@router.get("/scan-accounting", response_model=ScanAccountingResponse)
+async def management_scan_accounting(
+    days: int = Query(default=7, ge=1, le=90),
+    limit: int = Query(default=200, ge=1, le=1000),
+    admin_token: str = Depends(require_management_credential),
+) -> ScanAccountingResponse:
+    """Scans per issuer per UTC day plus the nonces currently spiking.
+
+    Reads the same evidence table and the same spike detector the background
+    monitor uses, so what the operator sees here is what the outbox alerts
+    on -- but this view never emits events itself.
+    """
+    now = datetime.now(timezone.utc)
+    since = (now - timedelta(days=days - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    window_seconds = max(1, config.VERIFIER_SCAN_SPIKE_WINDOW_SECONDS)
+    baseline_seconds = max(1, config.VERIFIER_SCAN_SPIKE_BASELINE_SECONDS)
+    threshold_ratio = max(0.0, config.VERIFIER_SCAN_SPIKE_RATIO)
+    min_scans = max(0, config.VERIFIER_SCAN_SPIKE_MIN_SCANS)
+    connection: asyncpg.Connection | None = None
+    try:
+        connection = await asyncpg.connect(
+            _asyncpg_dsn(_management_database_url()),
+            timeout=1.5,
+            command_timeout=2.0,
+        )
+        await _management_principal(connection, admin_token, "audit:read")
+        issuers = await scan_accounting.load_issuer_day_accounting(
+            connection, since=since, until=now, limit=limit
+        )
+        spikes = await scan_accounting.detect_nonce_spikes(
+            connection,
+            now=now,
+            window_seconds=window_seconds,
+            baseline_seconds=baseline_seconds,
+            threshold_ratio=threshold_ratio,
+            min_scans=min_scans,
+            limit=limit,
+            verdict_cache=shared_verdict_cache,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="management persistence unavailable",
+        ) from exc
+    finally:
+        if connection is not None:
+            await connection.close()
+
+    return ScanAccountingResponse(
+        window_start=since.isoformat(),
+        window_end=now.isoformat(),
+        days=days,
+        issuers=issuers,
+        spikes=spikes,
+        spike_alerts_enabled=scan_accounting.scan_spike_monitor_enabled(),
+        spike_window_seconds=window_seconds,
+        spike_baseline_seconds=baseline_seconds,
+        spike_threshold_ratio=threshold_ratio,
+        spike_min_scans=min_scans,
     )
 
 

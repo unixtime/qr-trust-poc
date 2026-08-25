@@ -148,6 +148,7 @@ Notes:
 - behind a reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address (uvicorn's own setting; the compose files default it to `127.0.0.1`) so the per-client limit keys on the real client address instead of the proxy's; `GET /verifier/status` reports `forwarded_ip_trust_configured`, which is true only when something beyond loopback is trusted
 - without Redis every limit is per-process and in-memory, so budgets do not add up across API replicas; the API logs a startup warning when it falls back
 - verdicts for reusable codes are served from a short-lived cache: the first scan of an envelope in each window pays for the signature check, the budget spend and the evidence write, and identical scans inside the window get the same verdict back with `X-QR-Trust-Verdict: cached` (`computed` otherwise) and no evidence row. `VERIFIER_VERDICT_CACHE_TTL_SECONDS` (default `30`) caps the window, the code's own `expires_at` caps it further, and `0` disables the cache. Cached scans are still counted per code (a counter, not a row) so the workbench card stays honest; without Redis that counter, like the cache itself, is per API replica
+- the evidence store doubles as the scan ledger: `GET /admin/scan-accounting` (management credential, `audit:read`) returns scans per issuer per UTC day with the green/orange/red split and distinct-nonce count, plus the nonces currently spiking; a background monitor runs the same spike query every `VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS` and writes one `scanner.spike.detected` outbox event per nonce per baseline window when the last `VERIFIER_SCAN_SPIKE_WINDOW_SECONDS` hold at least `VERIFIER_SCAN_SPIKE_MIN_SCANS` scans and at least `VERIFIER_SCAN_SPIKE_RATIO` times the code's own per-window baseline over `VERIFIER_SCAN_SPIKE_BASELINE_SECONDS` (defaults `60`, `60`, `30`, `10.0`, `3600`); the monitor only runs with `QRTRUST_NETWORK_DATABASE_URL` set and reports itself as `scan_spike_alerts_enabled` on `/verifier/status`
 - at the edge, add a rate limit the application cannot see past: a Cloudflare or WAF rule of about 100 requests a minute per client address on `/verifier/*`, with a challenge on bursts, absorbs the volumetric flood before it reaches the per-code budget
 - DB-backed verifier-client keys protect verifier POST routes; static
   `VERIFIER_API_KEYS` require explicit `VERIFIER_STATIC_API_KEYS_ENABLED=true`
@@ -184,6 +185,68 @@ stay valid rather than by habit:
 | `time_limited` | Public codes with a natural end — a campaign poster, an event week, a batch of packaging | The signed `expires_at`: the replay window closes with the campaign. Also covered by the per-code budget and the verdict cache. **Prefer this for anything printed in public.** |
 | `one_time` | Tickets, vouchers, hand-offs where a second scan must fail | The replay guard consumes the nonce on the first green verdict; every later scan is a cheap red verdict, so no budget or cache is needed |
 | `reusable_public` | Signage or documentation that genuinely cannot carry an expiry | Only the per-code budget, the verdict cache and the edge rate limit; the code stays replayable for as long as the issuer's certificate is valid. Re-issue it with an expiry whenever one is possible |
+
+### Scan accounting and spike alerts
+
+Every computed verdict lands in `qr_trust.scanner_decisions`, and the two
+operator views built on it share one query each, so what the ledger shows is
+what the alert fires on:
+
+- `GET /admin/scan-accounting?days=7&limit=200` groups the evidence rows by
+  issuer and UTC day (`days=1` is today so far; scans with no issuer on the
+  envelope are reported under `issuer_id: null` rather than dropped). Each row
+  carries `scan_count`, the `green_count`/`orange_count`/`red_count` split and
+  `distinct_nonces`, which is the number a hosted deployment would meter or
+  cap per issuer.
+- The same response lists `spikes`: nonces whose scans in the trailing
+  `spike_window_seconds` clear `spike_min_scans` and `spike_threshold_ratio`
+  times the code's own per-window baseline. A code with no history is a spike
+  as soon as it clears the floor, because a fresh reusable code being
+  hammered is the flood case the design is for.
+
+A warm verdict cache answers a repeat scan of the same payload before the
+evidence write and before the per-nonce budget, so a flood against a cached
+code leaves only a couple of evidence rows a minute. The detector therefore
+merges two sources: the evidence rows and the cache's own per-minute counters
+(`verdict_rate:<fingerprint>:<minute>` in Redis, or the in-process fallback
+when Redis is off, which then counts per API replica). Each spike record
+carries `cached_recent_count` and `cached_baseline_count`, so an operator can
+see how much of a burst never touched the database. Issuer-day rows count
+computed verdicts only: a cached hit is known by nonce, not by issuer and day,
+and it costs the deployment a Redis read rather than a verdict.
+
+```bash
+python3 - <<'PY'
+import json, urllib.request
+req = urllib.request.Request(
+    "http://127.0.0.1:8000/admin/scan-accounting?days=3",
+    headers={"X-Admin-Token": "local-lab-admin"},
+)
+body = json.load(urllib.request.urlopen(req))
+for row in body["issuers"]:
+    print(row["day"], row["issuer_id"], row["scan_count"], row["distinct_nonces"])
+print("spiking:", [s["nonce_fingerprint"] for s in body["spikes"]])
+PY
+```
+
+The endpoint never emits anything. Alerts come from a background monitor in
+the API lifespan that runs the identical detector every
+`VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS` and inserts a `scanner.spike.detected`
+row into `qr_trust.event_outbox`. The payload is the same shape as every
+other outbox row -- an event envelope (`type: scanner.spike.detected`,
+`root_program_id` from the nonce's evidence rows, `artifact_hash` over the
+body) with the spike record above as the body -- because the NATS relay
+validates that envelope, maps the type onto a subject it knows
+(`qrtrust.<root>.scanner.spike.detected.v1` in the `QRTRUST_SCANNER_AUDIT`
+stream) and refuses anything else. A spike on unsigned payloads has no root
+program to publish under, so it is logged and shown on
+`/admin/scan-accounting` but never written to the outbox. The event
+id is bucketed per nonce per baseline window, so repeated ticks, restarts and
+extra API replicas collapse onto one row through the outbox's `event_id`
+uniqueness, and the alert shows up through the same `/admin/outbox` path and
+NATS relay as every other outbox event. The monitor needs
+`QRTRUST_NETWORK_DATABASE_URL`; `0` for the interval disables it, and
+`/verifier/status` reports `scan_spike_alerts_enabled` with the active knobs.
 
 ## React Verifier Workbench
 
