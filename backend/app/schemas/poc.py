@@ -457,6 +457,45 @@ class ScannerDecisionRecentResponse(BaseModel):
     created_at: str
 
 
+ScanActivityReplayState = Literal["not_applicable", "unused", "reserved", "consumed"]
+
+
+class ScanActivityDecisionResponse(ScannerDecisionRecentResponse):
+    """One recorded scan of a specific QR, plus which scanner produced it."""
+
+    client_platform: str | None = None
+
+
+class ScanActivityReplayGuardResponse(BaseModel):
+    """Live replay-guard view for one-time nonces (``applies`` is False otherwise)."""
+
+    applies: bool
+    state: ScanActivityReplayState
+    expires_at: str | None = None
+
+
+class ScanActivityResponse(BaseModel):
+    """Per-QR scan feedback for the workbench.
+
+    Everything here is read back from the scanner-decision evidence store, so
+    ``persistence_state`` is the honest signal: when it is not ``observable`` the
+    counts are zero because nothing could be read, not because nothing happened.
+    """
+
+    nonce_fingerprint: str
+    persistence_state: ScannerDecisionPersistenceState
+    lookback_seconds: int = Field(ge=1)
+    scan_count: int = Field(ge=0)
+    green_count: int = Field(ge=0)
+    orange_count: int = Field(ge=0)
+    red_count: int = Field(ge=0)
+    first_scanned_at: str | None = None
+    last_scanned_at: str | None = None
+    latest: ScanActivityDecisionResponse | None = None
+    replay_guard: ScanActivityReplayGuardResponse
+    error: str | None = None
+
+
 class ScannerDecisionPersistenceReportResponse(BaseModel):
     observed_at: str
     lookback_seconds: int = Field(ge=1)

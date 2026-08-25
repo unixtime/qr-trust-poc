@@ -13,11 +13,14 @@ from urllib.parse import ParseResult, urlparse
 from uuid import uuid4
 
 import asyncpg
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from backend.app.core.config import config
 from backend.app.core.request_id import safe_request_id
 from backend.app.schemas.poc import (
+    ScanActivityReplayGuardResponse,
+    ScanActivityResponse,
+    UsagePolicy,
     CertificateRecordInput,
     DemoMaterialsRequest,
     DemoMaterialsResponse,
@@ -102,6 +105,10 @@ from backend.app.services.management_auth import (
 )
 from backend.app.services.runtime_observation_status import (
     load_runtime_observation_operator_status,
+)
+from backend.app.services.scan_activity import (
+    load_scan_activity,
+    nonce_fingerprint as _nonce_fingerprint,
 )
 from backend.app.services.scanner_decision_status import load_scanner_decision_operator_status
 from backend.app.services.scanner_ux_ab_fixture import build_scanner_ux_ab_fixture
@@ -1189,6 +1196,19 @@ def _signed_unknown_issuer_decision(
     )
 
 
+def _scanned_nonce_fingerprint(qr_payload: str) -> str | None:
+    """Fingerprint of the signed envelope's nonce, or None for URL/unreadable payloads."""
+    trimmed_payload = qr_payload.strip()
+    if not trimmed_payload or _looks_like_url(trimmed_payload):
+        return None
+    try:
+        envelope = decode_envelope_from_qr_payload(trimmed_payload)
+    except QRArtifactError:
+        return None
+    nonce = envelope.claims.nonce
+    return _nonce_fingerprint(nonce) if nonce else None
+
+
 def _scanner_claimed_destination_from_payload(
     qr_payload: str,
 ) -> tuple[str, str | None]:
@@ -2104,6 +2124,45 @@ async def get_verifier_status(request_context: Request) -> VerifierStatusRespons
     )
 
 
+@router.get("/scan-activity", response_model=ScanActivityResponse)
+async def get_scan_activity(
+    request_context: Request,
+    nonce: str = Query(min_length=1, max_length=512),
+    usage_policy: UsagePolicy | None = Query(default=None),
+) -> ScanActivityResponse:
+    """
+    Report whether the QR carrying ``nonce`` has been scanned, by whom, and how
+    the scanner decided. Counts come from the scanner-decision evidence store;
+    the one-time replay-guard state comes from this process's live guard.
+    """
+    await _enforce_verifier_api_key(request_context)
+    await _enforce_verifier_rate_limit(request_context, bucket="scan_activity")
+    activity = await load_scan_activity(_nonce_fingerprint(nonce))
+    replay_guard = await _scan_activity_replay_guard(
+        nonce,
+        # The caller knows its own policy even when the evidence store is
+        # unconfigured; the recorded policy is the fallback.
+        usage_policy or (activity.latest.usage_policy if activity.latest else None),
+    )
+    return activity.model_copy(update={"replay_guard": replay_guard})
+
+
+async def _scan_activity_replay_guard(
+    nonce: str,
+    usage_policy: UsagePolicy | None,
+) -> ScanActivityReplayGuardResponse:
+    if usage_policy != "one_time":
+        return ScanActivityReplayGuardResponse(applies=False, state="not_applicable")
+    record = await _replay_guard.get_record(nonce)
+    if record is None:
+        return ScanActivityReplayGuardResponse(applies=True, state="unused")
+    return ScanActivityReplayGuardResponse(
+        applies=True,
+        state=record.state,
+        expires_at=record.expires_at.isoformat().replace("+00:00", "Z"),
+    )
+
+
 @router.post("/verify", response_model=NarrowedVerifierResponse)
 async def verify_presented_code(
     request_context: Request,
@@ -2177,7 +2236,11 @@ async def decide_scanned_qr(
         request_id=_request_id_for_context(request_context),
     )
     decorated_response = _with_scanner_ux(response, request=request)
-    recording_result = await record_scanner_evidence(decorated_response)
+    recording_result = await record_scanner_evidence(
+        decorated_response,
+        nonce_fingerprint=_scanned_nonce_fingerprint(request.qr_payload),
+        client_platform=request.client.platform if request.client else None,
+    )
     if recording_result is not None and recording_result.error:
         logger.warning(
             "scanner_evidence_recording_failed request_id=%s error=%s",

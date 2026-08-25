@@ -8,9 +8,15 @@ import { useTNodes } from "@/i18n/nodes"
 import {
   qrImageDataUrl,
   type DemoMaterialsResponse,
+  type ScanActivity,
   type UsagePolicy,
   type VerifierDecision,
 } from "@/lib/verifier-client"
+import {
+  ScanFeedbackNote,
+  ScanFeedbackOverlay,
+  ScanFeedbackRows,
+} from "@/routes/lab/components/ScanFeedback"
 import type { HistoryEntry } from "@/routes/lab/types"
 
 const nonceModeLabelKeys: Record<NonceMode, MessageKey> = {
@@ -39,6 +45,8 @@ type GenerateStepProps = {
   showKeyIssue: boolean
   isIssuingLabKey: boolean
   latestActivity: HistoryEntry | null
+  scanActivity: ScanActivity | null
+  scanActivityError: string | null
   result: VerifierDecision | null
   onGenerate: () => void
   onVerifyCurrent: () => void
@@ -61,6 +69,8 @@ export default function GenerateStep({
   showKeyIssue,
   isIssuingLabKey,
   latestActivity,
+  scanActivity,
+  scanActivityError,
   result,
   onGenerate,
   onVerifyCurrent,
@@ -175,11 +185,10 @@ export default function GenerateStep({
               alt={t("lab.generate.qrAlt")}
               className="aspect-square w-full rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_24px_48px_-20px_rgba(69,212,131,0.3)]"
             />
-            {/* Decorative scanline on the preview only — the fullscreen modal
-                stays untreated so the QR remains cleanly scannable. */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-x-3 top-[58%] h-0.5 bg-linear-90 from-transparent via-[rgba(69,212,131,0.9)] to-transparent shadow-[0_0_12px_rgba(69,212,131,0.8)]"
+            <ScanFeedbackOverlay
+              activity={scanActivity}
+              error={scanActivityError}
+              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
             />
           </div>
           <dl className="flex flex-col gap-1.5 font-mono text-[11px]">
@@ -213,7 +222,17 @@ export default function GenerateStep({
                   .slice(0, 19)}
               </dd>
             </div>
+            <ScanFeedbackRows
+              activity={scanActivity}
+              error={scanActivityError}
+              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+            />
           </dl>
+          <ScanFeedbackNote
+            activity={scanActivity}
+            error={scanActivityError}
+            usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+          />
         </div>
       ) : null}
 

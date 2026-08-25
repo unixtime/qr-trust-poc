@@ -191,7 +191,9 @@ async def test_record_scanner_evidence_writes_decision_and_runtime_observation(
     monkeypatch.setattr(network_evidence_recorder.asyncpg, "connect", _fake_connect)
 
     result = await network_evidence_recorder.record_scanner_evidence(
-        _scanner_response()
+        _scanner_response(),
+        nonce_fingerprint="0123456789abcdef",
+        client_platform="ios",
     )
 
     assert result.scanner_decisions_inserted == 1
@@ -212,6 +214,8 @@ async def test_record_scanner_evidence_writes_decision_and_runtime_observation(
     assert scanner_insert[13] == "reusable_public"
     assert json.loads(scanner_insert[16])["runtime_safety"]["status"] == "clean"
     assert isinstance(scanner_insert[17], datetime)
+    assert scanner_insert[18] == "0123456789abcdef"
+    assert scanner_insert[19] == "ios"
 
     runtime_insert = connection.execute_calls[1]
     assert "qr_trust.runtime_observations" in runtime_insert[0]

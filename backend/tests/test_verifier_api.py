@@ -24,7 +24,13 @@ from backend.app.schemas.poc import (
     ScannerDecisionRecentResponse,
     ScannerDecisionResponse,
 )
+from backend.app.schemas.poc import (
+    ScanActivityDecisionResponse,
+    ScanActivityReplayGuardResponse,
+    ScanActivityResponse,
+)
 from backend.app.services import verifier_api_key_service as api_key_service_module
+from backend.app.services.scan_activity import nonce_fingerprint
 from backend.app.services.qr_artifact_poc import decode_qr_payload_from_png_bytes
 
 
@@ -930,7 +936,10 @@ def test_scanner_decision_api_records_decorated_evidence(
 ) -> None:
     recorded: list[ScannerDecisionResponse] = []
 
-    async def _fake_record_evidence(response: ScannerDecisionResponse) -> None:
+    async def _fake_record_evidence(
+        response: ScannerDecisionResponse,
+        **_: Any,
+    ) -> None:
         recorded.append(response)
 
     monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", _fake_record_evidence)
@@ -1933,3 +1942,183 @@ def test_verifier_api_key_store_unavailable_returns_503(
 
     assert issue_response.status_code == 410
     assert protected_response.status_code == 503
+
+
+def _scan_activity_fixture(
+    fingerprint: str,
+    *,
+    usage_policy: str,
+    scan_count: int = 1,
+) -> ScanActivityResponse:
+    latest = ScanActivityDecisionResponse(
+        decision_id="scan_activity_001",
+        verifier_id="verifier:test",
+        decision_color="green",
+        decision_state="verified_issuer",
+        risk_score=4,
+        hold_to_open_required=False,
+        hold_to_open_duration_ms=0,
+        destination_fingerprint="acme.example",
+        policy_ref="policy:acme-demo:web-payments:v1",
+        usage_policy=usage_policy,
+        client_platform="ios",
+        created_at="2026-08-25T10:00:00Z",
+    )
+    return ScanActivityResponse(
+        nonce_fingerprint=fingerprint,
+        persistence_state="observable",
+        lookback_seconds=86_400,
+        scan_count=scan_count,
+        green_count=scan_count,
+        orange_count=0,
+        red_count=0,
+        first_scanned_at="2026-08-25T09:59:00Z",
+        last_scanned_at="2026-08-25T10:00:00Z",
+        latest=latest,
+        replay_guard=ScanActivityReplayGuardResponse(applies=False, state="not_applicable"),
+    )
+
+
+def test_scan_activity_requires_nonce(client: TestClient) -> None:
+    assert client.get("/verifier/scan-activity").status_code == 422
+
+
+def test_scan_activity_reports_unconfigured_store_without_database(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "QRTRUST_NETWORK_DATABASE_URL", "")
+
+    response = client.get("/verifier/scan-activity", params={"nonce": "lab-nonce-001"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["nonce_fingerprint"] == nonce_fingerprint("lab-nonce-001")
+    assert payload["persistence_state"] == "unconfigured"
+    assert payload["scan_count"] == 0
+    assert payload["latest"] is None
+    assert payload["replay_guard"] == {
+        "applies": False,
+        "state": "not_applicable",
+        "expires_at": None,
+    }
+
+
+def test_scan_activity_reports_one_time_replay_guard_state(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprint = nonce_fingerprint("api-scan-activity-one-time-001")
+
+    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+        assert requested_fingerprint == fingerprint
+        return _scan_activity_fixture(fingerprint, usage_policy="one_time")
+
+    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
+
+    unused = client.get(
+        "/verifier/scan-activity",
+        params={"nonce": "api-scan-activity-one-time-001"},
+    )
+    assert unused.status_code == 200
+    assert unused.json()["replay_guard"] == {
+        "applies": True,
+        "state": "unused",
+        "expires_at": None,
+    }
+
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": "api-scan-activity-one-time-001", "usage_policy": "one_time"},
+    )
+    assert demo_response.status_code == 200
+    scan_response = client.post(
+        "/scanner/decisions",
+        json={"qr_payload": demo_response.json()["qr_payload"]},
+    )
+    assert scan_response.status_code == 200
+    assert scan_response.json()["decision_state"] == "verified_issuer"
+
+    consumed = client.get(
+        "/verifier/scan-activity",
+        params={"nonce": "api-scan-activity-one-time-001"},
+    )
+    assert consumed.status_code == 200
+    replay_guard = consumed.json()["replay_guard"]
+    assert replay_guard["applies"] is True
+    assert replay_guard["state"] == "consumed"
+    assert replay_guard["expires_at"].endswith("Z")
+    assert consumed.json()["latest"]["client_platform"] == "ios"
+
+
+def test_scan_activity_uses_caller_usage_policy_when_store_is_unconfigured(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "QRTRUST_NETWORK_DATABASE_URL", "")
+
+    response = client.get(
+        "/verifier/scan-activity",
+        params={"nonce": "api-scan-activity-unscanned-001", "usage_policy": "one_time"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["persistence_state"] == "unconfigured"
+    assert response.json()["replay_guard"]["state"] == "unused"
+
+
+def test_scanner_decision_records_nonce_fingerprint_and_platform(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    original = verifier_endpoint.record_scanner_evidence
+
+    async def passthrough(response: ScannerDecisionResponse, **kwargs: Any) -> Any:
+        captured["decision_id"] = response.contract.decision_id
+        captured.update(kwargs)
+        return await original(response, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", passthrough)
+
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": "api-scan-activity-fingerprint-001", "usage_policy": "reusable_public"},
+    )
+    assert demo_response.status_code == 200
+
+    scan_response = client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": demo_response.json()["qr_payload"],
+            "client": {"platform": "browser_lab", "app_version": "test"},
+        },
+    )
+
+    assert scan_response.status_code == 200
+    assert captured["decision_id"] == scan_response.json()["contract"]["decision_id"]
+    assert captured["nonce_fingerprint"] == nonce_fingerprint("api-scan-activity-fingerprint-001")
+    assert captured["client_platform"] == "browser_lab"
+
+
+def test_scanner_decision_skips_nonce_fingerprint_for_plain_urls(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+    original = verifier_endpoint.record_scanner_evidence
+
+    async def passthrough(response: ScannerDecisionResponse, **kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return await original(response, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", passthrough)
+
+    scan_response = client.post(
+        "/scanner/decisions",
+        json={"qr_payload": "https://unregistered.example/pay"},
+    )
+
+    assert scan_response.status_code == 200
+    assert captured["nonce_fingerprint"] is None

@@ -262,6 +262,45 @@ export type ScannerDecisionRecent = {
   created_at: string
 }
 
+export type ScanActivityReplayState =
+  | "not_applicable"
+  | "unused"
+  | "reserved"
+  | "consumed"
+
+export type ScanActivityDecision = ScannerDecisionRecent & {
+  /** `ios`, `android`, `browser_lab` or `unknown`, as the scanner reported it. */
+  client_platform: string | null
+}
+
+export type ScanActivityReplayGuard = {
+  applies: boolean
+  state: ScanActivityReplayState
+  expires_at: string | null
+}
+
+/**
+ * Scans of one demo nonce as the verifier recorded them
+ * (`GET /verifier/scan-activity`). `persistence_state` is the honesty flag:
+ * the counts only mean something when it is `observable`;
+ * `unconfigured`/`unavailable` say the evidence store cannot report phone
+ * scans, not that none happened.
+ */
+export type ScanActivity = {
+  nonce_fingerprint: string
+  persistence_state: "observable" | "unconfigured" | "unavailable"
+  lookback_seconds: number
+  scan_count: number
+  green_count: number
+  orange_count: number
+  red_count: number
+  first_scanned_at: string | null
+  last_scanned_at: string | null
+  latest: ScanActivityDecision | null
+  replay_guard: ScanActivityReplayGuard
+  error: string | null
+}
+
 export type ScannerDecisionPersistenceReport = {
   observed_at: string
   lookback_seconds: number

@@ -62,6 +62,12 @@ def _check_about_and_removed_routes(page: Page, base_url: str) -> None:
     _expect_text(page, "Issuer legitimacy")
 
 
+def _expect_comparison_layer(page: Page, layer: str) -> None:
+    """The A/B card must be on the scenario step and name the documented layer."""
+    expect(page.get_by_test_id("comparison-card")).to_be_visible(timeout=10_000)
+    expect(page.get_by_test_id("comparison-layer")).to_contain_text(layer)
+
+
 def _check_lab_query_refresh(page: Page, base_url: str) -> None:
     page.goto(
         f"{base_url}/?scenario=payload-mismatch&nonce=fixed&autogenerate=0&compare=valid",
@@ -74,6 +80,7 @@ def _check_lab_query_refresh(page: Page, base_url: str) -> None:
         page,
         "The envelope is signed correctly, but the payload falls outside the issuer-approved destination set.",
     )
+    _expect_comparison_layer(page, "Destination binding")
 
     _push_route(page, "/?scenario=subdomain-blocked&nonce=fixed&autogenerate=0&compare=subdomain-allowed")
     _expect_pressed(page, "scenario-subdomain-blocked", True)
@@ -83,6 +90,7 @@ def _check_lab_query_refresh(page: Page, base_url: str) -> None:
         page,
         "The same subdomain should fail when the issuer policy only trusts the exact registered domain.",
     )
+    _expect_comparison_layer(page, "Destination binding")
 
     _push_route(page, "/lab?scenario=valid")
     _expect_text(page, "Route not found")

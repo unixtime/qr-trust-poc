@@ -153,7 +153,7 @@ function App() {
 
   let page
   if (route === "lab") {
-    page = <FlowPage key={`lab${routeSearch}`} onNavigate={navigate} />
+    page = <FlowPage key={`lab${routeSearch}`} />
   } else if (route === "operator") {
     page = <OperatorPage key={`operator${routeSearch}`} onNavigate={navigate} />
   } else if (route === "about") {

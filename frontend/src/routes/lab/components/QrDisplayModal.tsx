@@ -12,11 +12,14 @@ import {
 import { Eyebrow } from "@/components/ui/eyebrow"
 import { useT } from "@/i18n"
 import { qrImageDataUrl } from "@/lib/verifier-client"
+import { ScanFeedbackOverlay } from "@/routes/lab/components/ScanFeedback"
 import type { QrDisplayModalProps } from "@/routes/lab/types"
 import { cn } from "@/lib/utils"
 
 function QrDisplayModal({
   demo,
+  scanActivity,
+  scanActivityError,
   open,
   currentScenarioLabel,
   highContrast,
@@ -57,16 +60,23 @@ function QrDisplayModal({
               </Button>
             </div>
 
-            <img
-              src={qrImageDataUrl(demo.qr_png_base64)}
-              alt={t("lab.qrModal.qrAlt")}
-              className={cn(
-                "aspect-square w-full rounded-[2rem] border p-4 md:p-6",
-                highContrast
-                  ? "border-black bg-white shadow-none"
-                  : "border-border/70 bg-white",
-              )}
-            />
+            <div className="relative p-3">
+              <img
+                src={qrImageDataUrl(demo.qr_png_base64)}
+                alt={t("lab.qrModal.qrAlt")}
+                className={cn(
+                  "aspect-square w-full rounded-[2rem] border p-4 md:p-6",
+                  highContrast
+                    ? "border-black bg-white shadow-none"
+                    : "border-border/70 bg-white",
+                )}
+              />
+              <ScanFeedbackOverlay
+                activity={scanActivity}
+                error={scanActivityError}
+                usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+              />
+            </div>
 
             {showMetadata ? (
               <div className="grid gap-4 rounded-[1.4rem] border border-border/70 bg-background/80 p-5 md:grid-cols-3">

@@ -22,6 +22,10 @@ import {
   qrImageDataUrl,
   type ScannerDecisionResponse,
 } from "@/lib/verifier-client"
+import {
+  ComparisonCard,
+  ComparisonNudge,
+} from "@/routes/lab/components/ComparisonCard"
 import { HistorySection } from "@/routes/lab/components/HistorySection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
 import {
@@ -159,9 +163,18 @@ function CardTick() {
 type VerdictStepProps = {
   lab: LabState
   onGoToScan: () => void
+  /** Generate the paired (B) scenario and swap the pair. */
+  onLoadPaired: () => void
+  /** Back to the scenario step to pick a pair. */
+  onChoosePaired: () => void
 }
 
-export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
+export function VerdictStep({
+  lab,
+  onGoToScan,
+  onLoadPaired,
+  onChoosePaired,
+}: VerdictStepProps) {
   const t = useT()
   const decision = lab.scannerDecision
   const demo = lab.demo
@@ -678,6 +691,18 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
 
             {lab.result ? <EnvelopeCard lab={lab} t={t} /> : null}
           </div>
+
+          {/* ── Row 3: A/B proof ────────────────────────────────────────── */}
+          {lab.compareScenario ? (
+            <ComparisonCard
+              scenario={lab.scenario}
+              compareScenario={lab.compareScenario}
+              isGenerating={lab.isGenerating}
+              onLoadPaired={onLoadPaired}
+            />
+          ) : (
+            <ComparisonNudge onChoosePaired={onChoosePaired} />
+          )}
 
           <footer>
             <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>

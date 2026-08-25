@@ -209,6 +209,56 @@ Current React workbench scope:
 - QR image upload and decode
 - scanned payload verification
 - fullscreen QR display for second-screen testing
+- A/B comparison: pair the current scenario with one that differs by a single
+  trust layer, see that layer named, and load the paired case from the verdict
+
+### A/B comparison
+
+The workbench can pair the current scenario (**A**) with a second one (**B**)
+that differs from it by exactly one trust layer, so any change in the verdict
+is attributable to one cause. Every scenario is the `valid` case with a single
+layer perturbed, which is what makes the pairing meaningful.
+
+- On step 1, open **Compare against a second scenario** and pick B. The pair is
+  written to the URL as `?compare=<scenario>`, so a shared or reloaded link
+  keeps it (for example `/?scenario=payload-mismatch&compare=valid`).
+- The comparison card lists the evidence layers in verification order (issuer,
+  destination binding, redirect policy, freshness, runtime safety, verifier
+  cache, artifact integrity) and highlights the **changed layer**. If two
+  scenarios exercise the same layers it says so instead of inventing a
+  difference.
+- On step 4 the same card offers **Load B**: it generates the paired QR, then
+  swaps A and B, so the verdict can flip between the two cases without going
+  back to step 1.
+
+`make check-frontend-comparison` pins every scenario's summarised layers to its
+documented `expectedOutcome.layer`; the route smoke additionally asserts the
+card renders and names `Destination binding` for the documented pairs.
+
+### Phone-scan feedback
+
+When the sealed QR is on screen (step 2, or the full-screen display), the
+workbench polls `GET /verifier/scan-activity?nonce=<nonce>&usage_policy=<policy>`
+every 5 seconds and shows what the verifier recorded for **that nonce**:
+
+- a status pill on the QR image: **Waiting for a phone scan**, then
+  **Scanned · verified / needs review / blocked `<time>`** in the verdict colour
+  once a scanner decision for the nonce exists;
+- `Scans` (total plus a verified / review / blocked breakdown), `Last scan`, and
+  `Scanner` (`iPhone app`, `Web lab (simulated)` for the browser lab's own
+  simulated scan, or `Unknown scanner`) rows under the nonce;
+- for `one_time` codes, a `One-time` row driven by the live replay guard
+  (`Unused`, `Reserved · verifying`, `Used · replay blocked until <time>`) and a
+  **Used** stamp across the code once the guard has consumed it.
+
+The feedback is read back from the scanner-decision evidence store, so it is
+only reported when the verifier has one (`QRTRUST_NETWORK_DATABASE_URL`; the
+Compose stack configures it). Without one, or while the store is unreachable,
+the card says **Scan feedback unavailable** and explains why — it never shows
+`None yet` for scans it cannot see. Lookups are keyed by a fingerprint of the
+nonce (`scanner_decisions.nonce_fingerprint`, migration `0007`), never the raw
+nonce, and the endpoint is subject to the verifier API key and rate limit like
+every other verifier read.
 
 Optional local HTTPS for Safari or other secure-context camera testing:
 
@@ -883,6 +933,7 @@ It provides:
 - direct submission to `POST /verifier/verify-scanned`
 - verifier API key issue and list refresh when admin tokens are configured
 - result history across verifier stages
+- A/B comparison of two scenarios that differ by one trust layer (see above)
 
 If API key auth is enabled on the server, enter the key in the workbench's
 `API key` field. The value is stored only in local browser storage and attached

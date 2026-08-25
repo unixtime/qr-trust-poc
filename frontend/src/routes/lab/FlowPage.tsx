@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ToastNotification, type ToastMessage, type ToastTone } from "@/components/ui/toast"
-import { buildLabLink } from "@/domain/links"
 import { scenarioLabelKeys } from "@/domain/scenarios"
 import { useT } from "@/i18n"
 import { requestJson, type ScannerDecisionRecent, type VerifierStatus } from "@/lib/verifier-client"
@@ -75,13 +74,9 @@ function observedDecisionToastBody(decision: ScannerDecisionRecent) {
   return `${destination} · ${decision.decision_state.replaceAll("_", " ")}${riskScore}${holdCopy}`
 }
 
-type FlowPageProps = {
-  onNavigate: (path: string) => void
-}
-
 type ProbeState = "pending" | "ok" | "failed"
 
-export default function FlowPage({ onNavigate }: FlowPageProps) {
+export default function FlowPage() {
   const lab = useLabController()
   const t = useT()
   const [activeStep, setActiveStep] = useState<FlowStepId>(() =>
@@ -207,14 +202,11 @@ export default function FlowPage({ onNavigate }: FlowPageProps) {
               scenario={lab.scenario}
               compareScenario={lab.compareScenario}
               onSelectScenario={lab.setScenario}
-              onSelectCompare={(compare) =>
-                onNavigate(
-                  buildLabLink(lab.scenario, lab.nonceMode, lab.usagePolicy, {
-                    compare: compare ?? undefined,
-                    autogenerate: false,
-                  }),
-                )
-              }
+              // Local state on purpose, like the scenario chips: routing the
+              // choice through the URL remounts this page (App keys it on the
+              // query string) and scrolls to the top mid-selection. The
+              // `?compare=` param stays a deep link read once at mount.
+              onSelectCompare={lab.setCompareScenario}
               onNext={() => goToStep(2)}
             />
           ) : activeStep === 2 ? (
@@ -229,6 +221,8 @@ export default function FlowPage({ onNavigate }: FlowPageProps) {
               showKeyIssue={lab.apiAuthEnabled && lab.adminFlowEnabled && !lab.apiKey.trim()}
               isIssuingLabKey={lab.isIssuingLabKey}
               latestActivity={lab.history[0] ?? null}
+              scanActivity={lab.scanActivity}
+              scanActivityError={lab.scanActivityError}
               result={lab.result}
               onGenerate={() => void lab.generateDemo()}
               onVerifyCurrent={() => void lab.verifyCurrent()}
@@ -242,12 +236,24 @@ export default function FlowPage({ onNavigate }: FlowPageProps) {
           ) : activeStep === 3 ? (
             <ScanStep lab={lab} onBack={() => goToStep(2)} onNext={() => goToStep(4)} />
           ) : (
-            <VerdictStep lab={lab} onGoToScan={() => goToStep(3)} />
+            <VerdictStep
+              lab={lab}
+              onGoToScan={() => goToStep(3)}
+              onLoadPaired={() => {
+                // Jump first so the generate step's spinner is what the user
+                // sees while B is being issued.
+                goToStep(2)
+                void lab.generateComparisonDemo()
+              }}
+              onChoosePaired={() => goToStep(1)}
+            />
           )}
         </section>
       </div>
       <QrDisplayModal
         demo={lab.demo}
+        scanActivity={lab.scanActivity}
+        scanActivityError={lab.scanActivityError}
         open={lab.qrDisplayOpen}
         currentScenarioLabel={t(scenarioLabelKeys[lab.scenario])}
         highContrast={lab.qrDisplayHighContrast}

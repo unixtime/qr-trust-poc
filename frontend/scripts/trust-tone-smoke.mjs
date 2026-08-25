@@ -71,7 +71,15 @@ check(
 const literals = (source, pattern) =>
   new Set([...source.matchAll(pattern)].map((match) => match[1]))
 
-const verifier = repoFile("backend/app/api/endpoints/verifier.py")
+// The one-time replay guard (`GET /verifier/scan-activity`) reports its own
+// lifecycle — not_applicable / unused / reserved / consumed — through a
+// `state=` kwarg too, but that vocabulary never reaches a trust row: the lab's
+// scan-feedback pill maps it separately. Drop those constructions before
+// scraping so the guard cannot masquerade as an unmapped trust status.
+const verifier = repoFile("backend/app/api/endpoints/verifier.py").replace(
+  /ScanActivityReplayGuardResponse\([^)]*\)/g,
+  "",
+)
 const scannerDecision = repoFile("network/src/services/scanner-decision.ts")
 const runtimeSafety = repoFile("network/src/services/runtime-safety.ts")
 

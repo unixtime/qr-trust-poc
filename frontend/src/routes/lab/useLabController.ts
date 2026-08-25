@@ -8,6 +8,7 @@ import {
   qrImageDataUrl,
   readStoredVerifierApiKey,
   requestJson,
+  type ScanActivity,
   type ScannerDecisionRequest,
   type ScannerDecisionResponse,
   type ScannerUXEventRequest,
@@ -73,6 +74,7 @@ const fallbackScanIntervalMs = 1500
 // compose proxy, so the status poll must stay well under that budget even with
 // a few tabs open.
 const scannerDecisionStatusPollMs = 5000
+const scanActivityPollMs = 5000
 // A function, not a const: a module-level string would freeze whichever locale
 // happened to be active when this module was first imported.
 const idleCameraOverlay = () => t("lab.camera.overlay.idle")
@@ -242,7 +244,7 @@ export function useLabController() {
 
   const [runtimeStatus, setRuntimeStatus] = useState<VerifierStatus | null>(null)
   const [scenario, setScenario] = useState<ScenarioKey>(() => parseInitialScenarioParam())
-  const [compareScenario] = useState<ScenarioKey | null>(() =>
+  const [compareScenario, setCompareScenario] = useState<ScenarioKey | null>(() =>
     parseInitialCompareScenarioParam(),
   )
   const [nonceMode, setNonceMode] = useState<NonceMode>(() => parseInitialNonceMode())
@@ -251,6 +253,12 @@ export function useLabController() {
   )
   const [apiKey, setApiKey] = useState(() => readStoredVerifierApiKey())
   const [demo, setDemo] = useState<DemoMaterialsResponse | null>(null)
+  // Keyed by nonce so a regenerated demo never shows the previous code's scans.
+  const [scanActivityState, setScanActivityState] = useState<{
+    nonce: string
+    activity: ScanActivity | null
+    error: string | null
+  } | null>(null)
   const [generatedScenario, setGeneratedScenario] = useState<ScenarioKey | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [generatedNonceMode, setGeneratedNonceMode] = useState<NonceMode | null>(null)
@@ -528,6 +536,64 @@ export function useLabController() {
     }
   }, [])
 
+  const demoNonce = demo?.verify_request.envelope.claims.nonce ?? null
+  const demoUsagePolicy = demo?.verify_request.envelope.claims.usage_policy ?? null
+
+  // Phone-scan feedback for the sealed QR: poll the verifier's per-nonce
+  // activity while a demo is on screen. Keyed on the nonce, not the demo
+  // object, so a re-verify of the same code does not restart the poll.
+  useEffect(() => {
+    if (!demoNonce) return
+    const nonce = demoNonce
+    let cancelled = false
+    let inFlight = false
+
+    async function loadScanActivity() {
+      if (cancelled || inFlight) return
+      inFlight = true
+      try {
+        const params = new URLSearchParams({ nonce })
+        if (demoUsagePolicy) params.set("usage_policy", demoUsagePolicy)
+        const activity = await requestJson<ScanActivity>(
+          `/verifier/scan-activity?${params.toString()}`,
+          {
+            apiKey: apiKeyRef.current.trim() || undefined,
+            apiKeyHeader: apiKeyHeaderRef.current,
+          },
+        )
+        if (!cancelled) setScanActivityState({ nonce, activity, error: null })
+      } catch (error) {
+        // Keep the last good snapshot but surface the error: a dead poll
+        // must never read as "no scans yet".
+        if (!cancelled) {
+          setScanActivityState((previous) => ({
+            nonce,
+            activity: previous?.nonce === nonce ? previous.activity : null,
+            error: summariseError(error),
+          }))
+        }
+      } finally {
+        inFlight = false
+      }
+    }
+
+    void loadScanActivity()
+    const timer = window.setInterval(() => {
+      if (document.hidden) return
+      void loadScanActivity()
+    }, scanActivityPollMs)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [demoNonce, demoUsagePolicy])
+
+  const scanActivity =
+    scanActivityState?.nonce === demoNonce ? scanActivityState.activity : null
+  const scanActivityError =
+    scanActivityState?.nonce === demoNonce ? scanActivityState.error : null
+
   useEffect(() => {
     selectedCameraIdRef.current = selectedCameraId
     if (selectedCameraId) {
@@ -549,7 +615,7 @@ export function useLabController() {
     nextScenario: ScenarioKey,
     nextNonceMode: NonceMode,
     nextUsagePolicy: UsagePolicy,
-  ) {
+  ): Promise<boolean> {
     stopCamera()
     setIsGenerating(true)
     const request = buildScenarioRequest(nextScenario, nextNonceMode, nextUsagePolicy)
@@ -601,6 +667,7 @@ export function useLabController() {
         }),
         "neutral",
       )
+      return true
     } catch (error) {
       const staleKey = isStaleStoredKeyError(error)
       if (staleKey) {
@@ -621,6 +688,7 @@ export function useLabController() {
         body: message,
         tone: "blocked",
       })
+      return false
     } finally {
       setIsGenerating(false)
     }
@@ -634,9 +702,13 @@ export function useLabController() {
     await generateDemoFor("valid", "timestamped", usagePolicy)
   }
 
+  // Load B, then make the old A the new B: the pair becomes a toggle the
+  // verdict can flip back and forth without going through the scenario step.
   async function generateComparisonDemo() {
     if (!compareScenario) return
-    await generateDemoFor(compareScenario, nonceMode, usagePolicy)
+    const previous = scenario
+    const generated = await generateDemoFor(compareScenario, nonceMode, usagePolicy)
+    if (generated) setCompareScenario(previous)
   }
 
   function scannerDestinationUrl(decision: ScannerDecisionResponse) {
@@ -1423,6 +1495,8 @@ export function useLabController() {
 
   return {
     runtimeStatus,
+    scanActivity,
+    scanActivityError,
     scenario,
     nonceMode,
     usagePolicy,
@@ -1456,6 +1530,7 @@ export function useLabController() {
     currentScenario,
     generatedScenario: generatedScenarioMeta,
     compareScenario,
+    setCompareScenario,
     comparisonScenario,
     apiKeyHeader,
     apiAuthEnabled,

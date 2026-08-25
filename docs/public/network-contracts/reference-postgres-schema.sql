@@ -444,11 +444,18 @@ create table if not exists qr_trust.scanner_decisions (
   hold_to_open_duration_ms integer not null default 0
     check (hold_to_open_duration_ms >= 0),
   decision_path jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- Truncated sha256 of the scanned nonce (never the raw nonce): answers
+  -- "was this QR scanned, how often, and from which scanner?".
+  nonce_fingerprint text,
+  client_platform text
 );
 
 create index if not exists scanner_decisions_verifier_created_idx
   on qr_trust.scanner_decisions (verifier_id, created_at desc);
+create index if not exists scanner_decisions_nonce_created_idx
+  on qr_trust.scanner_decisions (nonce_fingerprint, created_at desc)
+  where nonce_fingerprint is not null;
 
 create index if not exists scanner_decisions_destination_created_idx
   on qr_trust.scanner_decisions (destination_fingerprint, created_at desc);

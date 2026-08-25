@@ -2,6 +2,7 @@ import type { RefObject } from "react"
 
 import type {
   DemoMaterialsResponse,
+  ScanActivity,
   ScannerDecisionResponse,
   UsagePolicy,
   VerifierDecision,
@@ -126,6 +127,8 @@ export type ScanWorkbenchSectionProps = {
 
 export type QrDisplayModalProps = {
   demo: DemoMaterialsResponse | null
+  scanActivity: ScanActivity | null
+  scanActivityError: string | null
   open: boolean
   currentScenarioLabel: string
   highContrast: boolean

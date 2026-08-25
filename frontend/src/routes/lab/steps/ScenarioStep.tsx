@@ -1,9 +1,18 @@
 import { useState } from "react"
-import { ArrowRight, Ban, Check, TriangleAlert, X, type LucideIcon } from "lucide-react"
+import {
+  ArrowRight,
+  Ban,
+  Check,
+  GitCompareArrows,
+  TriangleAlert,
+  X,
+  type LucideIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConsoleChip } from "@/components/ui/console-chip"
+import { Eyebrow } from "@/components/ui/eyebrow"
 import { cn } from "@/lib/utils"
 import { useT } from "@/i18n"
 import {
@@ -15,6 +24,7 @@ import {
   type ScenarioGroup,
   type ScenarioKey,
 } from "@/domain/scenarios"
+import { ComparisonCard } from "@/routes/lab/components/ComparisonCard"
 
 // Slugs, not display strings — the rendered heading comes from
 // `scenarioGroupLabelKeys`. This array only fixes the order.
@@ -244,19 +254,37 @@ export default function ScenarioStep({
         })}
       </div>
 
-      <section className="glass-panel rounded-2xl p-4">
-        <button
-          type="button"
-          data-testid="compare-toggle"
-          onClick={() => setCompareOpen((open) => !open)}
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {compareOpen
-            ? t("lab.scenarioStep.compare.hide")
-            : t("lab.scenarioStep.compare.show")}
-        </button>
+      {/* Optional A/B pairing. The chips navigate (see FlowPage) so the pair
+          lives in the URL and survives a reload or a shared link. */}
+      <section
+        data-testid="compare-section"
+        className="glass-panel flex flex-col gap-4 rounded-2xl p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-2">
+              <GitCompareArrows aria-hidden className="size-3.5 text-primary" />
+              <Eyebrow tone="primary">{t("lab.scenarioStep.compare.eyebrow")}</Eyebrow>
+            </div>
+            <p className="max-w-[620px] text-sm text-muted-foreground">
+              {t("lab.scenarioStep.compare.purpose")}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="compare-toggle"
+            aria-expanded={compareOpen}
+            onClick={() => setCompareOpen((open) => !open)}
+            className="shrink-0"
+          >
+            {compareOpen
+              ? t("lab.scenarioStep.compare.hide")
+              : t("lab.scenarioStep.compare.show")}
+          </Button>
+        </div>
         {compareOpen ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             <ConsoleChip
               data-testid="compare-none"
               pressed={compareScenario === null}
@@ -277,6 +305,9 @@ export default function ScenarioStep({
               </ConsoleChip>
             ))}
           </div>
+        ) : null}
+        {compareScenario ? (
+          <ComparisonCard scenario={scenario} compareScenario={compareScenario} />
         ) : null}
       </section>
 
