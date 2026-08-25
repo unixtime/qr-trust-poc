@@ -144,6 +144,9 @@ Notes:
 - it does not return the signing private key
 - `POST /verifier/decode-image` rejects oversized image payloads before decode
 - verifier POST routes are rate-limited per client, using Redis-backed coordination when Redis is available and in-memory fallback otherwise
+- reusable QR codes (`reusable_public`, `time_limited`) also carry two scan-flood budgets that a flood spread across many source addresses cannot dodge: a per-QR-code budget (`VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS`, default 300 per `VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS`, default 60) checked before the signature is verified, and a per-issuer budget (`VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS`, default 3000) that only signature-valid scans spend; `one_time` codes are exempt because the replay guard already limits them to one accepted scan; an exhausted budget returns `429` with `Retry-After` and records no scanner evidence
+- behind a reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address (uvicorn's own setting; the compose files default it to `127.0.0.1`) so the per-client limit keys on the real client address instead of the proxy's; `GET /verifier/status` reports `forwarded_ip_trust_configured`, which is true only when something beyond loopback is trusted
+- without Redis every limit is per-process and in-memory, so budgets do not add up across API replicas; the API logs a startup warning when it falls back
 - DB-backed verifier-client keys protect verifier POST routes; static
   `VERIFIER_API_KEYS` require explicit `VERIFIER_STATIC_API_KEYS_ENABLED=true`
   local opt-in

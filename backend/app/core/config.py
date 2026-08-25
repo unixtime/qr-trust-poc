@@ -99,6 +99,14 @@ class Settings(BaseSettings):
     VERIFIER_RATE_LIMIT_WINDOW_SECONDS: int = 60
     VERIFIER_RATE_LIMIT_MAX_REQUESTS: int = 60
     VERIFIER_DECODE_RATE_LIMIT_MAX_REQUESTS: int = 120
+    # Scan-flood budgets for reusable_public / time_limited codes (one_time is
+    # exempt: the replay guard already limits it to a single accepted scan).
+    VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS: int = 300
+    VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS: int = 3000
+    # uvicorn reads the same variable for --forwarded-allow-ips; empty means the
+    # loopback-only default, so X-Forwarded-For from a real proxy is ignored.
+    FORWARDED_ALLOW_IPS: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
@@ -2214,3 +2215,160 @@ def test_scanner_decision_skips_nonce_fingerprint_for_plain_urls(
 
     assert scan_response.status_code == 200
     assert captured["nonce_fingerprint"] is None
+
+
+def _clear_verifier_rate_limiter() -> None:
+    verifier_endpoint._request_rate_limiter._records.clear()
+
+
+def _demo_verify_request(client: TestClient, nonce: str, usage_policy: str) -> dict[str, Any]:
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": nonce, "usage_policy": usage_policy},
+    )
+    assert demo_response.status_code == 200
+    return demo_response.json()["verify_request"]
+
+
+def test_verifier_nonce_budget_rejects_flood_before_signature_verification(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS", 60)
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-nonce-budget-001", "reusable_public")
+
+    signature_checks = 0
+    original_verify = verifier_endpoint._verifier.verify_presented_code
+
+    async def counting_verify(*args: Any, **kwargs: Any) -> Any:
+        nonlocal signature_checks
+        signature_checks += 1
+        return await original_verify(*args, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint._verifier, "verify_presented_code", counting_verify)
+
+    try:
+        first = client.post("/verifier/verify", json=verify_request)
+        second = client.post("/verifier/verify", json=verify_request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert first.json()["allowed"] is True
+    assert second.status_code == 429
+    assert second.json()["detail"] == "Rate limit exceeded for this QR code"
+    assert int(second.headers["Retry-After"]) >= 1
+    # The over-budget request never reached the expensive signature check.
+    assert signature_checks == 1
+
+
+def test_scanner_decision_nonce_budget_returns_429_without_recording_evidence(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    _clear_verifier_rate_limiter()
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": "api-nonce-budget-scanner-001", "usage_policy": "reusable_public"},
+    )
+    assert demo_response.status_code == 200
+    qr_payload = demo_response.json()["qr_payload"]
+
+    recorded_fingerprints: list[str | None] = []
+    original_record = verifier_endpoint.record_scanner_evidence
+
+    async def tracking_record(*args: Any, **kwargs: Any) -> Any:
+        recorded_fingerprints.append(kwargs.get("nonce_fingerprint"))
+        return await original_record(*args, **kwargs)
+
+    monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", tracking_record)
+
+    try:
+        first = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
+        second = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.headers["Retry-After"]
+    # Only the served decision produced evidence; the throttled one left no row.
+    assert recorded_fingerprints == [nonce_fingerprint("api-nonce-budget-scanner-001")]
+
+
+def test_verifier_nonce_budget_is_scoped_to_the_nonce_and_skips_one_time(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    _clear_verifier_rate_limiter()
+    reusable_a = _demo_verify_request(client, "api-nonce-budget-a", "reusable_public")
+    reusable_b = _demo_verify_request(client, "api-nonce-budget-b", "time_limited")
+    one_time = _demo_verify_request(client, "api-nonce-budget-one-time", "one_time")
+
+    try:
+        assert client.post("/verifier/verify", json=reusable_a).status_code == 200
+        assert client.post("/verifier/verify", json=reusable_a).status_code == 429
+        # Same caller identity, different nonce: its own budget, untouched.
+        assert client.post("/verifier/verify", json=reusable_b).status_code == 200
+        assert client.post("/verifier/verify", json=reusable_b).status_code == 429
+        # one_time codes self-limit through the replay guard and stay exempt.
+        first_one_time = client.post("/verifier/verify", json=one_time)
+        second_one_time = client.post("/verifier/verify", json=one_time)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert first_one_time.status_code == 200
+    assert first_one_time.json()["allowed"] is True
+    assert second_one_time.status_code == 200
+    assert second_one_time.json()["stage"] == "replay_guard"
+
+
+def test_verifier_issuer_budget_counts_only_signature_verified_requests(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS", 1)
+    _clear_verifier_rate_limiter()
+    verify_request = _demo_verify_request(client, "api-issuer-budget-001", "reusable_public")
+    forged_request = copy.deepcopy(verify_request)
+    forged_request["envelope"]["claims"]["nonce"] = "api-issuer-budget-forged"
+
+    try:
+        forged = client.post("/verifier/verify", json=forged_request)
+        valid = client.post("/verifier/verify", json=verify_request)
+        over_budget = client.post("/verifier/verify", json=verify_request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    # A forged envelope fails the signature check and must not burn the issuer's budget.
+    assert forged.status_code == 200
+    assert forged.json()["allowed"] is False
+    assert forged.json()["stage"] == "signed_schema"
+    assert valid.status_code == 200
+    assert valid.json()["allowed"] is True
+    assert over_budget.status_code == 429
+    assert over_budget.json()["detail"] == "Rate limit exceeded for this issuer"
+    assert int(over_budget.headers["Retry-After"]) >= 1
+
+
+def test_verifier_status_reports_scan_flood_budgets(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verifier_endpoint.config, "FORWARDED_ALLOW_IPS", "")
+    payload = client.get("/verifier/status").json()
+    assert payload["forwarded_ip_trust_configured"] is False
+    assert payload["nonce_rate_limit_window_seconds"] == 60
+    assert payload["nonce_rate_limit_max_requests"] == 300
+    assert payload["issuer_rate_limit_max_requests"] == 3000
+
+    # Loopback is uvicorn's own default: an explicit 127.0.0.1 trusts nothing new.
+    monkeypatch.setattr(verifier_endpoint.config, "FORWARDED_ALLOW_IPS", "127.0.0.1, ::1")
+    assert client.get("/verifier/status").json()["forwarded_ip_trust_configured"] is False
+
+    monkeypatch.setattr(verifier_endpoint.config, "FORWARDED_ALLOW_IPS", "127.0.0.1,203.0.113.0/24")
+    assert client.get("/verifier/status").json()["forwarded_ip_trust_configured"] is True

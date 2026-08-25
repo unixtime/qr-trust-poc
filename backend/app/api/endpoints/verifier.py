@@ -499,6 +499,60 @@ async def _enforce_verifier_rate_limit(request: Request, *, bucket: str) -> None
     )
 
 
+_LOOPBACK_FORWARDED_ALLOW_IPS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _forwarded_ip_trust_configured() -> bool:
+    """True when FORWARDED_ALLOW_IPS trusts anything beyond loopback.
+
+    Loopback is uvicorn's default, so an explicit 127.0.0.1 (the compose
+    default) changes nothing: X-Forwarded-For from a real proxy is still
+    ignored and the per-client limit keys on the proxy's address.
+    """
+    entries = {
+        entry.strip()
+        for entry in config.FORWARDED_ALLOW_IPS.split(",")
+        if entry.strip()
+    }
+    return bool(entries - _LOOPBACK_FORWARDED_ALLOW_IPS)
+
+
+_SCAN_FLOOD_BUDGETED_POLICIES = frozenset(
+    {USAGE_POLICY_REUSABLE_PUBLIC, USAGE_POLICY_TIME_LIMITED}
+)
+
+
+def _issuer_budget_key(certificate_ref: str) -> str:
+    return sha256(certificate_ref.encode("utf-8")).hexdigest()[:16]
+
+
+async def _enforce_scan_flood_budget(
+    *,
+    bucket: str,
+    subject: str,
+    limit: int,
+    detail: str,
+) -> None:
+    """Shared per-subject budget (nonce or issuer) for reusable codes.
+
+    Keyed on the subject rather than the caller, so a flood spread across many
+    source addresses still lands in one bucket. Uses the same limiter as the
+    per-client limit: Redis-coordinated when connected, per-process otherwise.
+    """
+    decision = await _request_rate_limiter.check(
+        f"{bucket}:{subject}",
+        limit=limit,
+        window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if decision.allowed:
+        return
+    raise HTTPException(
+        status_code=429,
+        detail=detail,
+        headers={"Retry-After": str(decision.retry_after_seconds or 1)},
+    )
+
+
 def _build_demo_materials_response(
     request: DemoMaterialsRequest,
 ) -> DemoMaterialsResponse:
@@ -1397,6 +1451,10 @@ async def _build_verifier_status_response(
         rate_limit_window_seconds=config.VERIFIER_RATE_LIMIT_WINDOW_SECONDS,
         rate_limit_max_requests=config.VERIFIER_RATE_LIMIT_MAX_REQUESTS,
         decode_rate_limit_max_requests=config.VERIFIER_DECODE_RATE_LIMIT_MAX_REQUESTS,
+        nonce_rate_limit_window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
+        nonce_rate_limit_max_requests=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
+        issuer_rate_limit_max_requests=config.VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS,
+        forwarded_ip_trust_configured=_forwarded_ip_trust_configured(),
         max_qr_payload_chars=config.MAX_QR_PAYLOAD_CHARS,
         max_decode_image_bytes=config.MAX_DECODE_IMAGE_BYTES,
         network_outbox=network_outbox,
@@ -2057,6 +2115,16 @@ async def _run_narrowed_verifier(
         certificate_revocation_reason=request.issuer_state.certificate_revocation_reason,
     )
 
+    budgeted_policy = claims.usage_policy in _SCAN_FLOOD_BUDGETED_POLICIES
+    if budgeted_policy and claims.nonce:
+        # Before the signature check: a forged flood must be cheap to refuse.
+        await _enforce_scan_flood_budget(
+            bucket="nonce",
+            subject=_nonce_fingerprint(claims.nonce),
+            limit=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
+            detail="Rate limit exceeded for this QR code",
+        )
+
     result = await _verifier.verify_presented_code(
         envelope,
         certificate,
@@ -2064,6 +2132,16 @@ async def _run_narrowed_verifier(
         reservation_ttl_seconds=request.reservation_ttl_seconds,
         consumed_ttl_seconds=request.consumed_ttl_seconds,
     )
+
+    if budgeted_policy and result.stage != "signed_schema":
+        # After the signature check: only genuinely signed codes spend the
+        # issuer's budget, so an attacker cannot exhaust it with forgeries.
+        await _enforce_scan_flood_budget(
+            bucket="issuer",
+            subject=_issuer_budget_key(certificate.certificate_ref),
+            limit=config.VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS,
+            detail="Rate limit exceeded for this issuer",
+        )
 
     return NarrowedVerifierResponse(
         allowed=result.allowed,

@@ -546,6 +546,10 @@ class VerifierStatusResponse(BaseModel):
     rate_limit_window_seconds: int = Field(ge=1)
     rate_limit_max_requests: int = Field(ge=1)
     decode_rate_limit_max_requests: int = Field(ge=1)
+    nonce_rate_limit_window_seconds: int = Field(ge=1)
+    nonce_rate_limit_max_requests: int = Field(ge=1)
+    issuer_rate_limit_max_requests: int = Field(ge=1)
+    forwarded_ip_trust_configured: bool
     max_qr_payload_chars: int = Field(ge=1)
     max_decode_image_bytes: int = Field(ge=1)
     network_outbox: NetworkOutboxOperatorStatusResponse

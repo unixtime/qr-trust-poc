@@ -68,6 +68,7 @@ services:
       VERIFIER_TLS_ENABLED: ${VERIFIER_TLS_ENABLED:-false}
       VERIFIER_TLS_CERT_FILE: ${VERIFIER_TLS_CERT_FILE:-/app/local/https/verifier-lab.pem}
       VERIFIER_TLS_KEY_FILE: ${VERIFIER_TLS_KEY_FILE:-/app/local/https/verifier-lab-key.pem}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     command: >
       sh -lc "/app/backend/.venv/bin/alembic upgrade head &&
       if [ \"$${VERIFIER_TLS_ENABLED}\" = \"true\" ]; then
@@ -130,6 +131,7 @@ services:
       VERIFIER_TLS_ENABLED: ${VERIFIER_TLS_ENABLED:-false}
       VERIFIER_TLS_CERT_FILE: ${VERIFIER_TLS_CERT_FILE:-/app/local/https/verifier-lab.pem}
       VERIFIER_TLS_KEY_FILE: ${VERIFIER_TLS_KEY_FILE:-/app/local/https/verifier-lab-key.pem}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
     command: >
       sh -lc "/app/backend/.venv/bin/alembic upgrade head &&
       if [ \"$${VERIFIER_TLS_ENABLED}\" = \"true\" ]; then

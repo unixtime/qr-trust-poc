@@ -353,6 +353,10 @@ export type VerifierStatus = {
   rate_limit_window_seconds: number
   rate_limit_max_requests: number
   decode_rate_limit_max_requests: number
+  nonce_rate_limit_window_seconds: number
+  nonce_rate_limit_max_requests: number
+  issuer_rate_limit_max_requests: number
+  forwarded_ip_trust_configured: boolean
   max_qr_payload_chars: number
   max_decode_image_bytes: number
   network_outbox: NetworkOutboxOperatorStatus

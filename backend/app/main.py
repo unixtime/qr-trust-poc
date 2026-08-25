@@ -28,6 +28,11 @@ async def lifespan(app: FastAPI):
             logger.warning("Replay attack prevention will not be available")
     else:
         logger.info("Redis startup is disabled; verifier will use local fallback services")
+    if redis_service.redis_client is None:
+        logger.warning(
+            "Verifier rate limits (per client, per QR code, per issuer) are in-memory "
+            "and per-process without Redis; budgets do not add up across API replicas"
+        )
 
     yield
 
