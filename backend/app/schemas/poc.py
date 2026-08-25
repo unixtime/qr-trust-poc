@@ -459,6 +459,13 @@ class ScannerDecisionRecentResponse(BaseModel):
 
 ScanActivityReplayState = Literal["not_applicable", "unused", "reserved", "consumed"]
 
+# What the scanner did after its latest decision, as reported through
+# ``POST /scanner/ux-events``. ``unreported`` means no event reached this
+# verifier process — not that nothing happened on the phone.
+ScanActivityDestinationOutcome = Literal[
+    "opened", "cancelled", "held", "previewed", "unreported"
+]
+
 
 class ScanActivityDecisionResponse(ScannerDecisionRecentResponse):
     """One recorded scan of a specific QR, plus which scanner produced it."""
@@ -491,8 +498,16 @@ class ScanActivityResponse(BaseModel):
     red_count: int = Field(ge=0)
     first_scanned_at: str | None = None
     last_scanned_at: str | None = None
+    # First green decision for this nonce; for ``one_time`` codes this is the
+    # scan that consumed the nonce. ``blocked_since_verified`` counts the red
+    # decisions recorded after it (replay attempts, for one-time codes).
+    first_verified_at: str | None = None
+    blocked_since_verified: int = Field(default=0, ge=0)
     latest: ScanActivityDecisionResponse | None = None
     replay_guard: ScanActivityReplayGuardResponse
+    # Overlaid by the endpoint from its in-memory UX-event log; None without a
+    # latest decision to match events against.
+    destination_outcome: ScanActivityDestinationOutcome | None = None
     error: str | None = None
 
 

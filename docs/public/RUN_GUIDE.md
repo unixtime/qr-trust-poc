@@ -244,12 +244,36 @@ every 5 seconds and shows what the verifier recorded for **that nonce**:
 - a status pill on the QR image: **Waiting for a phone scan**, then
   **Scanned · verified / needs review / blocked `<time>`** in the verdict colour
   once a scanner decision for the nonce exists;
-- `Scans` (total plus a verified / review / blocked breakdown), `Last scan`, and
-  `Scanner` (`iPhone app`, `Web lab (simulated)` for the browser lab's own
-  simulated scan, or `Unknown scanner`) rows under the nonce;
+- `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`,
+  then `expired 2m 10s ago`). It is computed from the signed claims on the
+  page, not from the verifier, and is shown for every usage policy because the
+  verifier rejects an expired claim whatever the policy says;
+- `Scans` (total plus a verified / review / blocked breakdown), `First scan`
+  (only once there is more than one scan), `Last scan`, and `Scanner`
+  (`iPhone app`, `Web lab (simulated)` for the browser lab's own simulated scan,
+  or `Unknown scanner`);
+- `Verdict` — what the phone was told for the latest scan, in the verdict
+  colour: the decision state plus `risk <n>/100` and `hold to open` when they
+  apply. It is composed from the same recorded decision as the "observed
+  decision" toast, so the two never disagree;
+- `Destination` — what the scanner reported doing with that decision through
+  `POST /scanner/ux-events`: `Opened on the phone`, `Cancelled on the phone`,
+  `Hold completed, not opened`, `Previewed, not opened`, or `Not reported by the
+  scanner`. UX events are kept in the verifier process's memory (not the
+  evidence store), so this row says *not reported* rather than guessing when no
+  event for the decision reached this verifier instance;
+- `Vouched by` — the issuer and first verified domain the demo claims were
+  signed for, shown only once a scan came back green, i.e. once the verifier
+  has actually vouched for it;
 - for `one_time` codes, a `One-time` row driven by the live replay guard
-  (`Unused`, `Reserved · verifying`, `Used · replay blocked until <time>`) and a
-  **Used** stamp across the code once the guard has consumed it.
+  (`Unused`, `Reserved · verifying`) that becomes
+  **`Used <time> · will not verify again`** once the guard has consumed the
+  nonce — with `· replay blocked ×N` appended as later scans of the same nonce
+  are refused — plus a **Used** stamp across the code.
+
+Everything on the card is read back from data the verifier actually holds; a
+row whose data is missing is omitted rather than filled in (there is no
+region/geo row, for example, because no scan records a location).
 
 The feedback is read back from the scanner-decision evidence store, so it is
 only reported when the verifier has one (`QRTRUST_NETWORK_DATABASE_URL`; the

@@ -280,6 +280,18 @@ export type ScanActivityReplayGuard = {
 }
 
 /**
+ * What the scanner did after its latest decision, from the UX events it
+ * reported (`POST /scanner/ux-events`). `unreported` means no event reached
+ * the verifier — the phone may still have opened the destination.
+ */
+export type ScanDestinationOutcome =
+  | "opened"
+  | "cancelled"
+  | "held"
+  | "previewed"
+  | "unreported"
+
+/**
  * Scans of one demo nonce as the verifier recorded them
  * (`GET /verifier/scan-activity`). `persistence_state` is the honesty flag:
  * the counts only mean something when it is `observable`;
@@ -296,8 +308,13 @@ export type ScanActivity = {
   red_count: number
   first_scanned_at: string | null
   last_scanned_at: string | null
+  /** First green decision — for `one_time` codes, the scan that consumed the nonce. */
+  first_verified_at: string | null
+  /** Red decisions recorded after `first_verified_at` (replay attempts on a one-time code). */
+  blocked_since_verified: number
   latest: ScanActivityDecision | null
   replay_guard: ScanActivityReplayGuard
+  destination_outcome: ScanDestinationOutcome | null
   error: string | null
 }
 

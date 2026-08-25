@@ -1974,6 +1974,8 @@ def _scan_activity_fixture(
         red_count=0,
         first_scanned_at="2026-08-25T09:59:00Z",
         last_scanned_at="2026-08-25T10:00:00Z",
+        first_verified_at="2026-08-25T10:00:00Z",
+        blocked_since_verified=0,
         latest=latest,
         replay_guard=ScanActivityReplayGuardResponse(applies=False, state="not_applicable"),
     )
@@ -2065,6 +2067,96 @@ def test_scan_activity_uses_caller_usage_policy_when_store_is_unconfigured(
     assert response.status_code == 200
     assert response.json()["persistence_state"] == "unconfigured"
     assert response.json()["replay_guard"]["state"] == "unused"
+
+
+def _scan_activity_ux_event(decision_id: str, event_type: str) -> dict[str, Any]:
+    return {
+        "request_id": f"scanner-request-{decision_id}",
+        "decision_id": decision_id,
+        "decision_state": "verified_issuer",
+        "risk_score": 4,
+        "risk_level": "green",
+        "reason_codes": [],
+        "hold_required": False,
+        "hold_ms": 0,
+        "destination_display": "acme.example",
+        "destination_url": "https://acme.example/pay",
+        "client": {"platform": "ios", "app_version": "test"},
+        "event_type": event_type,
+        "elapsed_ms": None,
+    }
+
+
+def test_scan_activity_reports_destination_outcome_from_ux_events(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprint = nonce_fingerprint("api-scan-activity-outcome-001")
+
+    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+        return _scan_activity_fixture(fingerprint, usage_policy="reusable_public")
+
+    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
+    params = {"nonce": "api-scan-activity-outcome-001"}
+
+    # No UX event for this decision reached the verifier yet: say so, do not
+    # guess that the phone never opened anything.
+    unreported = client.get("/verifier/scan-activity", params=params)
+    assert unreported.status_code == 200
+    assert unreported.json()["destination_outcome"] == "unreported"
+    assert unreported.json()["first_verified_at"] == "2026-08-25T10:00:00Z"
+    assert unreported.json()["blocked_since_verified"] == 0
+
+    for event_type in ["preview", "hold_start", "hold_complete"]:
+        response = client.post(
+            "/scanner/ux-events",
+            json=_scan_activity_ux_event("scan_activity_001", event_type),
+        )
+        assert response.status_code == 200
+    held = client.get("/verifier/scan-activity", params=params)
+    assert held.json()["destination_outcome"] == "held"
+
+    # The most conclusive event for the decision wins; events for other
+    # decisions are ignored.
+    assert client.post(
+        "/scanner/ux-events",
+        json=_scan_activity_ux_event("scan_activity_001", "open"),
+    ).status_code == 200
+    assert client.post(
+        "/scanner/ux-events",
+        json=_scan_activity_ux_event("scan_activity_other", "cancel"),
+    ).status_code == 200
+    opened = client.get("/verifier/scan-activity", params=params)
+    assert opened.json()["destination_outcome"] == "opened"
+
+
+def test_scan_activity_omits_destination_outcome_without_a_latest_decision(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fingerprint = nonce_fingerprint("api-scan-activity-unscanned-002")
+
+    async def fake_load(requested_fingerprint: str) -> ScanActivityResponse:
+        return _scan_activity_fixture(fingerprint, usage_policy="reusable_public").model_copy(
+            update={
+                "scan_count": 0,
+                "green_count": 0,
+                "first_scanned_at": None,
+                "last_scanned_at": None,
+                "first_verified_at": None,
+                "latest": None,
+            }
+        )
+
+    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
+
+    response = client.get(
+        "/verifier/scan-activity",
+        params={"nonce": "api-scan-activity-unscanned-002"},
+    )
+    assert response.status_code == 200
+    assert response.json()["destination_outcome"] is None
+    assert response.json()["blocked_since_verified"] == 0
 
 
 def test_scanner_decision_records_nonce_fingerprint_and_platform(

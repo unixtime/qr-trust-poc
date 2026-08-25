@@ -1,7 +1,10 @@
+import { useEffect, useState } from "react"
+
 import { useT, type MessageKey } from "@/i18n"
 import type {
   ScanActivity,
   ScanActivityReplayState,
+  ScanDestinationOutcome,
   UsagePolicy,
 } from "@/lib/verifier-client"
 import { cn } from "@/lib/utils"
@@ -14,7 +17,9 @@ import { cn } from "@/lib/utils"
  * when the evidence store cannot answer it says so instead of implying
  * "no scans yet". The one-time "Used" stamp comes from the live replay
  * guard, so it reflects the verifier's own view of the nonce, not a guess
- * from the scan count.
+ * from the scan count. Rows that need data the verifier does not have
+ * (a destination outcome the scanner never reported, an issuer before a
+ * green verdict) are omitted rather than filled in.
  */
 
 export type ScanFeedbackProps = {
@@ -22,6 +27,12 @@ export type ScanFeedbackProps = {
   /** Last poll error, when the activity endpoint itself could not be reached. */
   error: string | null
   usagePolicy: UsagePolicy | null
+  /**
+   * Issuer the demo claims were signed for. Only shown once a scan came back
+   * green — that is the moment the verifier actually vouched for it.
+   */
+  issuerName?: string | null
+  verifiedDomains?: readonly string[]
 }
 
 type PillState =
@@ -59,6 +70,12 @@ const scannedKeys: Record<"green" | "orange" | "red", MessageKey> = {
   red: "lab.scanFeedback.scanned.red",
 }
 
+const verdictClassName: Record<"green" | "orange" | "red", string> = {
+  green: "text-trust-green",
+  orange: "text-trust-amber",
+  red: "text-trust-red",
+}
+
 const platformKeys: Record<string, MessageKey> = {
   ios: "lab.scanFeedback.platform.ios",
   android: "lab.scanFeedback.platform.android",
@@ -74,6 +91,14 @@ const replayStateKeys: Record<
   consumed: "lab.scanFeedback.oneTime.consumed",
 }
 
+const destinationKeys: Record<ScanDestinationOutcome, MessageKey> = {
+  opened: "lab.scanFeedback.destination.opened",
+  cancelled: "lab.scanFeedback.destination.cancelled",
+  held: "lab.scanFeedback.destination.held",
+  previewed: "lab.scanFeedback.destination.previewed",
+  unreported: "lab.scanFeedback.destination.unreported",
+}
+
 function formatScanClock(iso: string | null | undefined) {
   if (!iso) return null
   const date = new Date(iso)
@@ -86,6 +111,25 @@ function formatScanClock(iso: string | null | undefined) {
     second: "2-digit",
     hour12: false,
   })
+}
+
+function formatDuration(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, "0")}m`
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, "0")}s`
+  return `${seconds}s`
+}
+
+function useNow(intervalMs: number) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), intervalMs)
+    return () => window.clearInterval(id)
+  }, [intervalMs])
+  return now
 }
 
 function pillStateFor({ activity, error }: ScanFeedbackProps): PillState {
@@ -161,13 +205,26 @@ export function ScanFeedbackOverlay(props: ScanFeedbackProps) {
   )
 }
 
-function Row({ label, value, testId }: { label: string; value: string; testId: string }) {
+function Row({
+  label,
+  value,
+  testId,
+  valueClassName,
+}: {
+  label: string
+  value: string
+  testId: string
+  valueClassName?: string
+}) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </dt>
-      <dd className="truncate text-foreground/90" data-testid={testId}>
+      <dd
+        className={cn("truncate text-foreground/90", valueClassName)}
+        data-testid={testId}
+      >
         {value}
       </dd>
     </div>
@@ -175,10 +232,47 @@ function Row({ label, value, testId }: { label: string; value: string; testId: s
 }
 
 /**
+ * Live "expires in / expired ago" row computed from the sealed claims'
+ * `expires_at`. Client-side on purpose: the expiry is a signed fact in the
+ * claims the QR carries, so counting down to it needs no verifier round
+ * trip and is honest for every usage policy — the verifier rejects an
+ * expired claim whatever the policy says.
+ */
+export function ClaimExpiryRow({ expiresAt }: { expiresAt: string }) {
+  const t = useT()
+  const now = useNow(1000)
+  const expires = new Date(expiresAt).getTime()
+  if (Number.isNaN(expires)) return null
+
+  const remaining = expires - now
+  const expired = remaining <= 0
+  const value = expired
+    ? t("lab.scanFeedback.expires.ago", { duration: formatDuration(-remaining) })
+    : t("lab.scanFeedback.expires.in", { duration: formatDuration(remaining) })
+
+  return (
+    <Row
+      label={t("lab.scanFeedback.rows.expires")}
+      value={value}
+      testId="scan-feedback-expires"
+      valueClassName={
+        expired ? "text-trust-red" : remaining < 60_000 ? "text-trust-amber" : undefined
+      }
+    />
+  )
+}
+
+/**
  * `<dl>` rows for the sealed-QR card. Renders inside the caller's `<dl>`;
  * the markup mirrors the NONCE / POLICY / ISSUED rows above it.
  */
-export function ScanFeedbackRows({ activity, error, usagePolicy }: ScanFeedbackProps) {
+export function ScanFeedbackRows({
+  activity,
+  error,
+  usagePolicy,
+  issuerName,
+  verifiedDomains,
+}: ScanFeedbackProps) {
   const t = useT()
 
   if (!activity || activity.persistence_state !== "observable") {
@@ -215,8 +309,9 @@ export function ScanFeedbackRows({ activity, error, usagePolicy }: ScanFeedbackP
         ? `${activity.scan_count} · ${breakdown.join(" · ")}`
         : String(activity.scan_count)
 
-  const platform = activity.latest?.client_platform ?? null
-  const scanner = !activity.latest
+  const latest = activity.latest
+  const platform = latest?.client_platform ?? null
+  const scanner = !latest
     ? "—"
     : platform && platformKeys[platform]
       ? t(platformKeys[platform])
@@ -224,27 +319,93 @@ export function ScanFeedbackRows({ activity, error, usagePolicy }: ScanFeedbackP
         ? platform
         : t("lab.scanFeedback.platform.unknown")
 
+  // Same composition as the "observed decision" toast, so the card and the
+  // toast never disagree about what the phone was told.
+  const verdict = latest
+    ? [
+        latest.decision_state.replaceAll("_", " "),
+        latest.risk_score === null
+          ? null
+          : t("lab.scanFeedback.verdict.risk", { score: latest.risk_score }),
+        latest.hold_to_open_required ? t("lab.scanFeedback.verdict.hold") : null,
+      ]
+        .filter((part): part is string => part !== null)
+        .join(" · ")
+    : null
+
+  const destination = activity.destination_outcome
+    ? t(destinationKeys[activity.destination_outcome])
+    : null
+
+  const vouchedBy =
+    latest?.decision_color === "green" && issuerName
+      ? [issuerName, verifiedDomains?.[0] ?? null]
+          .filter((part): part is string => part !== null)
+          .join(" · ")
+      : null
+
+  // Only meaningful once there is more than one scan to span.
+  const firstScan =
+    activity.scan_count > 1 ? formatScanClock(activity.first_scanned_at) : null
+
   const guard = activity.replay_guard
   const guardExpiry = formatScanClock(guard.expires_at)
+  const usedAt = formatScanClock(activity.first_verified_at)
   const oneTime =
     usagePolicy === "one_time" && guard.applies && guard.state !== "not_applicable"
-      ? guardExpiry && guard.state !== "unused"
-        ? t("lab.scanFeedback.oneTime.until", {
-            state: t(replayStateKeys[guard.state]),
-            time: guardExpiry,
-          })
-        : t(replayStateKeys[guard.state])
+      ? guard.state === "consumed" && usedAt
+        ? activity.blocked_since_verified > 0
+          ? t("lab.scanFeedback.oneTime.usedAtBlocked", {
+              time: usedAt,
+              count: activity.blocked_since_verified,
+            })
+          : t("lab.scanFeedback.oneTime.usedAt", { time: usedAt })
+        : guardExpiry && guard.state !== "unused"
+          ? t("lab.scanFeedback.oneTime.until", {
+              state: t(replayStateKeys[guard.state]),
+              time: guardExpiry,
+            })
+          : t(replayStateKeys[guard.state])
       : null
 
   return (
     <>
       <Row label={t("lab.scanFeedback.rows.scans")} value={scans} testId="scan-feedback-scans" />
+      {firstScan ? (
+        <Row
+          label={t("lab.scanFeedback.rows.firstScan")}
+          value={firstScan}
+          testId="scan-feedback-first-scan"
+        />
+      ) : null}
       <Row
         label={t("lab.scanFeedback.rows.lastScan")}
         value={formatScanClock(activity.last_scanned_at) ?? t("lab.scanFeedback.value.none")}
         testId="scan-feedback-last-scan"
       />
       <Row label={t("lab.scanFeedback.rows.scanner")} value={scanner} testId="scan-feedback-scanner" />
+      {verdict && latest ? (
+        <Row
+          label={t("lab.scanFeedback.rows.verdict")}
+          value={verdict}
+          testId="scan-feedback-verdict"
+          valueClassName={verdictClassName[latest.decision_color]}
+        />
+      ) : null}
+      {destination ? (
+        <Row
+          label={t("lab.scanFeedback.rows.destination")}
+          value={destination}
+          testId="scan-feedback-destination"
+        />
+      ) : null}
+      {vouchedBy ? (
+        <Row
+          label={t("lab.scanFeedback.rows.vouchedBy")}
+          value={vouchedBy}
+          testId="scan-feedback-vouched-by"
+        />
+      ) : null}
       {oneTime ? (
         <Row label={t("lab.scanFeedback.rows.oneTime")} value={oneTime} testId="scan-feedback-one-time" />
       ) : null}

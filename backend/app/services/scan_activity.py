@@ -45,6 +45,15 @@ select
   count(*) filter (where decision_color = 'green')::integer as green_count,
   count(*) filter (where decision_color = 'orange')::integer as orange_count,
   count(*) filter (where decision_color = 'red')::integer as red_count,
+  min(created_at) filter (where decision_color = 'green') as first_verified_at,
+  count(*) filter (
+    where decision_color = 'red'
+      and created_at > (
+        select min(first_green.created_at)
+        from matched as first_green
+        where first_green.decision_color = 'green'
+      )
+  )::integer as blocked_since_verified,
   min(created_at) as first_scanned_at,
   max(created_at) as last_scanned_at,
   (
@@ -123,6 +132,8 @@ async def load_scan_activity(
             red_count=_int_field(row["red_count"]),
             first_scanned_at=_optional_timestamp(row["first_scanned_at"]),
             last_scanned_at=_optional_timestamp(row["last_scanned_at"]),
+            first_verified_at=_optional_timestamp(row["first_verified_at"]),
+            blocked_since_verified=_int_field(row["blocked_since_verified"]),
             latest=_decode_latest(row["latest"]),
             replay_guard=_no_replay_guard(),
         )

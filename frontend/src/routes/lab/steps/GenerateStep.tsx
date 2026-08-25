@@ -13,6 +13,7 @@ import {
   type VerifierDecision,
 } from "@/lib/verifier-client"
 import {
+  ClaimExpiryRow,
   ScanFeedbackNote,
   ScanFeedbackOverlay,
   ScanFeedbackRows,
@@ -222,10 +223,13 @@ export default function GenerateStep({
                   .slice(0, 19)}
               </dd>
             </div>
+            <ClaimExpiryRow expiresAt={demo.verify_request.envelope.claims.expires_at} />
             <ScanFeedbackRows
               activity={scanActivity}
               error={scanActivityError}
               usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+              issuerName={demo.verify_request.certificate.issuer_name}
+              verifiedDomains={demo.verify_request.issuer_state.verified_domains}
             />
           </dl>
           <ScanFeedbackNote

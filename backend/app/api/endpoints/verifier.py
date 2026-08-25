@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from backend.app.core.config import config
 from backend.app.core.request_id import safe_request_id
 from backend.app.schemas.poc import (
+    ScanActivityDestinationOutcome,
     ScanActivityReplayGuardResponse,
     ScanActivityResponse,
     UsagePolicy,
@@ -2144,7 +2145,50 @@ async def get_scan_activity(
         # unconfigured; the recorded policy is the fallback.
         usage_policy or (activity.latest.usage_policy if activity.latest else None),
     )
-    return activity.model_copy(update={"replay_guard": replay_guard})
+    return activity.model_copy(
+        update={
+            "replay_guard": replay_guard,
+            "destination_outcome": _scan_activity_destination_outcome(activity.latest),
+        }
+    )
+
+
+_DESTINATION_OUTCOME_BY_EVENT: dict[str, ScanActivityDestinationOutcome] = {
+    "open": "opened",
+    "cancel": "cancelled",
+    "hold_complete": "held",
+    "hold_start": "previewed",
+    "preview": "previewed",
+}
+_DESTINATION_OUTCOME_RANK: dict[ScanActivityDestinationOutcome, int] = {
+    "unreported": 0,
+    "previewed": 1,
+    "held": 2,
+    "cancelled": 3,
+    "opened": 4,
+}
+
+
+def _scan_activity_destination_outcome(
+    latest: ScanActivityDecisionResponse | None,
+) -> ScanActivityDestinationOutcome | None:
+    """
+    What the scanner did after its latest decision, from the UX events it
+    reported for that ``decision_id``. The most conclusive event wins (an
+    ``open`` outranks the ``hold_complete`` that preceded it). The event log
+    is in-memory for this process, so ``unreported`` only says no event
+    reached this verifier.
+    """
+    if latest is None:
+        return None
+    outcome: ScanActivityDestinationOutcome = "unreported"
+    for entry in _scanner_ux_event_log:
+        if entry.event.decision_id != latest.decision_id:
+            continue
+        candidate = _DESTINATION_OUTCOME_BY_EVENT.get(entry.event.event_type)
+        if candidate and _DESTINATION_OUTCOME_RANK[candidate] > _DESTINATION_OUTCOME_RANK[outcome]:
+            outcome = candidate
+    return outcome
 
 
 async def _scan_activity_replay_guard(
