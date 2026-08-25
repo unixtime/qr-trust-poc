@@ -322,11 +322,6 @@ class DemoMaterialsResponse(BaseModel):
     qr_png_base64: str = Field(min_length=1, max_length=8_000_000)
 
 
-class DemoSessionResponse(DemoMaterialsResponse):
-    session_id: str = Field(min_length=1, max_length=64)
-    display_path: str = Field(min_length=1, max_length=512)
-
-
 class VerifierAPIKeyIssueRequest(BaseModel):
     label: str = Field(default="verifier-client", min_length=1, max_length=128)
 
@@ -494,7 +489,6 @@ class VerifierStatusResponse(BaseModel):
     redis_connected: bool
     distributed_rate_limiting_enabled: bool
     decode_image_fallback_enabled: bool
-    legacy_experimental_api_enabled: bool
     rate_limit_window_seconds: int = Field(ge=1)
     rate_limit_max_requests: int = Field(ge=1)
     decode_rate_limit_max_requests: int = Field(ge=1)

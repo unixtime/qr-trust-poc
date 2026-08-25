@@ -6,7 +6,7 @@
 
 
 :root {
-  --background: #081018;
+  --background: #050A12;
   --foreground: #E6EDF5;
   --card: #0D1622;
   --card-foreground: #E6EDF5;
@@ -28,6 +28,19 @@
   --radius: 0.75rem;
   --border-accent: rgba(69, 212, 131, 0.35);
   --glow: 0 0 24px rgba(69, 212, 131, 0.15);
+
+  /* Glass panels: hairline border + dark gradient + inset top highlight.
+     The gradient needs background-image, so surfaces keep --card underneath
+     as the paint when images are disabled (forced-colors, print). */
+  --glass-border: rgba(255, 255, 255, 0.07);
+  --glass: linear-gradient(180deg, rgba(15, 25, 39, 0.82), rgba(9, 16, 26, 0.88));
+  --glass-shadow:
+    0 32px 64px -32px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --glass-shadow-glow:
+    0 32px 64px -32px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 0 24px rgba(69, 212, 131, 0.15);
 
   /* Verdict semantics (fixed, three colors): emerald = accepted,
      red = rejected/tampered, amber = policy-gated or runtime-degraded. */
@@ -57,10 +70,17 @@ body {
     "Segoe UI",
     system-ui,
     sans-serif;
+  /* Aurora ground: three tinted glows (emerald top-left, teal top-right,
+     violet below the fold) over a 48px hairline grid. Position percentages
+     resolve against the whole document, so the violet glow sits at the
+     page bottom however long the page grows. */
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 32px 32px;
+    radial-gradient(1100px 540px at 16% -10%, rgba(69, 212, 131, 0.15), transparent 62%),
+    radial-gradient(900px 480px at 88% 2%, rgba(62, 224, 240, 0.10), transparent 64%),
+    radial-gradient(760px 700px at 52% 118%, rgba(139, 124, 255, 0.09), transparent 62%),
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: auto, auto, auto, 48px 48px, 48px 48px;
   overflow-x: hidden;
   overflow-x: clip;
 }
@@ -122,4 +142,34 @@ textarea {
 ::selection {
   background: color-mix(in oklab, var(--primary) 20%, transparent);
   color: var(--foreground);
+}
+
+/* Gradient-filled display text. background-clip:text ignores currentColor,
+   so each verdict tone needs its own utility rather than a color prop. */
+@utility aurora-text {
+  background-image: linear-gradient(120deg, #ffffff 0%, #b8f1d1 40%, #45d483 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@utility aurora-text-amber {
+  background-image: linear-gradient(120deg, #ffffff 0%, #fbe3b5 40%, #f5a524 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@utility aurora-text-red {
+  background-image: linear-gradient(120deg, #ffffff 0%, #f8c9c7 40%, #f25f5c 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+@utility glass-panel {
+  border: 1px solid var(--glass-border);
+  background-color: var(--card);
+  background-image: var(--glass);
+  box-shadow: var(--glass-shadow);
 }

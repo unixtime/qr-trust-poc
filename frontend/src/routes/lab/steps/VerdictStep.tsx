@@ -1,4 +1,10 @@
-import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react"
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  Lock,
+  XCircle,
+} from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +17,11 @@ import {
 } from "@/components/ui/card"
 import { usagePolicyLabelKeys } from "@/domain/scenarios"
 import { useT } from "@/i18n"
-import type { ScannerDecisionResponse } from "@/lib/verifier-client"
+import { cn } from "@/lib/utils"
+import {
+  qrImageDataUrl,
+  type ScannerDecisionResponse,
+} from "@/lib/verifier-client"
 import { HistorySection } from "@/routes/lab/components/HistorySection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
 import {
@@ -45,25 +55,105 @@ function trustPathRows(decision: ScannerDecisionResponse): TrustRow[] {
   }))
 }
 
+function hostOf(url: string | null): string | null {
+  if (url === null) return null
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
+}
+
+// The resolution chain as the wire reports it: displayed host, then the
+// resolver, then wherever redirects actually landed. Consecutive duplicates
+// collapse so a no-redirect decision shows a single hop, not an echo.
+function hostChain(decision: ScannerDecisionResponse): string[] {
+  const hops = [
+    decision.destination.host ?? hostOf(decision.destination.display_url),
+    hostOf(decision.destination.resolver_url),
+    hostOf(decision.destination.final_url),
+  ].filter((host): host is string => host !== null)
+  return hops.filter((host, index) => index === 0 || host !== hops[index - 1])
+}
+
 const toneStyles: Record<
   TrustTone,
-  { icon: typeof CheckCircle2; surface: string; text: string }
+  {
+    icon: typeof CheckCircle2
+    surface: string
+    text: string
+    glyph: string
+    dot: string
+    headline: string
+    ringStops: [string, string]
+    ringGlow: string
+  }
 > = {
   green: {
     icon: CheckCircle2,
     surface: "border-trust-green/25 bg-trust-green/10",
     text: "text-trust-green",
+    glyph:
+      "border-trust-green/50 bg-trust-green/12 shadow-[0_0_18px_-2px_rgba(69,212,131,0.35)]",
+    dot: "bg-trust-green shadow-[0_0_8px_rgba(69,212,131,0.9)]",
+    headline: "aurora-text",
+    ringStops: ["#45D483", "#3EE0F0"],
+    ringGlow: "drop-shadow(0 0 14px rgba(69,212,131,0.45))",
   },
   amber: {
     icon: AlertTriangle,
     surface: "border-trust-amber/25 bg-trust-amber/10",
     text: "text-trust-amber",
+    glyph:
+      "border-trust-amber/50 bg-trust-amber/12 shadow-[0_0_18px_-2px_rgba(245,165,36,0.35)]",
+    dot: "bg-trust-amber shadow-[0_0_8px_rgba(245,165,36,0.9)]",
+    headline: "aurora-text-amber",
+    ringStops: ["#F5A524", "#F7C948"],
+    ringGlow: "drop-shadow(0 0 14px rgba(245,165,36,0.45))",
   },
   red: {
     icon: XCircle,
     surface: "border-trust-red/25 bg-trust-red/10",
     text: "text-trust-red",
+    glyph:
+      "border-trust-red/50 bg-trust-red/12 shadow-[0_0_18px_-2px_rgba(242,95,92,0.35)]",
+    dot: "bg-trust-red shadow-[0_0_8px_rgba(242,95,92,0.9)]",
+    headline: "aurora-text-red",
+    ringStops: ["#F25F5C", "#FF8A80"],
+    ringGlow: "drop-shadow(0 0 14px rgba(242,95,92,0.45))",
   },
+}
+
+// The gates ring is drawn on a 232-unit viewBox so the stroke geometry can be
+// stated in the same units at any rendered size.
+const RING_RADIUS = 98
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
+
+// One dt/dd pair in the console-voice mono lists (destination, crypto
+// evidence). The div wrapper is the HTML-sanctioned way to group a pair
+// inside a <dl>; `title` keeps the full value reachable once `truncate`
+// elides a hash or URL.
+function MonoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="min-w-0 truncate text-foreground/90" title={value}>
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+// The 14×2px gradient tick every Aurora card header opens with.
+function CardTick() {
+  return (
+    <span
+      aria-hidden
+      className="block h-0.5 w-3.5 bg-linear-90 from-primary to-transparent"
+    />
+  )
 }
 
 type VerdictStepProps = {
@@ -74,6 +164,7 @@ type VerdictStepProps = {
 export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
   const t = useT()
   const decision = lab.scannerDecision
+  const demo = lab.demo
   const rows = decision ? trustPathRows(decision) : []
   const reasonCodes = decision
     ? (decision.contract?.reason_codes ?? decision.scanner_ux?.reason_codes ?? [])
@@ -87,77 +178,120 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
           : "amber"
       : decisionStateTone(decision.decision_state)
     : "amber"
+  const tone = toneStyles[decisionTone]
+  // Real figures only: the ring reports how many trust-path rows resolve
+  // green through the same tone function that colors the rows themselves.
+  const passed = rows.filter((row) => trustStatusTone(row.status) === "green").length
+  const total = rows.length
+  // The chip's tone is as honest as the ring's count: green only when every
+  // gate passes, red the moment any row resolves red, amber for the rest.
+  const anyRedGate = rows.some((row) => trustStatusTone(row.status) === "red")
+  const gatesTone =
+    toneStyles[
+      total > 0 && passed === total ? "green" : anyRedGate ? "red" : "amber"
+    ]
+  // The open CTA only exists when the verifier itself allows the open and
+  // supplied a resolved URL — the button is the decision, never a default.
+  const openUrl = decision
+    ? (decision.destination.final_url ?? decision.destination.display_url)
+    : null
+  const showOpenCta =
+    decision !== null && decision.open_allowed && decisionTone === "green" && openUrl !== null
+  const chain = decision ? hostChain(decision) : []
 
   return (
     <div className="flex flex-col gap-6" data-testid="verdict-step">
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">
-          {t("lab.verdict.title")}
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("lab.verdict.subtitle")}
-        </p>
+        <div className="mb-2 flex items-center gap-3">
+          <span
+            aria-hidden
+            className="size-[7px] shrink-0 rounded-full bg-trust-green shadow-[0_0_10px_rgba(69,212,131,0.9)]"
+          />
+          <span className="font-mono text-[11px] font-semibold tracking-[0.18em] text-trust-green uppercase">
+            {t("lab.verdict.eyebrow")}
+          </span>
+          {decision?.contract ? (
+            <span className="hidden min-w-0 truncate font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase sm:inline">
+              {t("lab.verdict.eyebrowDetail", {
+                id: decision.contract.decision_id,
+                time: decision.contract.decided_at
+                  .replace("T", " ")
+                  .slice(0, 19),
+              })}
+            </span>
+          ) : null}
+          <span
+            aria-hidden
+            className="h-px flex-1 bg-linear-90 from-[rgba(69,212,131,0.4)] to-transparent"
+          />
+        </div>
+        {decision === null ? (
+          <>
+            <h2 className="text-xl font-semibold tracking-tight">
+              {t("lab.verdict.title")}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t("lab.verdict.subtitle")}
+            </p>
+          </>
+        ) : null}
       </header>
 
-      {lab.result ? (
-        <Card data-testid="verifier-result">
-          <CardHeader>
-            <CardTitle className="text-base">
-              {t("lab.verdict.crypto.title")}
-            </CardTitle>
-            <CardDescription>
-              {t("lab.verdict.crypto.description")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 text-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant={lab.result.allowed ? "secondary" : "destructive"}>
-                {lab.result.allowed
-                  ? t("lab.verdict.accepted")
-                  : t("lab.verdict.rejected")}
-              </Badge>
-              <span className="text-muted-foreground">
-                {t("lab.verdict.stage", { stage: lab.result.stage })}
-              </span>
-            </div>
-            <p>{lab.result.reason}</p>
-            {lab.result.usage_policy ? (
-              <p className="text-muted-foreground">
-                {t("lab.verdict.usagePolicy", {
-                  policy: t(usagePolicyLabelKeys[lab.result.usage_policy]),
+      {decision === null ? (
+        <>
+          {lab.result ? (
+            <EnvelopeCard lab={lab} t={t} />
+          ) : null}
+          <Card data-testid="verdict-empty">
+            <CardContent className="flex flex-col items-start gap-3 py-8">
+              <h3 className="text-lg font-semibold">
+                {t("lab.verdict.empty.title")}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {t("lab.verdict.empty.body", {
+                  action: t("lab.scan.checkDecision"),
                 })}
               </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {decision === null ? (
-        <Card data-testid="verdict-empty">
-          <CardContent className="flex flex-col items-start gap-3 py-8">
-            <h3 className="text-lg font-semibold">
-              {t("lab.verdict.empty.title")}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {t("lab.verdict.empty.body", {
-                action: t("lab.scan.checkDecision"),
-              })}
-            </p>
-            <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>
-              {t("lab.verdict.empty.cta")}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>
+                {t("lab.verdict.empty.cta")}
+              </Button>
+            </CardContent>
+          </Card>
+        </>
       ) : (
         <>
-          <Card data-testid="verdict-decision">
-            <CardContent className="flex flex-col gap-3 py-5">
+          {/* ── Hero: the verdict itself, artboard-scale ─────────────────── */}
+          <section
+            data-testid="verdict-decision"
+            className="flex flex-col items-center gap-10 py-4 lg:flex-row lg:items-center lg:gap-14 lg:py-8"
+          >
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge className={`${toneStyles[decisionTone].surface} ${toneStyles[decisionTone].text} border`}>
+                <span
+                  aria-hidden
+                  className={cn("size-1.5 rounded-full", tone.dot)}
+                />
+                <Badge
+                  className={cn(
+                    tone.surface,
+                    tone.text,
+                    "border font-mono tracking-[0.14em] uppercase",
+                  )}
+                >
                   {decision.decision_state.replaceAll("_", " ")}
                 </Badge>
-                <p className="text-sm font-medium">{decision.primary_message}</p>
               </div>
+              <p
+                className={cn(
+                  "text-4xl font-bold tracking-[-0.04em] text-balance sm:text-5xl lg:text-6xl lg:leading-[1.04] xl:text-[68px]",
+                  tone.headline,
+                )}
+              >
+                {decision.primary_message}
+              </p>
+              <p className="max-w-lg text-[15px] leading-relaxed text-muted-foreground sm:text-base">
+                {t("lab.verdict.subtitle")}
+              </p>
               {reasonCodes.length > 0 ? (
                 <div
                   className="flex flex-wrap gap-1.5"
@@ -166,59 +300,384 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
                   {reasonCodes.map((code) => (
                     <span
                       key={code}
-                      className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs"
+                      className={cn(
+                        "rounded-full border border-white/8 bg-white/3 px-2 py-0.5 font-mono text-[10px]",
+                        tone.text,
+                      )}
                     >
                       {code}
                     </span>
                   ))}
                 </div>
               ) : null}
-            </CardContent>
-          </Card>
-
-          <ul className="flex flex-col gap-3">
-            {rows.map((row, index) => {
-              const tone = toneStyles[trustStatusTone(row.status)]
-              const Icon = tone.icon
-              return (
-                <li
-                  key={`${row.label}-${index}`}
-                  className={`rounded-lg border p-4 ${tone.surface}`}
-                  data-testid={`trust-row-${index}`}
+              <div className="mt-3 flex flex-wrap items-center gap-3.5">
+                {showOpenCta ? (
+                  <a
+                    href={openUrl ?? undefined}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    data-testid="verdict-open-destination"
+                    className="inline-flex h-12 items-center gap-2 rounded-full bg-linear-135 from-[#45D483] to-[#2FC9C0] px-6 text-sm font-semibold text-[#04110A] shadow-[0_18px_36px_-16px_rgba(69,212,131,0.55)] transition-transform hover:-translate-y-0.5"
+                  >
+                    {t("lab.verdict.cta.open")}
+                    <ArrowRight aria-hidden className="size-4" />
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="verdict-inspect-evidence"
+                  onClick={() =>
+                    document
+                      .getElementById("verdict-gates")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                  }
+                  className="inline-flex h-12 items-center rounded-full border border-white/12 bg-white/3 px-6 text-sm font-semibold text-foreground/90 transition-colors hover:border-white/25 hover:bg-white/6"
                 >
-                  <div className="flex items-start gap-3">
-                    <Icon className={`mt-0.5 size-4 shrink-0 ${tone.text}`} aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{row.label}</p>
-                      {row.message ? (
-                        <p className="mt-0.5 text-sm text-muted-foreground">
-                          {row.message}
-                        </p>
-                      ) : null}
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-xs text-muted-foreground">
-                          {t("lab.verdict.rawEvidence")}
-                        </summary>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                          <span className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs">
+                  {t("lab.verdict.cta.inspect")}
+                </button>
+              </div>
+            </div>
+
+            {total > 0 ? (
+              <div className="flex shrink-0 flex-col items-center gap-3">
+                <div
+                  role="img"
+                  aria-label={t("lab.verdict.gates.aria", { passed, total })}
+                  className="relative size-44 sm:size-52 lg:size-[232px]"
+                >
+                  <svg viewBox="0 0 232 232" className="size-full" aria-hidden>
+                    <defs>
+                      <linearGradient
+                        id="verdict-ring-gradient"
+                        x1="0%"
+                        y1="0%"
+                        x2="100%"
+                        y2="100%"
+                      >
+                        <stop offset="0%" stopColor={tone.ringStops[0]} />
+                        <stop offset="100%" stopColor={tone.ringStops[1]} />
+                      </linearGradient>
+                    </defs>
+                    <circle
+                      cx="116"
+                      cy="116"
+                      r="82"
+                      fill="none"
+                      stroke="rgba(255,255,255,0.05)"
+                      strokeWidth="1"
+                      strokeDasharray="2 6"
+                    />
+                    <circle
+                      cx="116"
+                      cy="116"
+                      r={RING_RADIUS}
+                      fill="none"
+                      stroke="rgba(255,255,255,0.06)"
+                      strokeWidth="12"
+                    />
+                    <circle
+                      cx="116"
+                      cy="116"
+                      r={RING_RADIUS}
+                      fill="none"
+                      stroke="url(#verdict-ring-gradient)"
+                      strokeWidth="12"
+                      strokeLinecap="round"
+                      strokeDasharray={`${(passed / total) * RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+                      transform="rotate(-90 116 116)"
+                      style={{ filter: tone.ringGlow }}
+                    />
+                  </svg>
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 flex flex-col items-center justify-center"
+                  >
+                    <span className="text-4xl font-extrabold tracking-tight lg:text-5xl">
+                      {passed}/{total}
+                    </span>
+                    <span className="mt-1.5 font-mono text-[10px] tracking-[0.24em] text-muted-foreground uppercase">
+                      {t("lab.verdict.gates.label")}
+                    </span>
+                  </div>
+                </div>
+                <p className="max-w-[232px] text-center font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase">
+                  {t("lab.verdict.ring.caption")}
+                </p>
+              </div>
+            ) : null}
+          </section>
+
+          {/* ── Row 1: trust path + sealed artifact ──────────────────────── */}
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+            <Card id="verdict-gates" className="scroll-mt-24 lg:flex-[1.55]">
+              <CardHeader>
+                <CardTick />
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                    {t("lab.verdict.gates.label")}
+                  </CardTitle>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 font-mono text-[10px] tracking-[0.14em] uppercase",
+                      gatesTone.surface,
+                      gatesTone.text,
+                    )}
+                  >
+                    {t("lab.verdict.gates.chip", { passed, total })}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ul className="flex flex-col">
+                  {rows.map((row, index) => {
+                    const rowTone = toneStyles[trustStatusTone(row.status)]
+                    const Icon = rowTone.icon
+                    return (
+                      <li key={`${row.label}-${index}`} data-testid={`trust-row-${index}`}>
+                        {index > 0 ? (
+                          <span
+                            aria-hidden
+                            className="ml-[17px] block h-5 w-0.5 bg-linear-180 from-primary/50 to-primary/15"
+                          />
+                        ) : null}
+                        <div className="flex items-start gap-3">
+                          <span
+                            aria-hidden
+                            className={cn(
+                              "flex size-9 shrink-0 items-center justify-center rounded-full border",
+                              rowTone.glyph,
+                            )}
+                          >
+                            <Icon className={cn("size-4", rowTone.text)} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold capitalize">
+                              {row.label}
+                            </p>
+                            {row.message ? (
+                              <p className="mt-0.5 text-sm text-muted-foreground">
+                                {row.message}
+                              </p>
+                            ) : null}
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs text-muted-foreground">
+                                {t("lab.verdict.rawEvidence")}
+                              </summary>
+                              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                <span className="rounded-md border border-white/8 bg-white/3 px-1.5 py-0.5 font-mono text-xs">
+                                  {row.status}
+                                </span>
+                                {row.reason_codes.map((code) => (
+                                  <span
+                                    key={code}
+                                    className="rounded-md border border-white/8 bg-white/3 px-1.5 py-0.5 font-mono text-xs"
+                                  >
+                                    {code}
+                                  </span>
+                                ))}
+                              </div>
+                            </details>
+                          </div>
+                          {/* The raw wire status, echoed as a chip from `sm`
+                              up; below that the same value stays reachable in
+                              the raw-evidence details, so nothing is lost on
+                              mobile. */}
+                          <span
+                            className={cn(
+                              "ml-auto hidden shrink-0 rounded-md border border-white/8 bg-white/3 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.12em] uppercase sm:inline",
+                              rowTone.text,
+                            )}
+                          >
                             {row.status}
                           </span>
-                          {row.reason_codes.map((code) => (
-                            <span
-                              key={code}
-                              className="rounded-md border bg-muted px-1.5 py-0.5 font-mono text-xs"
-                            >
-                              {code}
-                            </span>
-                          ))}
                         </div>
-                      </details>
-                    </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* The artifact this verdict judged — same sealed frame as the
+                generate step, fed by the same demo materials. Absent when the
+                payload was hand-scanned rather than generated here. */}
+            {demo ? (
+              <Card data-testid="verdict-artifact" className="lg:w-[360px] lg:shrink-0">
+                <CardHeader>
+                  <CardTick />
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                      {t("lab.verdict.sealed.title")}
+                    </CardTitle>
+                    <span className="rounded-full border border-trust-green/30 bg-trust-green/8 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-[0.16em] text-trust-green uppercase">
+                      {t("lab.generate.sealed.badge")}
+                    </span>
                   </div>
-                </li>
-              )
-            })}
-          </ul>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="relative mx-auto w-full max-w-[248px] p-3">
+                    <span
+                      aria-hidden
+                      className="absolute top-0 left-0 size-[18px] border-t-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute top-0 right-0 size-[18px] border-t-2 border-r-2 border-[rgba(69,212,131,0.8)]"
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute bottom-0 left-0 size-[18px] border-b-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+                    />
+                    <span
+                      aria-hidden
+                      className="absolute right-0 bottom-0 size-[18px] border-r-2 border-b-2 border-[rgba(69,212,131,0.8)]"
+                    />
+                    <img
+                      src={qrImageDataUrl(demo.qr_png_base64)}
+                      alt={t("lab.generate.qrAlt")}
+                      className="aspect-square w-full rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_24px_48px_-20px_rgba(69,212,131,0.3)]"
+                    />
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-3 top-[58%] h-0.5 bg-linear-90 from-transparent via-[rgba(69,212,131,0.9)] to-transparent shadow-[0_0_12px_rgba(69,212,131,0.8)]"
+                    />
+                  </div>
+                  <dl className="flex flex-col gap-1.5 font-mono text-[11px]">
+                    <MonoRow
+                      label={t("lab.generate.sealed.nonce")}
+                      value={demo.verify_request.envelope.claims.nonce}
+                    />
+                    <MonoRow
+                      label={t("lab.generate.sealed.policy")}
+                      value={t(
+                        usagePolicyLabelKeys[
+                          demo.verify_request.envelope.claims.usage_policy
+                        ],
+                      )}
+                    />
+                    <MonoRow
+                      label={t("lab.generate.sealed.issued")}
+                      value={demo.verify_request.envelope.claims.issued_at
+                        .replace("T", " ")
+                        .slice(0, 19)}
+                    />
+                  </dl>
+                </CardContent>
+              </Card>
+            ) : null}
+          </div>
+
+          {/* ── Row 2: destination + signed envelope ─────────────────────── */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Card
+              data-testid="verdict-destination"
+              className={cn(lab.result ? null : "lg:col-span-2")}
+            >
+              <CardHeader>
+                <CardTick />
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                    {t("lab.verdict.destination.title")}
+                  </CardTitle>
+                  {/* The binding mode straight off the wire — how the verifier
+                      tied this destination to the envelope. */}
+                  <span className="rounded-md border border-white/8 bg-white/3 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.12em] text-trust-green/90 uppercase">
+                    {decision.destination.binding}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "flex size-[30px] shrink-0 items-center justify-center rounded-full border",
+                      gatesTone.glyph,
+                    )}
+                  >
+                    <Lock className={cn("size-3.5", gatesTone.text)} />
+                  </span>
+                  <p
+                    className="min-w-0 truncate text-base font-semibold tracking-tight"
+                    title={decision.destination.display_url}
+                  >
+                    {decision.destination.display_url}
+                  </p>
+                </div>
+                {chain.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {chain.map((host, index) => (
+                      <span key={`${host}-${index}`} className="flex items-center gap-1.5">
+                        {index > 0 ? (
+                          <ArrowRight
+                            aria-hidden
+                            className="size-3 text-muted-foreground/70"
+                          />
+                        ) : null}
+                        <span
+                          className={cn(
+                            "rounded-md border px-2 py-0.5 font-mono text-[11px]",
+                            index === chain.length - 1
+                              ? "border-trust-green/30 bg-trust-green/8 text-trust-green"
+                              : "border-white/8 bg-white/3 text-foreground/85",
+                          )}
+                        >
+                          {host}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {t("lab.verdict.destination.footnote")}
+                </p>
+                <dl className="flex flex-col gap-1.5 border-t border-white/6 pt-3 font-mono text-[11px]">
+                  <MonoRow
+                    label={t("lab.verdict.destination.display")}
+                    value={decision.destination.display_url}
+                  />
+                  {decision.destination.host !== null ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.host")}
+                      value={decision.destination.host}
+                    />
+                  ) : null}
+                  {decision.destination.resolver_url !== null ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.resolver")}
+                      value={decision.destination.resolver_url}
+                    />
+                  ) : null}
+                  {decision.destination.final_url !== null ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.final")}
+                      value={decision.destination.final_url}
+                    />
+                  ) : null}
+                  {decision.destination.redirect_hops !== null ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.redirects")}
+                      value={String(decision.destination.redirect_hops)}
+                    />
+                  ) : null}
+                  {decision.destination.redirect_policy !== null ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.redirectPolicy")}
+                      value={decision.destination.redirect_policy}
+                    />
+                  ) : null}
+                  {decision.contract ? (
+                    <MonoRow
+                      label={t("lab.verdict.destination.fingerprint")}
+                      value={decision.contract.destination.fingerprint}
+                    />
+                  ) : null}
+                </dl>
+              </CardContent>
+            </Card>
+
+            {lab.result ? <EnvelopeCard lab={lab} t={t} /> : null}
+          </div>
 
           <footer>
             <Button variant="outline" data-testid="verdict-back" onClick={onGoToScan}>
@@ -230,5 +689,76 @@ export function VerdictStep({ lab, onGoToScan }: VerdictStepProps) {
 
       <HistorySection history={lab.history} />
     </div>
+  )
+}
+
+// The cryptographic-verification card — the honest counterpart of the design's
+// envelope panel, showing what the verifier actually checked rather than
+// static algorithm labels.
+function EnvelopeCard({
+  lab,
+  t,
+}: {
+  lab: LabState
+  t: ReturnType<typeof useT>
+}) {
+  const result = lab.result
+  if (!result) return null
+  return (
+    <Card data-testid="verifier-result">
+      <CardHeader>
+        <CardTick />
+        <CardTitle className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+          {t("lab.verdict.crypto.title")}
+        </CardTitle>
+        <CardDescription>
+          {t("lab.verdict.crypto.description")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 text-sm">
+        <div className="flex items-center gap-2">
+          <Badge variant={result.allowed ? "secondary" : "destructive"}>
+            {result.allowed
+              ? t("lab.verdict.accepted")
+              : t("lab.verdict.rejected")}
+          </Badge>
+          <span className="text-muted-foreground">
+            {t("lab.verdict.stage", { stage: result.stage })}
+          </span>
+        </div>
+        <p>{result.reason}</p>
+        {result.usage_policy ? (
+          <p className="text-muted-foreground">
+            {t("lab.verdict.usagePolicy", {
+              policy: t(usagePolicyLabelKeys[result.usage_policy]),
+            })}
+          </p>
+        ) : null}
+        {result.canonical_claims_sha256 !== null ||
+        result.matched_rule !== null ||
+        result.reservation_state !== null ? (
+          <dl className="mt-1 flex flex-col gap-1.5 border-t border-white/6 pt-3 font-mono text-[11px]">
+            {result.canonical_claims_sha256 !== null ? (
+              <MonoRow
+                label={t("lab.verdict.crypto.claimsHash")}
+                value={result.canonical_claims_sha256}
+              />
+            ) : null}
+            {result.matched_rule !== null ? (
+              <MonoRow
+                label={t("lab.verdict.crypto.matchedRule")}
+                value={result.matched_rule}
+              />
+            ) : null}
+            {result.reservation_state !== null ? (
+              <MonoRow
+                label={t("lab.verdict.crypto.reservationState")}
+                value={result.reservation_state}
+              />
+            ) : null}
+          </dl>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }

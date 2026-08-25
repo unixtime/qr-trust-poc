@@ -77,7 +77,9 @@ export default function GenerateStep({
   return (
     <div className="flex flex-col gap-6">
       <header>
-        <h1 className="text-xl font-semibold">{t("lab.generate.title")}</h1>
+        <h1 className="aurora-text text-3xl font-bold tracking-tight">
+          {t("lab.generate.title")}
+        </h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {tNodes("lab.generate.scenarioLine", {
             scenario: (
@@ -90,7 +92,7 @@ export default function GenerateStep({
       </header>
 
       {showKeyIssue ? (
-        <div className="rounded-md border border-border p-3">
+        <div className="rounded-2xl border border-white/8 bg-white/3 p-3">
           <p className="text-sm text-muted-foreground">
             {t("lab.generate.keyRequired")}
           </p>
@@ -137,27 +139,88 @@ export default function GenerateStep({
       ) : null}
 
       {demo ? (
-        <div className="flex flex-col items-start gap-2">
-          <img
-            src={qrImageDataUrl(demo.qr_png_base64)}
-            alt={t("lab.generate.qrAlt")}
-            className="aspect-square w-full max-w-72 rounded-lg border border-border bg-white p-4"
-          />
-          <Button
-            data-testid="qr-fullscreen"
-            variant="ghost"
-            size="sm"
-            onClick={onOpenFullscreen}
-          >
-            {t("lab.generate.fullscreen")}
-          </Button>
+        <div className="glass-panel flex w-full max-w-sm flex-col gap-4 rounded-[20px] p-5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="rounded-full border border-trust-green/30 bg-trust-green/8 px-2.5 py-1 font-mono text-[10px] font-semibold tracking-[0.16em] text-trust-green uppercase">
+              {t("lab.generate.sealed.badge")}
+            </span>
+            <Button
+              data-testid="qr-fullscreen"
+              variant="ghost"
+              size="sm"
+              onClick={onOpenFullscreen}
+            >
+              {t("lab.generate.fullscreen")}
+            </Button>
+          </div>
+          <div className="relative p-3">
+            <span
+              aria-hidden
+              className="absolute top-0 left-0 size-[18px] border-t-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+            />
+            <span
+              aria-hidden
+              className="absolute top-0 right-0 size-[18px] border-t-2 border-r-2 border-[rgba(69,212,131,0.8)]"
+            />
+            <span
+              aria-hidden
+              className="absolute bottom-0 left-0 size-[18px] border-b-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+            />
+            <span
+              aria-hidden
+              className="absolute right-0 bottom-0 size-[18px] border-r-2 border-b-2 border-[rgba(69,212,131,0.8)]"
+            />
+            <img
+              src={qrImageDataUrl(demo.qr_png_base64)}
+              alt={t("lab.generate.qrAlt")}
+              className="aspect-square w-full rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_24px_48px_-20px_rgba(69,212,131,0.3)]"
+            />
+            {/* Decorative scanline on the preview only — the fullscreen modal
+                stays untreated so the QR remains cleanly scannable. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-3 top-[58%] h-0.5 bg-linear-90 from-transparent via-[rgba(69,212,131,0.9)] to-transparent shadow-[0_0_12px_rgba(69,212,131,0.8)]"
+            />
+          </div>
+          <dl className="flex flex-col gap-1.5 font-mono text-[11px]">
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                {t("lab.generate.sealed.nonce")}
+              </dt>
+              <dd className="truncate text-foreground/90">
+                {demo.verify_request.envelope.claims.nonce}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                {t("lab.generate.sealed.policy")}
+              </dt>
+              <dd className="truncate text-foreground/90">
+                {t(
+                  usagePolicyLabelKeys[
+                    demo.verify_request.envelope.claims.usage_policy
+                  ],
+                )}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                {t("lab.generate.sealed.issued")}
+              </dt>
+              <dd className="truncate text-foreground/90">
+                {demo.verify_request.envelope.claims.issued_at
+                  .replace("T", " ")
+                  .slice(0, 19)}
+              </dd>
+            </div>
+          </dl>
         </div>
       ) : null}
 
       {latestActivity ? (
         <div
           data-testid="latest-activity"
-          className="rounded-md border border-border bg-muted/40 p-3 text-sm"
+          className="rounded-2xl border border-white/8 bg-white/3 p-3 text-sm"
         >
           <p className="font-medium">{latestActivity.title}</p>
           <p className="mt-0.5 text-muted-foreground">{latestActivity.body}</p>
@@ -169,14 +232,14 @@ export default function GenerateStep({
           {t("lab.generate.verifierReason")}{" "}
           <code
             data-testid="verifier-reason"
-            className="rounded bg-muted px-1 py-0.5"
+            className="rounded border border-white/10 bg-[rgba(5,10,18,0.45)] px-1.5 py-0.5 font-mono"
           >
             {result.reason}
           </code>
         </p>
       ) : null}
 
-      <details className="rounded-md border border-border p-3">
+      <details className="rounded-2xl border border-white/8 bg-white/2 p-3">
         <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
           {t("lab.generate.advanced")}
         </summary>
@@ -220,7 +283,7 @@ export default function GenerateStep({
         </div>
       </details>
 
-      <div className="flex justify-between border-t border-border pt-4">
+      <div className="flex justify-between border-t border-transparent pt-4 [border-image:linear-gradient(90deg,transparent,rgba(69,212,131,0.35),transparent)_1]">
         <Button variant="ghost" data-testid="generate-back" onClick={onBack}>
           {t("lab.common.back")}
         </Button>

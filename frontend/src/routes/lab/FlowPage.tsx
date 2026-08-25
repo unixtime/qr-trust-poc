@@ -281,7 +281,7 @@ function VerifierUnreachablePanel({ onRetry }: { onRetry: () => void }) {
         <p className="text-sm text-muted-foreground">
           The workflow needs the local verifier API. Start the stack, then retry:
         </p>
-        <code className="rounded bg-muted px-2 py-1 text-sm">
+        <code className="rounded-lg border border-white/10 bg-[rgba(5,10,18,0.45)] px-2.5 py-1.5 font-mono text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]">
           docker compose up --build
         </code>
         <Button data-testid="verifier-retry" onClick={onRetry}>

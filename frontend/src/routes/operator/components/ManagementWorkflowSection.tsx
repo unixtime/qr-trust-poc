@@ -197,7 +197,7 @@ function auditLabel(row: ManagementAuditRecord) {
 function EmptyEvidence({ onRefresh }: { onRefresh: () => void }) {
   const t = useT()
   return (
-    <div className="grid gap-3 rounded-2xl border border-dashed border-border bg-background/75 p-4">
+    <div className="grid gap-3 rounded-2xl border border-dashed border-white/12 bg-white/2 p-4">
       <div className="grid gap-1">
         <p className="text-sm font-medium text-foreground">
           {t("operator.management.empty.title")}
@@ -229,7 +229,7 @@ function OutboxEvidence({
           (status) => (
             <div
               key={status}
-              className="rounded-2xl border border-border/70 bg-card px-3 py-2"
+              className="rounded-2xl border border-white/8 bg-white/3 px-3 py-2"
             >
               <p className="text-xs text-muted-foreground">{status}</p>
               <p className="text-lg font-semibold tabular-nums">
@@ -248,7 +248,7 @@ function OutboxEvidence({
             {outbox.recent_events.slice(0, 4).map((event) => (
               <article
                 key={event.outbox_id}
-                className="grid gap-2 rounded-2xl border border-border/70 bg-background/85 p-3"
+                className="grid gap-2 rounded-2xl border border-white/8 bg-white/3 p-3"
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -281,7 +281,7 @@ function OutboxEvidence({
             ))}
           </div>
         ) : (
-          <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
+          <p className="rounded-2xl border border-dashed border-white/12 bg-white/2 p-3 text-sm text-muted-foreground">
             {t("operator.management.outbox.empty")}
           </p>
         )}
@@ -303,7 +303,7 @@ function AuditEvidence({ audit }: { audit: ManagementAuditListResponse }) {
           {audit.audit_rows.slice(0, 4).map((row) => (
             <article
               key={row.audit_id}
-              className="grid gap-2 rounded-2xl border border-border/70 bg-background/85 p-3"
+              className="grid gap-2 rounded-2xl border border-white/8 bg-white/3 p-3"
             >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -331,7 +331,7 @@ function AuditEvidence({ audit }: { audit: ManagementAuditListResponse }) {
           ))}
         </div>
       ) : (
-        <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-white/12 bg-white/2 p-3 text-sm text-muted-foreground">
           {t("operator.management.audit.empty")}
         </p>
       )}
@@ -349,7 +349,7 @@ function RuntimeProviderEvidence({
   const t = useT()
   if (providers.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-border bg-background/75 p-3 text-sm text-muted-foreground">
+      <p className="rounded-2xl border border-dashed border-white/12 bg-white/2 p-3 text-sm text-muted-foreground">
         {t("operator.management.providers.empty")}
       </p>
     )
@@ -364,7 +364,7 @@ function RuntimeProviderEvidence({
         {providers.map((provider) => (
           <article
             key={provider.provider_id}
-            className="grid gap-2 rounded-2xl border border-border/70 bg-background/85 p-3"
+            className="grid gap-2 rounded-2xl border border-white/8 bg-white/3 p-3"
           >
             <div className="flex min-w-0 items-start justify-between gap-3">
               <div className="min-w-0">
@@ -428,7 +428,7 @@ function ManagementWorkflowSection({
   const hasEvidence = Boolean(outbox || audit || runtimeProviders.length > 0)
 
   return (
-    <section className="grid gap-5 rounded-[1.5rem] border border-border/70 bg-card/90 p-5 shadow-sm md:p-6">
+    <section className="grid gap-5 rounded-[1.5rem] border border-white/8 bg-linear-180 from-[rgba(15,25,39,0.82)] to-[rgba(9,16,26,0.88)] p-5 shadow-(--glass-shadow) md:p-6">
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="grid gap-2">
           <Badge variant="outline" className="w-fit">
@@ -474,11 +474,11 @@ function ManagementWorkflowSection({
                 className={`grid min-h-32 gap-3 rounded-2xl border p-4 text-left transition-colors ${
                   isSelected
                     ? "border-(--border-accent) bg-card shadow-(--glow)"
-                    : "border-border/70 bg-background/75 hover:bg-muted/50"
+                    : "border-white/8 bg-white/3 hover:bg-white/6"
                 }`}
               >
                 <span className="flex items-start justify-between gap-3">
-                  <span className="grid size-9 place-items-center rounded-full border border-current/15 bg-background/70">
+                  <span className="grid size-9 place-items-center rounded-full border border-current/15 bg-white/5">
                     <Icon className="size-4" />
                   </span>
                   <Badge
@@ -501,7 +501,7 @@ function ManagementWorkflowSection({
           })}
         </div>
 
-        <div className="grid gap-4 rounded-2xl border border-border/70 bg-background/80 p-4">
+        <div className="grid gap-4 rounded-2xl border border-white/8 bg-[rgba(5,10,18,0.35)] p-4">
           {selectedWorkflow ? (
             <div className="grid gap-2">
               <div className="flex flex-wrap items-start justify-between gap-3">

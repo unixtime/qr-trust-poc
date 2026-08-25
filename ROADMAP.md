@@ -559,7 +559,6 @@ Implementation slices:
 - `backend/scripts/qr_artifact_poc_demo.py`
 - `backend/scripts/capture_react_lab_evidence.py`
 - `backend/app/api/endpoints/verifier.py`
-- `backend/app/static/verifier_lab.html`
 - `frontend/src/App.tsx`
 - `frontend/src/lib/verifier-client.ts`
 - `frontend/vite.config.ts`

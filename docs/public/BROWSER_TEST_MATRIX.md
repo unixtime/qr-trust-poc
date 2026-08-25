@@ -6,7 +6,6 @@ Entry points:
 
 - `http://127.0.0.1:5173/`
 - `GET /verifier/status`
-- `GET /verifier/lab` as the legacy static comparison page
 
 ## Preflight
 
@@ -20,25 +19,6 @@ Entry points:
    - admin flow enabled or disabled
    - rate limits
    - Redis connected or local fallback
-
-## Scripted Browser Check
-
-For a headless browser regression before device testing:
-
-```bash
-cd backend
-./.venv/bin/python -m playwright install chromium
-PYTHONPATH=.. ./.venv/bin/pytest tests/test_verifier_lab_browser.py
-```
-
-That test covers:
-
-- lab bootstrap
-- admin token entry and API key issue
-- QR generation
-- QR image upload decode
-- accepted verification
-- replay block on the next verification action
 
 ## Browser Coverage
 

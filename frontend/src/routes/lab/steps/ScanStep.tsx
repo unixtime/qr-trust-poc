@@ -23,7 +23,7 @@ export function ScanStep({ lab, onBack, onNext }: ScanStepProps) {
   return (
     <div className="flex flex-col gap-6" data-testid="scan-step">
       <header>
-        <h2 className="text-xl font-semibold tracking-tight">
+        <h2 className="aurora-text text-3xl font-bold tracking-tight">
           {t("lab.scan.title")}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">

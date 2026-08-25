@@ -6,9 +6,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
-from html import escape
 from ipaddress import ip_address
-from pathlib import Path
 from secrets import compare_digest
 from typing import cast
 from urllib.parse import ParseResult, urlparse
@@ -16,7 +14,6 @@ from uuid import uuid4
 
 import asyncpg
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.app.core.config import config
 from backend.app.core.request_id import safe_request_id
@@ -24,7 +21,6 @@ from backend.app.schemas.poc import (
     CertificateRecordInput,
     DemoMaterialsRequest,
     DemoMaterialsResponse,
-    DemoSessionResponse,
     IssuerVerificationStateInput,
     NarrowedVerifierRequest,
     NarrowedVerifierResponse,
@@ -78,7 +74,6 @@ from backend.app.services.narrowed_verifier_poc import (
     IssuerVerificationState,
     NarrowedVerifierService,
 )
-from backend.app.services.demo_session_store import InMemoryDemoSessionStore
 from backend.app.services.governance_fixture_store import (
     GovernanceTrustProjection,
     load_governance_projection,
@@ -132,13 +127,9 @@ router = APIRouter()
 scanner_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_LAB_HTML_PATH = Path(__file__).resolve().parents[2] / "static" / "verifier_lab.html"
-_QR_DISPLAY_HTML_PATH = Path(__file__).resolve().parents[2] / "static" / "verifier_qr_display.html"
-
 _replay_guard = InMemoryReplayGuard()
 _verifier = NarrowedVerifierService(_replay_guard)
 _request_rate_limiter = RequestRateLimiter()
-_demo_session_store = InMemoryDemoSessionStore()
 _scanner_ux_event_log: deque[ScannerUXEventLogEntry] = deque(maxlen=500)
 _LEGACY_VERIFIER_ADMIN_API_KEYS_DETAIL = (
     "Verifier API key management moved to /admin/verifier-clients/api-keys. "
@@ -586,17 +577,6 @@ def _build_demo_materials_response(
         # demo may have enrolled it; drop it so the ref is genuinely unknown.
         _scanner_trust_records.pop(response.certificate.certificate_ref, None)
     return response
-
-
-def _build_demo_session_response(
-    demo_materials: DemoMaterialsResponse,
-) -> DemoSessionResponse:
-    record = _demo_session_store.create(demo_materials)
-    return DemoSessionResponse(
-        session_id=record.session_id,
-        display_path=f"/verifier/demo-sessions/{record.session_id}/display",
-        **demo_materials.model_dump(),
-    )
 
 
 def _register_scanner_trust(
@@ -1393,7 +1373,6 @@ async def _build_verifier_status_response(
         redis_connected=redis_service.redis_client is not None,
         distributed_rate_limiting_enabled=redis_service.redis_client is not None,
         decode_image_fallback_enabled=True,
-        legacy_experimental_api_enabled=config.ENABLE_LEGACY_EXPERIMENTAL_API,
         rate_limit_window_seconds=config.VERIFIER_RATE_LIMIT_WINDOW_SECONDS,
         rate_limit_max_requests=config.VERIFIER_RATE_LIMIT_MAX_REQUESTS,
         decode_rate_limit_max_requests=config.VERIFIER_DECODE_RATE_LIMIT_MAX_REQUESTS,
@@ -2030,106 +2009,6 @@ async def _run_scanner_decision(
     )
 
 
-def _render_demo_session_display(session: DemoSessionResponse) -> str:
-    qr_image_src = f"data:image/png;base64,{session.qr_png_base64}"
-    usage_policy = escape(session.verify_request.envelope.claims.usage_policy)
-    nonce = escape(session.verify_request.envelope.claims.nonce)
-    payload = escape(session.verify_request.envelope.claims.payload)
-    stage_hint = "payload_revalidation" if "rogue.example" in payload else "accepted"
-    return f"""<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Verifier Demo Session</title>
-    <style>
-      :root {{
-        color-scheme: light;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }}
-      body {{
-        margin: 0;
-        min-height: 100vh;
-        background: #f8f5ed;
-        color: #171717;
-        display: grid;
-        place-items: center;
-      }}
-      .shell {{
-        width: min(92vw, 880px);
-        display: grid;
-        gap: 24px;
-        padding: 24px;
-      }}
-      .frame {{
-        display: grid;
-        gap: 16px;
-        justify-items: center;
-        background: #fff;
-        border: 1px solid #e7e2d8;
-        border-radius: 28px;
-        padding: 32px;
-        box-shadow: 0 24px 80px rgba(18, 25, 20, 0.08);
-      }}
-      img {{
-        width: min(72vw, 520px);
-        height: auto;
-        image-rendering: pixelated;
-      }}
-      .meta {{
-        width: min(72vw, 520px);
-        display: grid;
-        gap: 10px;
-      }}
-      .label {{
-        font-size: 11px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: #5d665d;
-      }}
-      .value {{
-        font-size: 16px;
-        word-break: break-word;
-      }}
-      .hint {{
-        color: #5d665d;
-        font-size: 14px;
-        line-height: 1.6;
-      }}
-    </style>
-  </head>
-  <body>
-    <main class="shell">
-      <section class="frame">
-        <img src="{qr_image_src}" alt="Verifier demo QR" />
-        <div class="meta">
-          <div>
-            <div class="label">Session</div>
-            <div class="value">{escape(session.session_id)}</div>
-          </div>
-          <div>
-            <div class="label">Usage policy</div>
-            <div class="value">{usage_policy}</div>
-          </div>
-          <div>
-            <div class="label">Nonce</div>
-            <div class="value">{nonce}</div>
-          </div>
-          <div>
-            <div class="label">Payload</div>
-            <div class="value">{payload}</div>
-          </div>
-          <div class="hint">
-            This QR belongs to the active verifier demo session. Scan it from the native iPhone verifier app that generated this session.
-            Expected first-pass stage: <strong>{stage_hint}</strong> only if the current scenario is a mismatch or block case.
-          </div>
-        </div>
-      </section>
-    </main>
-  </body>
-</html>"""
-
-
 async def _run_narrowed_verifier(
     request: NarrowedVerifierRequest,
 ) -> NarrowedVerifierResponse:
@@ -2215,20 +2094,6 @@ async def get_verifier_demo_materials(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.post("/demo-sessions", response_model=DemoSessionResponse)
-async def create_verifier_demo_session(
-    request_context: Request,
-    request: DemoMaterialsRequest,
-) -> DemoSessionResponse:
-    await _enforce_verifier_api_key(request_context)
-    await _enforce_verifier_rate_limit(request_context, bucket="demo_materials")
-    try:
-        demo_materials = _build_demo_materials_response(request)
-    except SignedSchemaError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return _build_demo_session_response(demo_materials)
-
-
 @router.get("/status", response_model=VerifierStatusResponse)
 async def get_verifier_status(request_context: Request) -> VerifierStatusResponse:
     await _enforce_verifier_rate_limit(request_context, bucket="status")
@@ -2236,39 +2101,6 @@ async def get_verifier_status(request_context: Request) -> VerifierStatusRespons
         include_operator_evidence=await _request_can_read_operator_status(
             request_context,
         ),
-    )
-
-
-@router.get("/lab", include_in_schema=False)
-async def get_verifier_lab() -> FileResponse:
-    """
-    Serve the browser-based verifier lab used for local PoC testing.
-    """
-    return FileResponse(_LAB_HTML_PATH, headers={"Cache-Control": "no-store"})
-
-
-@router.get("/qr-display", include_in_schema=False)
-async def get_verifier_qr_display() -> FileResponse:
-    """
-    Serve the second-screen QR display used for cross-device camera testing.
-    """
-    return FileResponse(_QR_DISPLAY_HTML_PATH, headers={"Cache-Control": "no-store"})
-
-
-@router.get("/demo-sessions/{session_id}/display", include_in_schema=False)
-async def get_verifier_demo_session_display(session_id: str) -> HTMLResponse:
-    session_record = _demo_session_store.get(session_id)
-    if session_record is None:
-        raise HTTPException(status_code=404, detail="Verifier demo session not found")
-
-    payload = DemoSessionResponse(
-        session_id=session_record.session_id,
-        display_path=f"/verifier/demo-sessions/{session_record.session_id}/display",
-        **session_record.demo_materials.model_dump(),
-    )
-    return HTMLResponse(
-        _render_demo_session_display(payload),
-        headers={"Cache-Control": "no-store"},
     )
 
 

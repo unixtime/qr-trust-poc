@@ -622,7 +622,6 @@
   "operator.runtime.metric.decodeLimit": "da8bc91f0ded3100",
   "operator.runtime.metric.verifyLimit": "e9aca0f754ed6a62",
   "operator.runtime.metric.cameraFallback": "4445afbef7436194",
-  "operator.runtime.metric.legacyApi": "52102e585dc51365",
   "operator.runtime.metric.apiKeyHeader": "ca821ab3107aa1da",
   "operator.runtime.metric.adminHeader": "16b97842ac0e30be",
   "operator.runtime.metric.supervisor": "9de790933254b865",

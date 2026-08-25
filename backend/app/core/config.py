@@ -29,7 +29,6 @@ class Settings(BaseSettings):
         PUBLIC_KEY: Default RSA public key for verification
         DEBUG: Debug mode flag
         CORS_ORIGINS: List of allowed CORS origins
-        BLOCKCHAIN_NODE_URL: URL for blockchain node
     """
     PROJECT_NAME: str = "QR Code Verification API"
     SECRET_KEY: str = DEFAULT_SECRET_KEY
@@ -71,9 +70,6 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: List[str] = []
     CORS_ALLOW_CREDENTIALS: bool = False
-    
-    # Optional blockchain integration
-    BLOCKCHAIN_NODE_URL: str = "http://localhost:8545"
 
     # Redis Configuration
     REDIS_HOSTNAME: str = "localhost"
@@ -83,7 +79,6 @@ class Settings(BaseSettings):
     REDIS_STARTUP_ENABLED: bool = True
 
     # Route exposure
-    ENABLE_LEGACY_EXPERIMENTAL_API: bool = False
     VERIFIER_API_KEYS: List[str] = []
     VERIFIER_STATIC_API_KEYS_ENABLED: bool = False
     VERIFIER_API_KEY_HEADER: str = "X-API-Key"
@@ -94,23 +89,6 @@ class Settings(BaseSettings):
     VERIFIER_PUBLIC_BASE_URL: Optional[str] = None
     QRTRUST_NETWORK_DATABASE_URL: Optional[str] = None
     QRTRUST_SCANNER_VERIFIER_ID: str = "verifier:reference-http-runtime"
-
-    # External APIs
-    USPTO_API_KEY: Optional[str] = None
-
-    # Domain Verification Settings
-    DOMAIN_VERIFICATION_TEST_MODE: bool = True  # Set to False in production
-    TEST_VERIFIED_DOMAINS: List[str] = [
-        "acme-corp.test",
-        "secure-bank.test",
-        "local-business.test",
-        "example.com",
-        "localhost"
-    ]
-    DOMAIN_VERIFICATION_TIMEOUT: int = 10  # Seconds for DNS/HTTP requests
-    VERIFICATION_TOKEN_TTL: int = 3600  # 1 hour for verification tokens
-    DNS_SERVER: Optional[str] = None  # Optional: DNS server to use (e.g., "127.0.0.1" for testing)
-    DNS_PORT: int = 5354  # DNS port (5354 for Docker test environment, 53 for production)
 
     # PoC guardrails
     MAX_QR_PAYLOAD_CHARS: int = 8192

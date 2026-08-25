@@ -34,7 +34,7 @@ export function HistorySection({ history }: { history: HistoryEntry[] }) {
           <ScrollArea className="max-h-72">
             <ul className="flex flex-col gap-3">
               {history.map((entry) => (
-                <li key={entry.id} className="rounded-md border p-3">
+                <li key={entry.id} className="rounded-2xl border border-white/8 bg-white/3 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium">{entry.title}</p>
                     <Badge variant={toneBadgeVariant(entry.tone)}>

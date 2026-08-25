@@ -294,7 +294,6 @@ export type VerifierStatus = {
   redis_connected: boolean
   distributed_rate_limiting_enabled: boolean
   decode_image_fallback_enabled: boolean
-  legacy_experimental_api_enabled: boolean
   rate_limit_window_seconds: number
   rate_limit_max_requests: number
   decode_rate_limit_max_requests: number

@@ -24,7 +24,7 @@ Start the local stack with HTTPS and admin mode. If the repo-owned Postgres or
 Redis ports are already occupied, use the shared-infra target:
 
 ```bash
-make up-https-admin-shared-infra FRONTEND_PUBLISH_PORT=5174
+make up-https-admin-shared-infra
 ```
 
 If this repo owns its own local ports, this is also valid:
@@ -109,7 +109,7 @@ scanner-fleet packet.
 Use the browser lab on the laptop to generate QR artifacts:
 
 ```text
-https://<mac-lan-ip-or-bonjour-name>:5174/
+https://<mac-lan-ip-or-bonjour-name>:8443/
 ```
 
 Use the iPhone app only to scan those QR codes and display the user-facing

@@ -46,11 +46,11 @@ export function FlowStepper({
             aria-current={active ? "step" : undefined}
             onClick={() => onSelectStep(step)}
             className={cn(
-              "flex shrink-0 items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors",
+              "flex shrink-0 items-center gap-3 rounded-2xl border border-transparent px-3 py-2 text-left text-sm transition-colors",
               active
-                ? "bg-secondary font-medium text-foreground"
+                ? "border-primary/30 bg-primary/10 font-medium text-foreground shadow-[0_0_20px_-8px_rgba(69,212,131,0.45)]"
                 : unlocked
-                  ? "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                  ? "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                   : "cursor-not-allowed text-muted-foreground/50",
             )}
           >

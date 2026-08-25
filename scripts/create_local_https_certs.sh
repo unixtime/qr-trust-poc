@@ -66,9 +66,9 @@ Next steps:
 2. Start the stack with:
    make up-https-admin
    If another local stack owns default host ports, use:
-   make up-https-admin POSTGRES_PUBLISH_PORT=55432 REDIS_PUBLISH_PORT=6385 FRONTEND_PUBLISH_PORT=5174
+   make up-https-admin POSTGRES_PUBLISH_PORT=55432 REDIS_PUBLISH_PORT=6385
    If reusing an existing Postgres/Redis stack, use:
-   make up-https-admin-shared-infra FRONTEND_PUBLISH_PORT=5174
+   make up-https-admin-shared-infra
 3. Generate the iOS provider profile before rebuilding the app:
    make ios-provider-config
 4. Open:

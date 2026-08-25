@@ -53,7 +53,7 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
       <header className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
+            <h1 className="aurora-text text-3xl font-bold tracking-tight">
               {t("operator.title")}
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
@@ -124,7 +124,7 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
       <div
         role="tablist"
         aria-label={t("operator.tabs.label")}
-        className="mt-8 flex gap-1 border-b"
+        className="mt-8 flex w-fit max-w-full gap-1 overflow-x-auto rounded-full border border-white/8 bg-white/3 p-1"
       >
         {TABS.map((tab) => (
           <button
@@ -135,12 +135,18 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
             data-testid={`operator-tab-${tab.id}`}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+              "flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors",
               activeTab === tab.id
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
+                ? "bg-primary/12 text-primary shadow-[0_0_16px_-6px_rgba(69,212,131,0.5)]"
+                : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
             )}
           >
+            {activeTab === tab.id ? (
+              <span
+                aria-hidden
+                className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(69,212,131,0.9)]"
+              />
+            ) : null}
             {t(tab.labelKey)}
           </button>
         ))}

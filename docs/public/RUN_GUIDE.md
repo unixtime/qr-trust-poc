@@ -100,21 +100,6 @@ Current baseline:
 - the app includes native QR camera capture, scanner-decision submission, end-user green/orange/red results, local history, Learn, Settings, and immediate haptic/audio feedback
 - `make smoke-ios` checks that developer-only verifier/admin/demo surfaces stay out of the end-user app
 
-Optional browser-layer regression for the legacy static lab:
-
-```bash
-cd backend
-./.venv/bin/python -m playwright install chromium
-PYTHONPATH=.. ./.venv/bin/pytest tests/test_verifier_lab_browser.py
-```
-
-This test exercises the real lab page in a headless browser by:
-
-- issuing a verifier API key through the lab UI
-- generating a QR artifact
-- uploading the generated QR image back into the lab
-- verifying the scanned payload and confirming replay blocking on the next action
-
 ## Demo Scripts
 
 From [backend](../../backend):
@@ -146,7 +131,6 @@ The canonical reference API is:
 
 - `GET /verifier/status`
 - `POST /verifier/demo-materials`
-- `POST /verifier/demo-sessions`
 - `POST /verifier/verify`
 - `POST /verifier/verify-scanned`
 - `POST /verifier/decode-image`
@@ -155,9 +139,6 @@ Notes:
 
 - `POST /verifier/demo-materials` returns demo certificate data, issuer state,
   a ready-to-submit verifier request, and QR artifact data
-- `POST /verifier/demo-sessions` returns the same demo data plus a shareable
-  session ID and display path so a second screen can render the exact QR the
-  native phone app will verify
 - `GET /verifier/status` returns the current verifier posture for auth, rate
   limits, Redis-backed coordination, and decode fallback support
 - it does not return the signing private key
@@ -170,7 +151,7 @@ Notes:
   `/admin/verifier-clients/api-keys/*` endpoints; retired
   `/verifier/admin/api-keys/*` routes return `410 Gone`
 - responses include `X-Request-ID` for request tracing
-- older `/certificates/*`, `/qrcodes/*`, and `/organizations/*` routes are disabled by default
+- the older `/certificates/*`, `/qrcodes/*`, and `/organizations/*` experimental routes have been removed and return `404`
 
 From [backend](../../backend):
 
@@ -182,7 +163,10 @@ Then open:
 
 - `http://127.0.0.1:8000/`
 - `http://127.0.0.1:8000/docs`
-- `http://127.0.0.1:8000/verifier/lab` if you need the legacy static lab during the transition
+
+The API is headless: `GET /` returns a JSON service descriptor, and the React
+workbench in [frontend](../../frontend) is the interactive client. There are no
+server-rendered HTML pages.
 
 ## React Verifier Workbench
 
@@ -197,7 +181,7 @@ npm run dev
 By default, Vite proxies `/verifier/*` to:
 
 ```text
-https://127.0.0.1:8443
+https://127.0.0.1:8444
 ```
 
 If your backend is running without TLS instead, override the proxy target:
@@ -232,7 +216,7 @@ Optional local HTTPS for Safari or other secure-context camera testing:
 FRONTEND_TLS_ENABLED=true \
 FRONTEND_TLS_CERT_FILE=../local/https/verifier-lab.pem \
 FRONTEND_TLS_KEY_FILE=../local/https/verifier-lab-key.pem \
-VITE_BACKEND_TARGET=https://127.0.0.1:8443 \
+VITE_BACKEND_TARGET=https://127.0.0.1:8444 \
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 
@@ -274,15 +258,16 @@ keep this stack isolated by moving only the host-side DB and Redis bindings:
 make up-https-admin POSTGRES_PUBLISH_PORT=55432 REDIS_PUBLISH_PORT=6385
 ```
 
-If the React dev server is already using `5173`, add
-`FRONTEND_PUBLISH_PORT=5174`. The iPhone app still uses the API URL on `8443`.
+The HTTPS stack publishes the React workbench at `https://<host>:8443` and the
+API at `https://127.0.0.1:8444`. The `:8443` URL the iPhone app dials is the
+workbench origin, which proxies `/verifier/*` and `/scanner/*` to the API.
 
 If you want to reuse an existing local Postgres/Redis stack, use:
 
 ```bash
 make ensure-shared-infra-db
 make check-shared-infra-network
-make up-https-admin-shared-infra FRONTEND_PUBLISH_PORT=5174
+make up-https-admin-shared-infra
 ```
 
 This uses the existing Postgres user `publisher`, creates or reuses database
@@ -315,7 +300,7 @@ self-signed TLS mode once in the shell before running host-side `qrtrustctl`
 commands:
 
 ```bash
-export API_PUBLISH_PORT=8443
+export API_PUBLISH_PORT=8444
 export QRTRUSTCTL_INSECURE_TLS=true
 ```
 
@@ -394,14 +379,14 @@ broker-outage repair:
 
 ```bash
 python backend/scripts/qrtrustctl.py \
-  --base-url https://127.0.0.1:8443 \
+  --base-url https://127.0.0.1:8444 \
   --admin-token local-lab-admin \
   --insecure-tls \
   management-live-drill \
   --idempotency-prefix local-management-drill
 
 python backend/scripts/qrtrustctl.py \
-  --base-url https://127.0.0.1:8443 \
+  --base-url https://127.0.0.1:8444 \
   --admin-token local-lab-admin \
   --insecure-tls \
   management-live-drill \
@@ -705,7 +690,7 @@ When another local stack already owns the default host ports, prefer this
 side-by-side command:
 
 ```bash
-make up-admin API_PUBLISH_PORT=8010 FRONTEND_PUBLISH_PORT=5174 POSTGRES_PUBLISH_PORT=5433 REDIS_PUBLISH_PORT=6380
+make up-admin API_PUBLISH_PORT=8010 FRONTEND_PUBLISH_PORT=5175 POSTGRES_PUBLISH_PORT=5433 REDIS_PUBLISH_PORT=6380
 ```
 
 The PoC still uses its own containerized `postgres` and `redis` services; these
@@ -715,14 +700,14 @@ After the stack is running, verify both the backend verifier contract and the
 React workbench routes:
 
 ```bash
-make smoke-compose FRONTEND_PUBLISH_PORT=5174
+make smoke-compose FRONTEND_PUBLISH_PORT=5175
 ```
 
 For an HTTPS stack started with `make up-https-admin` or
 `make up-https-admin-shared-infra`, use:
 
 ```bash
-make smoke-compose-https FRONTEND_PUBLISH_PORT=5174
+make smoke-compose-https
 ```
 
 The smoke target checks:
@@ -899,26 +884,11 @@ It provides:
 - verifier API key issue and list refresh when admin tokens are configured
 - result history across verifier stages
 
-Legacy compatibility page:
+If API key auth is enabled on the server, enter the key in the workbench's
+`API key` field. The value is stored only in local browser storage and attached
+as `X-API-Key` on verifier POST requests.
 
-- `GET /verifier/lab`
-
-Keep it only while the React workbench is being validated across real devices or
-while you still need the backend-served page for comparison.
-
-The optional browser regression test for the lab lives at:
-
-- [test_verifier_lab_browser.py](../../backend/tests/test_verifier_lab_browser.py)
-
-The landing page for manual phone testing is served from:
-
-- `GET /`
-
-If API key auth is enabled on the server, enter the key in the lab's `API key`
-field. The value is stored only in local browser storage and attached as
-`X-API-Key` on verifier POST requests.
-
-If you run a separate frontend origin instead of the built-in lab, set
+If you run a separate frontend origin instead of the proxied workbench, set
 `CORS_ORIGINS` explicitly. The default public-safe runtime is same-origin.
 
 ## Compose-Backed Live HTTP Smoke
@@ -946,19 +916,18 @@ The public verifier surface uses sanitized request logging:
 - request and QR payload bodies are not logged
 - noisy third-party request logs are reduced to keep verifier traces readable
 
-## Legacy Experimental API
+## Removed Experimental API
 
-The older broad API surface is intentionally not exposed in the default public
-runtime:
+The older broad experimental surface has been removed from the codebase and is
+no longer mounted under any flag:
 
 - `/certificates/*`
 - `/qrcodes/*`
 - `/organizations/*`
 
-Those routes perform unauthenticated write operations and do not match the
-current public PoC boundary. They can be re-enabled locally with
-`ENABLE_LEGACY_EXPERIMENTAL_API=true` if you explicitly want to inspect or
-refactor them.
+Those routes performed unauthenticated write operations and did not match the
+public PoC boundary. Requests to them now return `404`. The supported HTTP
+surface is `/verifier/*`, `/scanner/*`, and `/admin/*`.
 
 ## Public Scope Boundary
 

@@ -66,57 +66,17 @@ def test_verifier_reference_api_accepts_then_blocks_replay(client: TestClient) -
     assert second_result.json()["stage"] == "replay_guard"
 
 
-def test_verifier_lab_page_is_served(client: TestClient) -> None:
-    response = client.get("/verifier/lab")
-    assert response.status_code == 200
-    assert "Verifier Reference Lab" in response.text
-    assert "/verifier/verify-scanned" in response.text
-    assert "/verifier/decode-image" in response.text
-    assert "Show QR fullscreen" in response.text
-    assert response.headers["cache-control"] == "no-store"
-    assert response.headers["x-request-id"]
-    assert response.headers["x-content-type-options"] == "nosniff"
-    assert response.headers["x-frame-options"] == "DENY"
-    assert response.headers["referrer-policy"] == "no-referrer"
-
-
-def test_verifier_qr_display_page_is_served(client: TestClient) -> None:
-    response = client.get("/verifier/qr-display")
-
-    assert response.status_code == 200
-    assert "Second-screen QR display" in response.text
-    assert "Enable high-contrast mode" in response.text
-    assert "Hide metadata" in response.text
-    assert "Back to verifier lab" in response.text
-    assert response.headers["cache-control"] == "no-store"
-    assert response.headers["x-request-id"]
-
-
-def test_verifier_demo_session_display_is_served(client: TestClient) -> None:
-    session_response = client.post("/verifier/demo-sessions", json={"nonce": "api-session-001"})
-    assert session_response.status_code == 200
-
-    session_payload = session_response.json()
-    assert session_payload["session_id"]
-    assert session_payload["display_path"].startswith("/verifier/demo-sessions/")
-
-    display_response = client.get(session_payload["display_path"])
-
-    assert display_response.status_code == 200
-    assert session_payload["session_id"] in display_response.text
-    assert "This QR belongs to the active verifier demo session." in display_response.text
-    assert display_response.headers["cache-control"] == "no-store"
-
-
-def test_root_landing_page_is_served(client: TestClient) -> None:
+def test_root_serves_service_descriptor(client: TestClient) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Open the lab first. Do not use the native camera as the verifier." in response.text
-    assert "/verifier/lab" in response.text
-    assert "Expected Scenarios" in response.text
+    assert response.headers["content-type"].startswith("application/json")
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-request-id"]
+    payload = response.json()
+    assert payload["service"] == "QR Code Verification API"
+    assert payload["version"]
+    assert payload["docs_url"] == "/docs"
 
 
 def test_verifier_status_reports_runtime_posture(
@@ -134,7 +94,6 @@ def test_verifier_status_reports_runtime_posture(
     assert payload["api_key_header"] == "X-API-Key"
     assert payload["admin_header"] == "X-Admin-Token"
     assert payload["decode_image_fallback_enabled"] is True
-    assert payload["legacy_experimental_api_enabled"] is False
     assert payload["redis_connected"] is False
     assert payload["distributed_rate_limiting_enabled"] is False
     assert payload["network_outbox"]["status"] == "unavailable"
@@ -1924,17 +1883,6 @@ def test_scanner_decision_route_remains_public_when_api_key_is_enabled(
     assert payload["decision_state"] == "unverified"
     assert payload["open_allowed"] is True
     assert payload["verifier_stage"] == "qr_decode"
-
-
-def test_verifier_lab_get_route_remains_public_when_api_key_is_enabled(
-    client: TestClient,
-    monkeypatch,
-) -> None:
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_API_KEYS", ["test-api-key"])
-
-    response = client.get("/verifier/lab")
-
-    assert response.status_code == 200
 
 
 def test_legacy_verifier_admin_api_key_routes_point_to_management_api(

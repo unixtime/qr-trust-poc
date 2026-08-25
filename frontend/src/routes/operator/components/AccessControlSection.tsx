@@ -112,7 +112,7 @@ function AccessControlSection({
   const adminHeader = credentials.runtimeStatus?.admin_header ?? "X-Admin-Token"
 
   return (
-    <Card className="h-fit min-w-0 border-border/70 bg-card/92 shadow-[0_18px_60px_rgba(22,29,24,0.08)]">
+    <Card className="h-fit min-w-0">
       <CardHeader>
         <AccessHeader adminFlowEnabled={adminFlowEnabled} />
       </CardHeader>
@@ -159,7 +159,7 @@ function AccessHeader({ adminFlowEnabled }: { adminFlowEnabled: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <div className="rounded-full border border-border/70 p-2 text-muted-foreground">
+        <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
           <WalletCards className="size-4" />
         </div>
         <div>
@@ -367,7 +367,7 @@ function LabHandoff({
 }) {
   const t = useT()
   return (
-    <div className="grid gap-3 rounded-[1.2rem] border border-border/70 bg-background/85 p-4">
+    <div className="grid gap-3 rounded-2xl border border-white/8 bg-white/3 p-4">
       <div className="grid gap-1">
         <h3 className="text-sm font-semibold text-foreground">
           {t("operator.access.handoff.title")}
@@ -376,7 +376,7 @@ function LabHandoff({
           {t("operator.access.handoff.body")}
         </p>
       </div>
-      <div className="rounded-[1.2rem] border border-border/70 bg-card/80 p-3 text-sm leading-6 text-muted-foreground">
+      <div className="rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3 text-sm leading-6 text-muted-foreground">
         {t(
           verifierKeys.sharedLabKey
             ? "operator.access.handoff.staged"
@@ -389,9 +389,9 @@ function LabHandoff({
           <ArrowRight className="size-4" />
         </Button>
         {verifierKeys.latestIssuedKey ? (
-          <div className="min-w-0 rounded-[1.2rem] border border-border/70 bg-card/80 p-3 text-xs leading-6 text-muted-foreground">
+          <div className="min-w-0 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3 text-xs leading-6 text-muted-foreground">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+              <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {t("operator.access.handoff.stagedKey")}
               </div>
               <Badge variant="secondary">
@@ -426,7 +426,7 @@ function VerifierKeyInventory({
   const t = useT()
   const canCallManagementApi = adminFlowEnabled || hasAdminCredential
   return (
-    <ScrollArea className="h-[300px] rounded-[1.2rem] border border-border/70 bg-background/80">
+    <ScrollArea className="h-[300px] rounded-2xl border border-white/8 bg-[rgba(5,10,18,0.35)]">
       <div className="grid gap-3 p-3">
         {!canCallManagementApi ? (
           <InventoryEmptyState>
@@ -448,7 +448,7 @@ function VerifierKeyRow({ record }: { record: ManagementApiKeyRecord }) {
   const t = useT()
   const isActive = record.status === "active"
   return (
-    <div className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-card/90 p-3">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-white/8 bg-white/3 p-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 truncate font-medium text-foreground">
           {record.label}
@@ -484,7 +484,7 @@ function ManagementKeyPanel({
   actions: AccessControlActions
 }) {
   return (
-    <div className="grid gap-4 rounded-[1.2rem] border border-border/70 bg-background/85 p-4">
+    <div className="grid gap-4 rounded-2xl border border-white/8 bg-white/3 p-4">
       <ManagementKeyHeader />
       <ManagementKeyFields credentials={credentials} actions={actions} />
       <ManagementKeyActions
@@ -621,9 +621,9 @@ function ManagementPlaintextNotice({ plaintextKey }: { plaintextKey: string }) {
   if (!plaintextKey) return null
 
   return (
-    <div className="min-w-0 rounded-[1.2rem] border border-trust-green/30 bg-trust-green/10 p-3 text-xs leading-6 text-foreground">
+    <div className="min-w-0 rounded-2xl border border-trust-green/30 bg-trust-green/10 p-3 text-xs leading-6 text-foreground">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="text-[11px] font-medium uppercase tracking-[0.16em]">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em]">
           {t("operator.access.plaintext.title")}
         </div>
         <Badge variant="secondary">{t("operator.access.plaintext.badge")}</Badge>
@@ -652,7 +652,7 @@ function ManagementKeyInventory({
 }) {
   const t = useT()
   return (
-    <ScrollArea className="h-[220px] rounded-[1.2rem] border border-border/70 bg-card/80">
+    <ScrollArea className="h-[220px] rounded-2xl border border-white/8 bg-[rgba(5,10,18,0.35)]">
       <div className="grid gap-3 p-3">
         {managementKeys.records.length === 0 ? (
           <InventoryEmptyState>
@@ -688,7 +688,7 @@ function ManagementKeyRow({
   const t = useT()
   const isActive = record.status === "active"
   return (
-    <div className="min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-background/90 p-3">
+    <div className="min-w-0 overflow-hidden rounded-2xl border border-white/8 bg-white/3 p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate font-medium text-foreground">{record.label}</div>
@@ -730,7 +730,7 @@ function ManagementKeyRow({
 
 function InventoryEmptyState({ children }: { children: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-border/80 bg-card/80 p-4 text-sm text-muted-foreground">
+    <div className="rounded-2xl border border-dashed border-white/12 bg-white/2 p-4 text-sm text-muted-foreground">
       {children}
     </div>
   )

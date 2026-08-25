@@ -25,7 +25,6 @@ Current public reference endpoints:
 - `POST /verifier/verify`
 - `POST /verifier/verify-scanned`
 - `POST /verifier/decode-image`
-- `GET /verifier/lab` as the legacy static compatibility page
 
 `POST /verifier/demo-materials` intentionally does not return the signing
 private key. It returns only the material needed to exercise the verifier flow.
@@ -35,8 +34,8 @@ The primary interactive client is now the React frontend in
 the same `/verifier/*` API surface and can optionally be served over local
 HTTPS for secure-context camera testing on iPhone Safari.
 
-Older `/certificates/*`, `/qrcodes/*`, and `/organizations/*` routes are not
-part of the public reference surface and are disabled by default.
+The older `/certificates/*`, `/qrcodes/*`, and `/organizations/*` experimental
+routes have been removed from the codebase and return `404`.
 
 POST endpoints under `/verifier/*` are rate-limited per client. Image decode is
 subject to a stricter limit than the other verifier actions because it is the

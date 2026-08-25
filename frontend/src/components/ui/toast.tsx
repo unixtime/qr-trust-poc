@@ -23,23 +23,23 @@ const toastToneClass: Record<
   { frame: string; icon: string; Icon: LucideIcon }
 > = {
   success: {
-    frame: "border-trust-green/30 bg-trust-green/10 text-foreground shadow-foreground/10",
+    frame: "border-trust-green/35 bg-linear-180 from-[rgba(15,25,39,0.92)] to-[rgba(9,16,26,0.94)] text-foreground shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8),0_0_24px_rgba(69,212,131,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]",
     icon: "bg-trust-green/15 text-trust-green",
     Icon: CheckCircle2,
   },
   warning: {
-    frame: "border-trust-amber/30 bg-trust-amber/10 text-foreground shadow-foreground/10",
+    frame: "border-trust-amber/35 bg-linear-180 from-[rgba(15,25,39,0.92)] to-[rgba(9,16,26,0.94)] text-foreground shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8),0_0_24px_rgba(245,165,36,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]",
     icon: "bg-trust-amber/15 text-trust-amber",
     Icon: AlertTriangle,
   },
   blocked: {
-    frame: "border-trust-red/30 bg-trust-red/10 text-foreground shadow-foreground/10",
+    frame: "border-trust-red/35 bg-linear-180 from-[rgba(15,25,39,0.92)] to-[rgba(9,16,26,0.94)] text-foreground shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8),0_0_24px_rgba(242,95,92,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]",
     icon: "bg-trust-red/15 text-trust-red",
     Icon: ShieldX,
   },
   neutral: {
-    frame: "border-border bg-card text-card-foreground shadow-foreground/10",
-    icon: "bg-muted text-muted-foreground",
+    frame: "border-white/10 bg-linear-180 from-[rgba(15,25,39,0.92)] to-[rgba(9,16,26,0.94)] text-card-foreground shadow-[0_24px_48px_-24px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)]",
+    icon: "bg-white/8 text-muted-foreground",
     Icon: Info,
   },
 }
@@ -65,7 +65,7 @@ export function ToastNotification({
         role="status"
         data-testid="scan-status-toast"
         className={cn(
-          "pointer-events-auto flex items-start gap-3 rounded-lg border p-3 shadow-xl backdrop-blur",
+          "pointer-events-auto flex items-start gap-3 rounded-2xl border p-3 backdrop-blur-md",
           frame,
         )}
       >

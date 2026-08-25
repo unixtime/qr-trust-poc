@@ -23,12 +23,16 @@ DOCS_PORT ?= 8088
 # does not search Homebrew's prefix. Empty on Linux/CI, where dyld is absent
 # and the loader ignores DYLD_* anyway.
 DOCS_CAIRO_ENV ?= $(shell for d in /opt/homebrew/lib /usr/local/lib; do if [ -f "$$d/libcairo.2.dylib" ]; then printf 'DYLD_FALLBACK_LIBRARY_PATH=%s' "$$d"; break; fi; done)
-HTTPS_API_PUBLISH_PORT ?= 8443
-HTTPS_FRONTEND_PUBLISH_PORT ?= 5174
+# The frontend owns the public 8443 origin; its Vite proxy forwards /verifier,
+# /admin, and /scanner to the API, so browsers and iOS clients dial one port.
+# The API itself publishes on loopback 8444 for host-side CLI use only.
+HTTPS_API_PUBLISH_PORT ?= 8444
+HTTPS_FRONTEND_PUBLISH_PORT ?= 8443
 # Advertised in provider profiles served by the HTTPS stack; must match the
 # hostname iOS clients dial (see scripts/write_ios_local_provider_config.sh).
+# Points at the frontend origin, which proxies /verifier/* to the API.
 # Empty (no LocalHostName) falls back to the backend's request-Host echo.
-HTTPS_VERIFIER_PUBLIC_BASE_URL ?= $(shell h=$$(scutil --get LocalHostName 2>/dev/null); if [ -n "$$h" ]; then printf 'https://%s.local:$(HTTPS_API_PUBLISH_PORT)' "$$h"; fi)
+HTTPS_VERIFIER_PUBLIC_BASE_URL ?= $(shell h=$$(scutil --get LocalHostName 2>/dev/null); if [ -n "$$h" ]; then printf 'https://%s.local:$(HTTPS_FRONTEND_PUBLISH_PORT)' "$$h"; fi)
 ROUTE_SMOKE_FRONTEND_BASE_URL ?= http://$(FRONTEND_DEV_HOST):$(FRONTEND_DEV_PORT)
 POSTGRES_PUBLISH_HOST ?= 127.0.0.1
 POSTGRES_PUBLISH_PORT ?= 5432
@@ -122,12 +126,19 @@ SEMGREP_VERSION ?= 1.172.0
 SEMGREP_CONFIG ?= p/default
 SEMGREP_SCOPE ?= backend/app scripts frontend/src network
 SEMGREP_MIN_TARGETS ?= 300
-# One residual parse error is expected: semgrep's bash parser chokes on the
-# "&" characters inside the query-string default in
-# scripts/compose_workbench_smoke.sh:7. The cap exists because a burst of
-# matching errors silently suppresses real findings -- three Pro-only rules
-# once crashed the matcher 600 times and hid half the results.
-SEMGREP_MAX_ERRORS ?= 1
+# Every semgrep error is lost coverage: a rule that crashes, times out, or
+# fails to parse a file silently drops the findings it would have matched.
+# Three Pro-only rules once crashed the matcher 600 times and hid half the
+# results, so the cap is zero and anything above it fails loud.
+#
+# The timeout is per rule per file and measured in wall-clock seconds, so it
+# scales with runner load, not with the code. The default of 5s tripped on a
+# busy shared runner for a rule that takes 0.4s on the same file locally,
+# and that transient tipped the gate red. 60s keeps a genuinely pathological
+# rule bounded (--timeout-threshold still skips a file after three of them)
+# while leaving contention far below the line.
+SEMGREP_MAX_ERRORS ?= 0
+SEMGREP_TIMEOUT ?= 60
 # The three rules below are Pro-only. On the free engine they do not just skip,
 # they crash the matcher on every candidate file and take unrelated analysis
 # down with them.
@@ -335,7 +346,7 @@ up-https-admin:
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
 	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
-	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_HOST='127.0.0.1' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	FRONTEND_PUBLISH_HOST='0.0.0.0' \
 	FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)' \
@@ -537,7 +548,7 @@ up-https-admin-shared-infra: ensure-shared-infra-db
 	@VERIFIER_ADMIN_TOKENS='$(VERIFIER_ADMIN_TOKENS)' \
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
-	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_HOST='127.0.0.1' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	FRONTEND_PUBLISH_HOST='0.0.0.0' \
 	FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)' \
@@ -560,7 +571,7 @@ up-https-admin-shared-infra-nats: ensure-shared-infra-db
 	@VERIFIER_ADMIN_TOKENS='$(VERIFIER_ADMIN_TOKENS)' \
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
-	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_HOST='127.0.0.1' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	FRONTEND_PUBLISH_HOST='0.0.0.0' \
 	FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)' \
@@ -626,7 +637,7 @@ up-https-admin-nats:
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
 	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
-	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_HOST='127.0.0.1' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	FRONTEND_PUBLISH_HOST='0.0.0.0' \
 	FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)' \
@@ -708,7 +719,7 @@ DEMO_BOOTSTRAP_STACK_ENV = \
 	VERIFIER_BOOTSTRAP_ADMIN_TOKENS_ENABLED='true' \
 	VERIFIER_TLS_ENABLED='true' \
 	VERIFIER_PUBLIC_BASE_URL='$(HTTPS_VERIFIER_PUBLIC_BASE_URL)' \
-	API_PUBLISH_HOST='0.0.0.0' \
+	API_PUBLISH_HOST='127.0.0.1' \
 	API_PUBLISH_PORT='$(HTTPS_API_PUBLISH_PORT)' \
 	POSTGRES_PUBLISH_HOST='$(POSTGRES_PUBLISH_HOST)' \
 	POSTGRES_PUBLISH_PORT='$(POSTGRES_PUBLISH_PORT)' \
@@ -1129,6 +1140,7 @@ security-audit-semgrep:
 	report="$$(mktemp "$${TMPDIR:-/tmp}/qrtrust-semgrep.XXXXXX")"; \
 	status=0; \
 	uvx semgrep@$(SEMGREP_VERSION) scan --config $(SEMGREP_CONFIG) --metrics=off --error \
+	  --timeout $(SEMGREP_TIMEOUT) \
 	  $(SEMGREP_EXCLUDED_RULES) --json -o "$$report" $(SEMGREP_SCOPE) || status=$$?; \
 	python3 scripts/security_audit.py --tool-status "$$status" semgrep "$$report" \
 	  --min-targets $(SEMGREP_MIN_TARGETS) --max-errors $(SEMGREP_MAX_ERRORS); \

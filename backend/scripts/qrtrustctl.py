@@ -77,7 +77,7 @@ def default_base_url() -> str:
     if host in {"0.0.0.0", "::", "[::]"}:
         host = "127.0.0.1"
     port = os.getenv("API_PUBLISH_PORT", "8000").strip() or "8000"
-    scheme = "https" if port == "8443" else "http"
+    scheme = "https" if port == "8444" else "http"
     return f"{scheme}://{host}:{port}"
 
 

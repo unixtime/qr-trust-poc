@@ -21,7 +21,7 @@ const DEFAULT_JSON_OUTPUT = fileURLToPath(
 const DEFAULT_MARKDOWN_OUTPUT = fileURLToPath(
   new URL("../../../local/scanner-fleet-capture-drill.md", import.meta.url),
 )
-const DEFAULT_LAB_BASE_URL = "http://127.0.0.1:5174/lab"
+const DEFAULT_LAB_BASE_URL = "https://127.0.0.1:8443/lab"
 
 type UsagePolicy = "one_time" | "reusable_public"
 type NonceMode = "fixed" | "timestamped"
@@ -433,7 +433,7 @@ function renderMarkdown(drill: CaptureDrill): string {
     "Set `QRTRUST_SCANNER_LAB_BASE_URL` if your browser lab is not on the default local URL.",
     "",
     "```bash",
-    "QRTRUST_SCANNER_LAB_BASE_URL=https://<mac-lan-ip>:5174/lab make scanner-fleet-capture-drill",
+    "QRTRUST_SCANNER_LAB_BASE_URL=https://<mac-lan-ip>:8443/lab make scanner-fleet-capture-drill",
     "```",
     "",
     "## Global Capture Rules",

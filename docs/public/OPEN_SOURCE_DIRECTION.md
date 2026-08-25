@@ -68,5 +68,4 @@ Next architecture direction:
 Current public API direction:
 
 - canonical reference path: `/verifier/*`
-- primary browser client path: React frontend on `:5173`
-- legacy compatibility client path: `/verifier/lab`
+- primary browser client path: React workbench over local HTTPS on `:8443` (`:5173` is only the plain-compose dev default)

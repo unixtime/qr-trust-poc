@@ -44,7 +44,7 @@ make dev-frontend-https
 That points the Vite proxy at:
 
 ```text
-https://127.0.0.1:8443
+https://127.0.0.1:8444
 ```
 
 Override that target if needed:
@@ -63,7 +63,7 @@ Optional local HTTPS for iPhone Safari camera testing:
 FRONTEND_TLS_ENABLED=true \
 FRONTEND_TLS_CERT_FILE=../local/https/verifier-lab.pem \
 FRONTEND_TLS_KEY_FILE=../local/https/verifier-lab-key.pem \
-VITE_BACKEND_TARGET=https://127.0.0.1:8443 \
+VITE_BACKEND_TARGET=https://127.0.0.1:8444 \
 npm run dev -- --host 0.0.0.0 --port 5173
 ```
 

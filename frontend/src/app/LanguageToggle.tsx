@@ -37,7 +37,7 @@ export function LanguageToggle({ className }: { className?: string }) {
       role="group"
       aria-label={t("shell.language.label")}
       className={cn(
-        "flex items-center gap-0.5 rounded-md border border-border p-0.5",
+        "flex items-center gap-0.5 rounded-full border border-white/10 p-[3px]",
         className
       )}
     >
@@ -59,9 +59,9 @@ export function LanguageToggle({ className }: { className?: string }) {
             aria-label={t(option.nameKey)}
             onClick={() => setLocale(option.locale)}
             className={cn(
-              "rounded-[calc(var(--radius-sm)-1px)] px-2 py-1 text-xs font-medium transition-colors",
+              "rounded-full px-2 py-1 text-xs font-medium transition-colors",
               active
-                ? "bg-secondary text-foreground"
+                ? "bg-white/8 text-foreground"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >

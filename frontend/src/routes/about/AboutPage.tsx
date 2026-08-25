@@ -56,7 +56,7 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="aurora-text text-3xl font-bold tracking-tight">
           {t("about.title")}
         </h1>
         <p className="text-sm text-muted-foreground">{t("about.subtitle")}</p>
@@ -66,7 +66,7 @@ export default function AboutPage({ onNavigate }: AboutPageProps) {
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-stretch sm:gap-2">
           {trustChecks.map((check, index) => (
             <div key={check.id} className="flex flex-1 items-center gap-2">
-              <div className="flex flex-1 flex-col gap-1 rounded-md border border-border bg-muted/40 p-3">
+              <div className="flex flex-1 flex-col gap-1 rounded-2xl border border-white/8 bg-white/3 p-3">
                 <Eyebrow tone="primary">
                   {index + 1}
                 </Eyebrow>

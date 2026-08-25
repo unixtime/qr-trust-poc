@@ -9,7 +9,7 @@ export function resolveBackendTarget(env) {
       : "127.0.0.1"
   const backendProtocol = resolveBackendProtocol(env)
   const backendPort =
-    env.API_PUBLISH_PORT || (backendProtocol === "https" ? "8443" : "8000")
+    env.API_PUBLISH_PORT || (backendProtocol === "https" ? "8444" : "8000")
 
   return `${backendProtocol}://${backendHost}:${backendPort}`
 }
@@ -21,7 +21,7 @@ function resolveBackendProtocol(env) {
   if (env.VERIFIER_TLS_ENABLED === "false") {
     return "http"
   }
-  if (env.API_PUBLISH_PORT && env.API_PUBLISH_PORT !== "8443") {
+  if (env.API_PUBLISH_PORT && env.API_PUBLISH_PORT !== "8444") {
     return "http"
   }
   return "https"

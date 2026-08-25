@@ -87,7 +87,7 @@ const defaultTrustKeyFormState: TrustKeyFormState = {
 }
 
 const selectClassName =
-  "h-10 rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+  "h-10 rounded-lg border border-white/10 bg-[rgba(5,10,18,0.45)] px-2.5 text-sm shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
 
 function splitTextItems(value: string) {
   return value
@@ -141,7 +141,7 @@ function WorkflowFormShell({
   return (
     <form
       onSubmit={onSubmit}
-      className="grid gap-4 rounded-2xl border border-border/70 bg-card/75 p-4"
+      className="grid gap-4 rounded-2xl border border-white/8 bg-white/3 p-4"
     >
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="grid gap-1">
@@ -1067,7 +1067,7 @@ function DestinationPolicyForm({
             aria-label={t("operator.workflow.field.allowSubdomains")}
             checked={allowSubdomains}
             onChange={(event) => setAllowSubdomains(event.target.checked)}
-            className="size-4 rounded border border-input"
+            className="size-4 rounded border border-white/15 bg-[rgba(5,10,18,0.45)] accent-[#45D483]"
           />
           <FieldLabel htmlFor="management-allow-subdomains">
             {t("operator.workflow.field.allowSubdomains")}
@@ -1491,7 +1491,7 @@ function ReadOnlyWorkflowPanel({
   const t = useT()
 
   return (
-    <div className="grid gap-3 rounded-2xl border border-border/70 bg-card/75 p-4">
+    <div className="grid gap-3 rounded-2xl border border-white/8 bg-white/3 p-4">
       <div className="grid gap-1">
         <h4 className="text-base font-semibold text-foreground">{t(title)}</h4>
         <p className="text-sm leading-6 text-muted-foreground">

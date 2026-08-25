@@ -21,11 +21,18 @@ export const en = {
   "shell.nav.workflow": "Workflow",
   "shell.nav.operator": "Operator",
   "shell.nav.about": "About",
+  "shell.nav.menu": "Menu",
   "shell.language.label": "Language",
   "shell.language.en": "English",
   "shell.language.es": "Español",
   "shell.language.enShort": "EN",
   "shell.language.esShort": "ES",
+  "shell.microbar.protocol": "Signed QR protocol",
+  "shell.microbar.build": "Proof-of-concept build",
+  "shell.footer.tagline": "Every scan is a signed decision",
+  "shell.status.operational": "Operational",
+  "shell.status.offline": "Offline",
+  "shell.status.checking": "Checking",
 
   // ── App-level routes ─────────────────────────────────────────────────────
   "app.notFound.eyebrow": "Route not found",
@@ -79,12 +86,17 @@ export const en = {
   "lab.usagePolicy.timeLimited": "Time-limited",
 
   // ── Lab: scenario picker ─────────────────────────────────────────────────
-  "lab.scenarioStep.title": "Pick a scenario",
+  "lab.scenarioStep.eyebrow": "Scenario library",
+  "lab.scenarioStep.eyebrowDetail": "Signed demo set · {count} envelopes",
+  "lab.scenarioStep.titleLead": "{count} scenarios.",
+  "lab.scenarioStep.titleAccent": "One honest verdict.",
   "lab.scenarioStep.subtitle":
     "Each scenario issues a QR whose trust evidence passes or fails one specific check.",
+  "lab.scenarioStep.filter.all": "All",
   "lab.scenarioStep.compare.show": "Compare against a second scenario",
   "lab.scenarioStep.compare.hide": "Hide comparison",
   "lab.scenarioStep.compare.none": "None",
+  "lab.scenarioStep.active": "Active",
   "lab.scenarioStep.next": "Next: Generate QR",
 
   // ── Lab: scenario groups ─────────────────────────────────────────────────
@@ -172,6 +184,10 @@ export const en = {
   "lab.generate.verifying": "Verifying…",
   "lab.generate.qrAlt": "Generated verifier QR",
   "lab.generate.fullscreen": "View full screen",
+  "lab.generate.sealed.badge": "Signed",
+  "lab.generate.sealed.nonce": "Nonce",
+  "lab.generate.sealed.policy": "Policy",
+  "lab.generate.sealed.issued": "Issued",
   "lab.generate.verifierReason": "Verifier reason:",
   "lab.generate.advanced": "Advanced options",
   "lab.generate.nonceMode": "Nonce mode",
@@ -193,6 +209,7 @@ export const en = {
   "lab.scan.next": "Next: Verdict & evidence",
 
   // ── Lab: verdict step ────────────────────────────────────────────────────
+  "lab.verdict.eyebrow": "Verdict console",
   "lab.verdict.title": "Verdict & evidence",
   "lab.verdict.subtitle":
     "Every trust check the scanner ran, with its raw evidence.",
@@ -210,6 +227,38 @@ export const en = {
     'Scan the QR with the camera in step 3, or use the simulated scan ("{action}") there.',
   "lab.verdict.empty.cta": "Back to Scan",
   "lab.verdict.rawEvidence": "Raw evidence",
+  "lab.verdict.gates.label": "Trust gates",
+  // Screen-reader text for the gates ring; the visible ring shows only the
+  // bare `{passed}/{total}` figure.
+  "lab.verdict.gates.aria": "{passed} of {total} trust gates passed",
+  // Visible sibling of the aria string: the pass-count chip in the trust-path
+  // card header, echoing the ring's figure in words.
+  "lab.verdict.gates.chip": "{passed}/{total} passed",
+  // Eyebrow meta line: the wire decision id and its timestamp.
+  "lab.verdict.eyebrowDetail": "Decision {id} · {time}",
+  "lab.verdict.crypto.claimsHash": "Claims SHA-256",
+  "lab.verdict.crypto.matchedRule": "Matched rule",
+  "lab.verdict.crypto.reservationState": "Reservation state",
+  "lab.verdict.destination.title": "Destination",
+  "lab.verdict.destination.description":
+    "Where this code points, resolved by the verifier.",
+  "lab.verdict.destination.display": "Displayed URL",
+  "lab.verdict.destination.host": "Host",
+  "lab.verdict.destination.binding": "Binding",
+  "lab.verdict.destination.resolver": "Resolver URL",
+  "lab.verdict.destination.final": "Final URL",
+  "lab.verdict.destination.redirects": "Redirect hops",
+  "lab.verdict.destination.redirectPolicy": "Redirect policy",
+  "lab.verdict.destination.fingerprint": "Fingerprint",
+  // Hero CTAs: the open button only renders when the verifier itself allowed
+  // the open, so the copy can state the action plainly.
+  "lab.verdict.cta.open": "Open destination",
+  "lab.verdict.cta.inspect": "Inspect evidence",
+  // Under the gates ring — says where the number comes from, nothing more.
+  "lab.verdict.ring.caption": "Computed from the trust gates below",
+  "lab.verdict.sealed.title": "Sealed artifact",
+  "lab.verdict.destination.footnote":
+    "Resolved by the verifier from the signed envelope.",
 
   // ── Lab: fullscreen QR display ───────────────────────────────────────────
   "lab.qrModal.eyebrow": "Fullscreen QR display",
@@ -953,7 +1002,6 @@ export const en = {
   "operator.runtime.metric.decodeLimit": "Decode limit",
   "operator.runtime.metric.verifyLimit": "Verify limit",
   "operator.runtime.metric.cameraFallback": "Camera fallback",
-  "operator.runtime.metric.legacyApi": "Legacy experimental API",
   "operator.runtime.metric.apiKeyHeader": "API key header",
   "operator.runtime.metric.adminHeader": "Admin header",
   "operator.runtime.metric.supervisor": "Supervisor",

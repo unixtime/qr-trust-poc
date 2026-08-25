@@ -276,7 +276,6 @@ struct VerifierRuntimeStatus: Decodable, Equatable {
     let redisConnected: Bool
     let distributedRateLimitingEnabled: Bool
     let decodeImageFallbackEnabled: Bool
-    let legacyExperimentalAPIEnabled: Bool
     let rateLimitWindowSeconds: Int
     let rateLimitMaxRequests: Int
     let decodeRateLimitMaxRequests: Int
@@ -292,7 +291,6 @@ struct VerifierRuntimeStatus: Decodable, Equatable {
         case redisConnected = "redis_connected"
         case distributedRateLimitingEnabled = "distributed_rate_limiting_enabled"
         case decodeImageFallbackEnabled = "decode_image_fallback_enabled"
-        case legacyExperimentalAPIEnabled = "legacy_experimental_api_enabled"
         case rateLimitWindowSeconds = "rate_limit_window_seconds"
         case rateLimitMaxRequests = "rate_limit_max_requests"
         case decodeRateLimitMaxRequests = "decode_rate_limit_max_requests"

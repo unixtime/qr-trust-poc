@@ -17,7 +17,7 @@ function Card({
       data-size={size}
       data-interactive={interactive}
       className={cn(
-        "group/card flex flex-col gap-4 overflow-hidden rounded-lg border border-border bg-card py-4 text-sm text-card-foreground transition-[border-color,box-shadow,translate] duration-200 ease-out has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-lg *:[img:last-child]:rounded-b-lg data-[interactive=true]:hover:border-(--border-accent) data-[interactive=true]:hover:shadow-(--glow) data-[interactive=true]:motion-safe:hover:-translate-y-0.5",
+        "group/card flex flex-col gap-4 overflow-hidden rounded-xl border border-(--glass-border) bg-card bg-(image:--glass) py-4 text-sm text-card-foreground shadow-(--glass-shadow) transition-[border-color,box-shadow,translate] duration-200 ease-out has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl data-[interactive=true]:hover:border-(--border-accent) data-[interactive=true]:hover:shadow-(--glass-shadow-glow) data-[interactive=true]:motion-safe:hover:-translate-y-0.5",
         className
       )}
       {...props}

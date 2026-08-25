@@ -45,11 +45,11 @@ def test_qrtrustctl_derives_local_https_base_url_from_api_publish_env(
 
     monkeypatch.delenv("QRTRUSTCTL_BASE_URL", raising=False)
     monkeypatch.setenv("API_PUBLISH_HOST", "0.0.0.0")
-    monkeypatch.setenv("API_PUBLISH_PORT", "8443")
+    monkeypatch.setenv("API_PUBLISH_PORT", "8444")
 
     args = qrtrustctl.build_parser().parse_args(["audit-list"])
 
-    assert args.base_url == "https://127.0.0.1:8443"
+    assert args.base_url == "https://127.0.0.1:8444"
 
 
 def test_qrtrustctl_outbox_status_defaults_to_full_operator_window() -> None:

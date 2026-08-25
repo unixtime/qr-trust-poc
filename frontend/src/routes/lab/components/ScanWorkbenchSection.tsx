@@ -427,7 +427,7 @@ function ScannerDecisionPanel({
 
   return (
     <div
-      className={`overflow-hidden rounded-lg border ${cardClass}`}
+      className={`overflow-hidden rounded-2xl border ${cardClass}`}
     >
       <div
         className={cn("h-2 w-full", riskStripeClass(scannerUx?.risk_stripe ?? riskLevel))}
@@ -457,7 +457,7 @@ function ScannerDecisionPanel({
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-[1.35rem] border border-current/10 bg-background/50 p-4">
+        <div className="grid gap-3 rounded-2xl border border-current/10 bg-background/50 p-4">
           <div className="text-3xl font-black tracking-[-0.055em]">
             {t(scannerDecisionLabelKey(decision))}
           </div>
@@ -466,7 +466,7 @@ function ScannerDecisionPanel({
           </p>
         </div>
 
-        <div className="rounded-[1.35rem] border border-current/10 bg-background/52 p-4">
+        <div className="rounded-2xl border border-current/10 bg-background/52 p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <Eyebrow as="div" tone="current">
@@ -482,7 +482,7 @@ function ScannerDecisionPanel({
             {t("lab.scanner.fingerprint.note")}
           </p>
           {destinationUrl ? (
-            <details className="mt-3 rounded-[1rem] border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/68">
+            <details className="mt-3 rounded-xl border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/68">
               <summary className="cursor-pointer select-none font-semibold">
                 {t("lab.scanner.showFullUrl")}
               </summary>
@@ -492,7 +492,7 @@ function ScannerDecisionPanel({
         </div>
 
         {reasonCodes.length ? (
-          <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
+          <div className="rounded-2xl border border-current/10 bg-background/42 p-4">
             <Eyebrow as="div" tone="current">
               {t("lab.scanner.whyThisResult")}
             </Eyebrow>
@@ -502,7 +502,7 @@ function ScannerDecisionPanel({
                 return (
                   <div
                     key={code}
-                    className="rounded-[1rem] border border-current/10 bg-background/45 p-3"
+                    className="rounded-xl border border-current/10 bg-background/45 p-3"
                   >
                     <div className="text-sm font-semibold text-current">
                       {copy.label}
@@ -518,7 +518,7 @@ function ScannerDecisionPanel({
         ) : null}
 
         {trustPath.length ? (
-          <div className="rounded-[1.35rem] border border-current/10 bg-background/35 p-4">
+          <div className="rounded-2xl border border-current/10 bg-background/35 p-4">
             <div className="flex items-center justify-between gap-3">
               <Eyebrow as="div" tone="current">
                 {t("lab.scanner.trustPath")}
@@ -531,7 +531,7 @@ function ScannerDecisionPanel({
               {trustPath.map((step, index) => (
                 <div
                   key={`${step.label}:${step.status}`}
-                  className={`rounded-[1rem] border p-3 ${riskPillClass(trustStatusTone(step.status))}`}
+                  className={`rounded-xl border p-3 ${riskPillClass(trustStatusTone(step.status))}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -569,7 +569,7 @@ function ScannerDecisionPanel({
           </div>
         ) : null}
 
-        <div className="rounded-[1.35rem] border border-current/10 bg-background/42 p-4">
+        <div className="rounded-2xl border border-current/10 bg-background/42 p-4">
           <Eyebrow as="div" tone="current">
             {t("lab.scanner.userAction")}
           </Eyebrow>
@@ -600,7 +600,7 @@ function ScannerDecisionPanel({
               {t("lab.scanner.dismiss")}
             </Button>
           </div>
-          <details className="mt-3 rounded-[1rem] border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/66">
+          <details className="mt-3 rounded-xl border border-current/10 bg-background/35 px-3 py-2 text-xs text-current/66">
             <summary className="cursor-pointer select-none font-semibold">
               {t("lab.scanner.technicalDetails")}
             </summary>
@@ -695,22 +695,22 @@ export function ScanWorkbenchSection({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="border-b border-border/60 bg-card/72">
+      <CardHeader className="border-b border-white/8 bg-white/3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-border/70 bg-card px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="rounded-full border border-white/8 bg-white/3 px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                 {t("lab.workbench.eyebrow")}
               </span>
             </div>
-            <CardTitle className="mt-3 text-2xl font-black tracking-[-0.03em] md:text-3xl">
+            <CardTitle className="aurora-text mt-3 text-2xl font-bold tracking-tight md:text-3xl">
               {t("lab.workbench.title")}
             </CardTitle>
             <CardDescription className="mt-2 max-w-2xl leading-6">
               {t("lab.workbench.description")}
             </CardDescription>
           </div>
-          <div className="rounded-xl border border-border/60 bg-card/72 px-3 py-2 text-sm leading-6 text-muted-foreground">
+          <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm leading-6 text-muted-foreground">
             <span className="font-medium text-foreground">
               {t("lab.workbench.decoderLabel")}
             </span>{" "}
@@ -731,7 +731,7 @@ export function ScanWorkbenchSection({
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="grid gap-4">
-            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/60 bg-primary/8 p-4">
+            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-primary/20 bg-primary/8 p-4">
               <Button disabled={isDecodingImage} onClick={openImagePicker}>
                 <Upload data-icon="inline-start" />
                 {isDecodingImage
@@ -743,7 +743,7 @@ export function ScanWorkbenchSection({
               </p>
             </div>
 
-            <FieldGroup className="rounded-[1rem] border border-border/60 bg-card/72 p-4">
+            <FieldGroup className="rounded-2xl border border-white/8 bg-white/3 p-4">
               <Field>
                 <FieldLabel htmlFor="decoded-payload">
                   {t("lab.workbench.payload.label")}
@@ -753,7 +753,7 @@ export function ScanWorkbenchSection({
                   value={scannedPayload}
                   onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setScannedPayload(event.target.value)}
                   placeholder={t("lab.workbench.payload.placeholder")}
-                  className="min-h-[220px] bg-background/85"
+                  className="min-h-[220px]"
                 />
                 <FieldDescription>
                   {t("lab.workbench.payload.description")}
@@ -761,7 +761,7 @@ export function ScanWorkbenchSection({
               </Field>
             </FieldGroup>
 
-            <div className="flex flex-wrap gap-3 rounded-lg border border-border/60 bg-primary/8 p-3">
+            <div className="flex flex-wrap gap-3 rounded-2xl border border-primary/20 bg-primary/8 p-3">
               <Button
                 onClick={verifyScannedPayload}
                 disabled={!scannedPayload.trim() || isVerifyingScanned}
@@ -777,7 +777,7 @@ export function ScanWorkbenchSection({
               </Button>
             </div>
 
-            <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4">
+            <div className="grid gap-4 rounded-2xl border border-white/8 bg-white/3 p-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Button
                   variant="outline"
@@ -800,7 +800,7 @@ export function ScanWorkbenchSection({
               <div className={isCameraPanelOpen ? "grid gap-4" : "hidden"}>
                 <div
                   className={cn(
-                    "relative overflow-hidden rounded-lg border bg-background",
+                    "relative overflow-hidden rounded-2xl border bg-[rgba(5,10,18,0.55)]",
                     frameFlashTone === "success"
                       ? "border-trust-green shadow-(--glow)"
                       : frameFlashTone === "blocked"
@@ -822,7 +822,7 @@ export function ScanWorkbenchSection({
                     }`}
                   >
                     <div className="max-w-md">
-                      <div className="mx-auto mb-4 grid size-16 place-items-center rounded-lg border border-border bg-muted/40">
+                      <div className="mx-auto mb-4 grid size-16 place-items-center rounded-2xl border border-white/10 bg-white/5">
                         <QrCode className="size-7 text-primary" />
                       </div>
                       {cameraOverlay}
@@ -839,7 +839,7 @@ export function ScanWorkbenchSection({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 rounded-lg border border-border/60 bg-primary/8 p-3">
+                <div className="flex flex-wrap gap-3 rounded-2xl border border-primary/20 bg-primary/8 p-3">
                   <Button
                     onClick={startCamera}
                     disabled={!cameraSupported || isStartingCamera || isCameraRunning}
@@ -861,7 +861,7 @@ export function ScanWorkbenchSection({
                   </Button>
                 </div>
 
-                <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-card/72 p-4 md:grid-cols-2">
+                <div className="grid gap-4 rounded-2xl border border-white/8 bg-white/3 p-4 md:grid-cols-2">
                   <Field>
                     <FieldLabel htmlFor="camera-source">
                       {t("lab.workbench.cameraSource.label")}
@@ -946,7 +946,7 @@ export function ScanWorkbenchSection({
               />
             ) : null}
             <StatusPanel label={t("lab.workbench.scanStatus")} message={scanStatus} />
-            <div className="rounded-[1.4rem] border border-border bg-background/80 p-4">
+            <div className="rounded-2xl border border-white/8 bg-white/3 p-4">
               <Eyebrow as="div" className="flex items-center gap-2">
                 <QrCode className="size-4" />
                 {t("lab.workbench.secondScreen.title")}

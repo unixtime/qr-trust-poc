@@ -105,9 +105,9 @@ fi
 
 LAN_IP="${IPHONE_LAN_IP:-$(detect_lan_ip | head -n 1 || true)}"
 if [ -n "$LAN_IP" ]; then
-  LAB_URL="https://${LAN_IP}:5174/"
+  LAB_URL="https://${LAN_IP}:8443/"
 else
-  LAB_URL="https://<your-mac-lan-ip>:5174/"
+  LAB_URL="https://<your-mac-lan-ip>:8443/"
 fi
 
 mkdir -p "$INCOMING_DIR" "$ACCESSIBILITY_TEMPLATE_DIR"
@@ -130,7 +130,7 @@ ${PACKET_JSON}
 
 \`\`\`bash
 make smoke-ios
-make up-https-admin-shared-infra FRONTEND_PUBLISH_PORT=5174
+make up-https-admin-shared-infra
 make iphone-evidence-preflight
 make scanner-fleet-capture-drill
 make iphone-evidence-status

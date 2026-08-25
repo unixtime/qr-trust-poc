@@ -140,10 +140,10 @@ function decisionColorClassName(color: string) {
 
 function evidenceTabClassName(isActive: boolean) {
   return [
-    "min-w-0 rounded-[1.15rem] border p-3 text-left transition",
+    "min-w-0 rounded-2xl border p-3 text-left transition",
     isActive
       ? "border-(--border-accent) bg-card shadow-(--glow)"
-      : "border-border/70 bg-card/75 hover:border-primary/40 hover:bg-card/95",
+      : "border-white/8 bg-white/3 hover:border-primary/40 hover:bg-white/6",
   ].join(" ")
 }
 
@@ -192,9 +192,9 @@ function OperatorActionNote({
   const toneClass = OPERATOR_ACTION_TONE_CLASS[tone]
 
   return (
-    <div className={`mt-4 rounded-[1.1rem] border p-3 ${toneClass.box}`}>
+    <div className={`mt-4 rounded-2xl border p-3 ${toneClass.box}`}>
       <div
-        className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${toneClass.eyebrow}`}
+        className={`font-mono text-[11px] font-semibold uppercase tracking-[0.16em] ${toneClass.eyebrow}`}
       >
         {t(eyebrowKey)}
       </div>
@@ -257,7 +257,7 @@ function networkOutboxActionNote(
       titleKey: "operator.runtime.note.outboxQuarantined.title",
       bodyKey: "operator.runtime.note.outboxQuarantined.body",
       command:
-        "./backend/.venv/bin/python backend/scripts/qrtrustctl.py --base-url https://127.0.0.1:8443 --admin-token local-lab-admin --insecure-tls outbox-status",
+        "./backend/.venv/bin/python backend/scripts/qrtrustctl.py --base-url https://127.0.0.1:8444 --admin-token local-lab-admin --insecure-tls outbox-status",
       tone: "red",
     }
   }
@@ -393,8 +393,8 @@ function NetworkOutboxPanel({ runtimeStatus }: { runtimeStatus: VerifierStatus |
 
   if (!runtimeStatus || !outbox) {
     return (
-      <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-background/80 p-4">
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t("operator.runtime.outbox.eyebrow")}
         </div>
         <p className="mt-2 text-sm font-medium text-foreground">
@@ -409,10 +409,10 @@ function NetworkOutboxPanel({ runtimeStatus }: { runtimeStatus: VerifierStatus |
   const actionNote = networkOutboxActionNote(outbox)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
+    <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.outbox.eyebrow")}
           </div>
           <h3 className="mt-2 text-base font-semibold text-foreground">
@@ -488,7 +488,7 @@ function NetworkOutboxPanel({ runtimeStatus }: { runtimeStatus: VerifierStatus |
           {outbox.reasons.map((reason) => (
             <span
               key={reason}
-              className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+              className="rounded-full border border-white/8 bg-white/3 px-3 py-1 text-xs font-medium text-muted-foreground"
             >
               {formatReasonLabel(reason)}
             </span>
@@ -496,7 +496,7 @@ function NetworkOutboxPanel({ runtimeStatus }: { runtimeStatus: VerifierStatus |
         </div>
       ) : null}
       {outbox.error ? (
-        <p className="mt-3 rounded-2xl border border-border/70 bg-background/75 p-3 text-xs leading-5 text-muted-foreground">
+        <p className="mt-3 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3 text-xs leading-5 text-muted-foreground">
           {outbox.error}
         </p>
       ) : null}
@@ -511,8 +511,8 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
 
   if (!runtimeStatus || !decisions) {
     return (
-      <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-background/80 p-4">
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t("operator.runtime.decisions.eyebrow")}
         </div>
         <p className="mt-2 text-sm font-medium text-foreground">
@@ -528,14 +528,14 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
   const actionNote = scannerDecisionActionNote(decisions)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
+    <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
+          <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
             <ScanLine className="size-4" />
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               {t("operator.runtime.decisions.eyebrow")}
             </div>
             <h3 className="mt-2 text-base font-semibold text-foreground">
@@ -552,9 +552,9 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{decisions.summary}</p>
       {actionNote ? <OperatorActionNote {...actionNote} /> : null}
       <div
-        className={`mt-4 rounded-[1.1rem] border p-3 ${scannerDecisionPanelClassName(decisions.status)}`}
+        className={`mt-4 rounded-2xl border p-3 ${scannerDecisionPanelClassName(decisions.status)}`}
       >
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
           {t("operator.runtime.decisions.whyTitle")}
         </div>
         <p className="mt-2 text-sm leading-6">
@@ -617,8 +617,8 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
         />
       </div>
       {report && recentDecisions.length === 0 ? (
-        <div className="mt-4 rounded-[1.1rem] border border-dashed border-border/80 bg-background/70 p-4">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-dashed border-white/12 bg-white/2 p-4">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.decisions.empty.eyebrow")}
           </div>
           <p className="mt-2 text-sm font-medium text-foreground">
@@ -630,15 +630,15 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
         </div>
       ) : null}
       {recentDecisions.length > 0 ? (
-        <div className="mt-4 rounded-[1.1rem] border border-border/70 bg-background/75 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.decisions.recent")}
           </div>
           <div className="mt-3 grid gap-2">
             {recentDecisions.slice(0, 4).map((decision) => (
               <div
                 key={`${decision.decision_id}-${decision.created_at}`}
-                className="min-w-0 rounded-2xl border border-border/70 bg-card/90 p-3"
+                className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -669,7 +669,7 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
                     {decision.reason_codes.map((reason) => (
                       <span
                         key={reason}
-                        className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                        className="rounded-full border border-white/8 bg-white/3 px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
                       >
                         {formatReasonLabel(reason)}
                       </span>
@@ -686,7 +686,7 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
           {decisions.reasons.map((reason) => (
             <span
               key={reason}
-              className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+              className="rounded-full border border-white/8 bg-white/3 px-3 py-1 text-xs font-medium text-muted-foreground"
             >
               {formatReasonLabel(reason)}
             </span>
@@ -694,7 +694,7 @@ function ScannerDecisionsPanel({ runtimeStatus }: { runtimeStatus: VerifierStatu
         </div>
       ) : null}
       {decisions.error ? (
-        <p className="mt-3 rounded-2xl border border-border/70 bg-background/75 p-3 text-xs leading-5 text-muted-foreground">
+        <p className="mt-3 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3 text-xs leading-5 text-muted-foreground">
           {decisions.error}
         </p>
       ) : null}
@@ -709,8 +709,8 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
 
   if (!runtimeStatus || !observations) {
     return (
-      <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-background/80 p-4">
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+      <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           {t("operator.runtime.observations.eyebrow")}
         </div>
         <p className="mt-2 text-sm font-medium text-foreground">
@@ -727,14 +727,14 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
   const actionNote = runtimeObservationActionNote(observations)
 
   return (
-    <div className="min-w-0 rounded-[1.35rem] border border-border/70 bg-card/60 p-4">
+    <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
+          <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
             <Radar className="size-4" />
           </div>
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               {t("operator.runtime.observations.eyebrow")}
             </div>
             <h3 className="mt-2 text-base font-semibold text-foreground">
@@ -751,9 +751,9 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{observations.summary}</p>
       {actionNote ? <OperatorActionNote {...actionNote} /> : null}
       <div
-        className={`mt-4 rounded-[1.1rem] border p-3 ${observationPanelClassName(observations.status)}`}
+        className={`mt-4 rounded-2xl border p-3 ${observationPanelClassName(observations.status)}`}
       >
-        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
+        <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
           {t("operator.runtime.observations.interpretation")}
         </div>
         <p className="mt-2 text-sm leading-6">
@@ -818,8 +818,8 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
         />
       </div>
       {report && topHosts.length === 0 ? (
-        <div className="mt-4 rounded-[1.1rem] border border-dashed border-border/80 bg-background/70 p-4">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-dashed border-white/12 bg-white/2 p-4">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.observations.empty.eyebrow")}
           </div>
           <p className="mt-2 text-sm font-medium text-foreground">
@@ -831,15 +831,15 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
         </div>
       ) : null}
       {topHosts.length > 0 ? (
-        <div className="mt-4 rounded-[1.1rem] border border-border/70 bg-background/75 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.observations.topHosts")}
           </div>
           <div className="mt-3 grid gap-2">
             {topHosts.map((host) => (
               <div
                 key={`${host.destination_host}-${host.observed_at}`}
-                className="min-w-0 rounded-2xl border border-border/70 bg-card/90 p-3"
+                className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0 break-words text-sm font-semibold text-foreground">
@@ -861,7 +861,7 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
                     {host.reason_codes.map((reason) => (
                       <span
                         key={reason}
-                        className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                        className="rounded-full border border-white/8 bg-white/3 px-2 py-0.5 font-mono text-[10px] font-medium text-muted-foreground"
                       >
                         {formatReasonLabel(reason)}
                       </span>
@@ -874,21 +874,21 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
         </div>
       ) : null}
       {providerReports.length > 0 ? (
-        <div className="mt-4 rounded-[1.1rem] border border-border/70 bg-background/75 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.observations.providerCoverage")}
           </div>
           <div className="mt-3 grid gap-2 lg:grid-cols-2">
             {providerReports.map((provider) => (
               <div
                 key={`${provider.provider_id}-${provider.last_observed_at}`}
-                className="rounded-2xl border border-border/70 bg-card/90 p-3"
+                className="rounded-2xl border border-white/8 bg-white/3 p-3"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-foreground">
                     {provider.provider_id}
                   </div>
-                  <span className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                  <span className="rounded-full border border-white/8 bg-white/3 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                     {t("operator.runtime.observations.providerReports", {
                       count: provider.total_count,
                     })}
@@ -926,7 +926,7 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
           {observations.reasons.map((reason) => (
             <span
               key={reason}
-              className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground"
+              className="rounded-full border border-white/8 bg-white/3 px-3 py-1 text-xs font-medium text-muted-foreground"
             >
               {formatReasonLabel(reason)}
             </span>
@@ -934,7 +934,7 @@ function RuntimeObservationsPanel({ runtimeStatus }: { runtimeStatus: VerifierSt
         </div>
       ) : null}
       {observations.error ? (
-        <p className="mt-3 rounded-2xl border border-border/70 bg-background/75 p-3 text-xs leading-5 text-muted-foreground">
+        <p className="mt-3 rounded-2xl border border-white/10 bg-[rgba(5,10,18,0.35)] p-3 text-xs leading-5 text-muted-foreground">
           {observations.error}
         </p>
       ) : null}
@@ -957,10 +957,10 @@ function EvidenceTabsSection({
   const observationCopy = OPERATOR_STATUS_COPY[observationStatus]
 
   return (
-    <div className="min-w-0 rounded-[1.45rem] border border-border/70 bg-background/70 p-3 shadow-[0_14px_38px_rgba(22,29,24,0.06)]">
+    <div className="min-w-0 rounded-[1.5rem] border border-white/8 bg-white/3 p-3">
       <div className="flex flex-wrap items-end justify-between gap-3 px-1 pb-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {t("operator.runtime.evidence.eyebrow")}
           </div>
           <h3 className="mt-1 text-base font-semibold text-foreground">
@@ -985,7 +985,7 @@ function EvidenceTabsSection({
           className={evidenceTabClassName(activeTab === "scanner")}
         >
           <div className="flex items-start gap-3">
-            <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
+            <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
               <ScanLine className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -1014,7 +1014,7 @@ function EvidenceTabsSection({
           className={evidenceTabClassName(activeTab === "runtime")}
         >
           <div className="flex items-start gap-3">
-            <div className="rounded-full border border-border/70 bg-background/85 p-2 text-muted-foreground">
+            <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
               <Radar className="size-4" />
             </div>
             <div className="min-w-0 flex-1">
@@ -1057,11 +1057,11 @@ function RuntimePostureSection({
   const t = useT()
 
   return (
-    <Card className="overflow-hidden border-border/70">
+    <Card className="overflow-hidden">
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="rounded-full border border-border/70 p-2 text-muted-foreground">
+            <div className="rounded-full border border-white/10 bg-white/5 p-2 text-muted-foreground">
               <Activity className="size-4" />
             </div>
             <div>
@@ -1119,14 +1119,6 @@ function RuntimePostureSection({
             value={t(
               runtimeStatus
                 ? compactCount(runtimeStatus.decode_image_fallback_enabled)
-                : "operator.value.loading",
-            )}
-          />
-          <RuntimeMetric
-            label={t("operator.runtime.metric.legacyApi")}
-            value={t(
-              runtimeStatus
-                ? compactCount(runtimeStatus.legacy_experimental_api_enabled)
                 : "operator.value.loading",
             )}
           />

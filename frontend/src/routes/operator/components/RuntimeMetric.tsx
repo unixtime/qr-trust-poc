@@ -17,8 +17,8 @@ function RuntimeMetric({
   ].join(" ")
 
   return (
-    <div className="min-w-0 rounded-[1.2rem] border border-border/80 bg-background/90 p-3">
-      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+    <div className="min-w-0 rounded-2xl border border-white/8 bg-white/3 p-3">
+      <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         {label}
       </div>
       <div className={valueClassName} title={value}>

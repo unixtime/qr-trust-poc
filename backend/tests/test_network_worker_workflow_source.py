@@ -205,7 +205,7 @@ def test_https_stack_defaults_to_lab_frontend_port() -> None:
     makefile = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
     smoke_body = _make_target_body(makefile, "smoke-compose-https")
 
-    assert "HTTPS_FRONTEND_PUBLISH_PORT ?= 5174" in makefile
+    assert "HTTPS_FRONTEND_PUBLISH_PORT ?= 8443" in makefile
     assert "FRONTEND_PUBLISH_PORT='$(HTTPS_FRONTEND_PUBLISH_PORT)'" in smoke_body
     assert (
         "FRONTEND_PUBLIC_URL='https://127.0.0.1:$(HTTPS_FRONTEND_PUBLISH_PORT)'"

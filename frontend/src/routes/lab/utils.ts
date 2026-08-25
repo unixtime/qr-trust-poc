@@ -16,12 +16,12 @@ export function toneForDecision(result: VerifierDecision): Tone {
 
 export function toneClasses(tone: Tone) {
   if (tone === "success") {
-    return "border-trust-green/25 bg-trust-green/10 text-trust-green"
+    return "border-trust-green/35 bg-trust-green/10 text-trust-green shadow-[0_0_28px_-12px_rgba(69,212,131,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]"
   }
   if (tone === "blocked") {
-    return "border-destructive/20 bg-destructive/10 text-destructive"
+    return "border-destructive/35 bg-destructive/10 text-destructive shadow-[0_0_28px_-12px_rgba(242,95,92,0.45),inset_0_1px_0_rgba(255,255,255,0.05)]"
   }
-  return "border-border bg-card text-card-foreground"
+  return "border-white/10 bg-white/3 text-card-foreground"
 }
 
 export function badgeVariantForTone(

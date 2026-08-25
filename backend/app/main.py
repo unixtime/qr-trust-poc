@@ -1,8 +1,6 @@
-from pathlib import Path
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
 from time import perf_counter
 from backend.app.api.routes import router
@@ -12,8 +10,6 @@ from backend.app.core.request_id import safe_request_id
 
 # Set up logging
 logger = setup_logging()
-_STATIC_DIR = Path(__file__).resolve().parent / "static"
-_LANDING_HTML_PATH = _STATIC_DIR / "index.html"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -99,8 +95,15 @@ async def add_security_headers(request, call_next):  # type: ignore[no-untyped-d
 
 
 @app.get("/", include_in_schema=False)
-async def get_root_landing_page() -> FileResponse:
-    return FileResponse(_LANDING_HTML_PATH, headers={"Cache-Control": "no-store"})
+async def get_root_service_descriptor() -> Response:
+    return JSONResponse(
+        {
+            "service": app.title,
+            "version": app.version,
+            "docs_url": "/docs",
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 # Include API routes
 app.include_router(router)

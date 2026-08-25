@@ -15,7 +15,7 @@ function StatusPanel({
   const t = useT()
 
   return (
-    <div className={`rounded-lg border p-3 ${toneClasses(message?.tone ?? "neutral")}`}>
+    <div className={`rounded-2xl border p-3 ${toneClasses(message?.tone ?? "neutral")}`}>
       <Eyebrow as="div">
         {label}
       </Eyebrow>

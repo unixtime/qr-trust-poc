@@ -4,7 +4,7 @@ const cases = [
   {
     name: "bare dev defaults use the HTTPS compose API",
     env: {},
-    expected: "https://127.0.0.1:8443",
+    expected: "https://127.0.0.1:8444",
   },
   {
     name: "explicit backend target wins",
@@ -19,7 +19,7 @@ const cases = [
   {
     name: "published wildcard host becomes localhost",
     env: { API_PUBLISH_HOST: "0.0.0.0" },
-    expected: "https://127.0.0.1:8443",
+    expected: "https://127.0.0.1:8444",
   },
   {
     name: "nonstandard published API port implies non-TLS unless TLS is explicit",
@@ -31,9 +31,9 @@ const cases = [
     env: {
       VERIFIER_TLS_ENABLED: "true",
       API_PUBLISH_HOST: "localhost",
-      API_PUBLISH_PORT: "8443",
+      API_PUBLISH_PORT: "8444",
     },
-    expected: "https://localhost:8443",
+    expected: "https://localhost:8444",
   },
 ]
 

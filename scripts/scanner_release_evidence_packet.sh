@@ -51,7 +51,7 @@ Run this before native capture:
 
 \`\`\`bash
 make smoke-ios
-make up-https-admin-shared-infra FRONTEND_PUBLISH_PORT=5174
+make up-https-admin-shared-infra
 make ios-provider-config
 make check-ios-provider-config
 make iphone-evidence-preflight
