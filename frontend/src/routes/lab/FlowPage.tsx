@@ -222,6 +222,7 @@ export default function FlowPage() {
               isVerifyingCurrent={lab.isVerifyingCurrent}
               nonceMode={lab.nonceMode}
               usagePolicy={lab.usagePolicy}
+              expiresAt={lab.expiresAt}
               lifetimeMinutes={lifetimeMinutesFor(scenarioMeta[lab.scenario], lab.usagePolicy)}
               showKeyIssue={lab.apiAuthEnabled && lab.adminFlowEnabled && !lab.apiKey.trim()}
               isIssuingLabKey={lab.isIssuingLabKey}
@@ -234,6 +235,7 @@ export default function FlowPage() {
               onIssueLabKey={() => void lab.issueLocalLabKey()}
               onNonceModeChange={lab.setNonceMode}
               onUsagePolicyChange={lab.setUsagePolicy}
+              onExpiresAtChange={lab.setExpiresAt}
               onOpenFullscreen={lab.openQrFullscreen}
               onBack={() => goToStep(1)}
               onNext={() => goToStep(3)}

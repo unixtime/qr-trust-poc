@@ -338,12 +338,57 @@ const policyLifetimeMinutes: Record<UsagePolicy, number> = {
   time_limited: 60,
 }
 
+// Thirty days: long enough for any poster-style code the workbench should
+// seal, short enough that a slip in the picker cannot mint a year-long claim.
+// The server enforces the same bound on `expires_offset_minutes`.
+export const MAX_LIFETIME_MINUTES = 30 * 24 * 60
+
+// A `time_limited` code takes the expiry the operator picked; the other two
+// policies keep their fixed lifetimes (the picker is only shown for
+// `time_limited`), and the expired scenario still wins over everything.
 export function lifetimeMinutesFor(
   meta: Pick<ScenarioMeta, "expiresOffsetMinutes">,
   usagePolicy: UsagePolicy,
+  customMinutes: number | null = null,
 ): number {
   if (meta.expiresOffsetMinutes <= 0) return meta.expiresOffsetMinutes
+  if (usagePolicy === "time_limited" && customMinutes !== null && customMinutes > 0) {
+    return customMinutes
+  }
   return Math.max(meta.expiresOffsetMinutes, policyLifetimeMinutes[usagePolicy])
+}
+
+// `<input type="datetime-local">` speaks wall-clock time with no zone, so the
+// picker value is formatted and parsed with the local getters on both sides:
+// the instant the operator sees is the instant the request seals.
+function pad2(value: number) {
+  return String(value).padStart(2, "0")
+}
+
+export function expiryInputValue(epochMs: number): string {
+  const at = new Date(epochMs)
+  const date = `${at.getFullYear()}-${pad2(at.getMonth() + 1)}-${pad2(at.getDate())}`
+  return `${date}T${pad2(at.getHours())}:${pad2(at.getMinutes())}`
+}
+
+// Minutes from `now` to the picked instant, or null when nothing usable was
+// picked. Callers decide what an empty or unparsable pick means.
+export function customExpiryMinutes(localValue: string | null, now = Date.now()): number | null {
+  if (!localValue) return null
+  const at = Date.parse(localValue)
+  if (Number.isNaN(at)) return null
+  return Math.round((at - now) / 60_000)
+}
+
+export type ExpiryProblem = "invalid" | "past" | "tooFar"
+
+export function expiryValidation(localValue: string | null, now = Date.now()): ExpiryProblem | null {
+  if (!localValue) return null
+  const minutes = customExpiryMinutes(localValue, now)
+  if (minutes === null) return "invalid"
+  if (minutes <= 0) return "past"
+  if (minutes > MAX_LIFETIME_MINUTES) return "tooFar"
+  return null
 }
 
 function nonceForScenario(scenario: ScenarioKey, mode: NonceMode) {
@@ -351,10 +396,15 @@ function nonceForScenario(scenario: ScenarioKey, mode: NonceMode) {
   return mode === "timestamped" ? `${base}-${Date.now()}` : base
 }
 
+export type ScenarioRequestOptions = {
+  customExpiryMinutes?: number | null
+}
+
 export function buildScenarioRequest(
   scenario: ScenarioKey,
   nonceMode: NonceMode,
   usagePolicy: UsagePolicy,
+  options: ScenarioRequestOptions = {},
 ): DemoMaterialsRequest {
   const meta = scenarioMeta[scenario]
   return {
@@ -368,7 +418,7 @@ export function buildScenarioRequest(
     certificate_revoked: meta.certificateRevoked,
     certificate_revocation_reason: meta.certificateRevocationReason,
     issued_offset_minutes: meta.issuedOffsetMinutes ?? -1,
-    expires_offset_minutes: lifetimeMinutesFor(meta, usagePolicy),
+    expires_offset_minutes: lifetimeMinutesFor(meta, usagePolicy, options.customExpiryMinutes ?? null),
     register_scanner_trust: meta.registerScannerTrust ?? true,
     artifact_profile: meta.artifactProfile ?? "clean",
   }

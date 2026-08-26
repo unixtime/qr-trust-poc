@@ -53,3 +53,15 @@ export function scanFeedbackPresentation(state: ScanFeedbackState): {
       return { tone: null, pill: false }
   }
 }
+
+/**
+ * Identity of the scan the frame should pulse for, or `null` when there is
+ * no verdict to pulse. The frame keys its pulse layer on this, so React
+ * remounts the layer (and restarts the CSS animation) exactly when a new
+ * scan lands: polling the same scan again keeps the key and stays quiet.
+ */
+export function scanPulseKey(activity: ScanActivity | null): string | null {
+  const state = scanFeedbackStateFor(activity, null)
+  if (state !== "green" && state !== "orange" && state !== "red") return null
+  return `${activity?.scan_count ?? 0}:${activity?.last_scanned_at ?? ""}`
+}

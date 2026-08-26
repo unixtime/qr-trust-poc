@@ -20,7 +20,11 @@ import {
   type VerifierStatus,
 } from "@/lib/verifier-client"
 import {
+  MAX_LIFETIME_MINUTES,
   buildScenarioRequest,
+  customExpiryMinutes,
+  expiryValidation,
+  type ExpiryProblem,
   fixedNonces,
   parseInitialCompareScenarioParam,
   parseInitialNonceMode,
@@ -65,6 +69,15 @@ type WindowWithAudioContext = Window &
   }
 
 const staleStoredKeyMessage = () => t("lab.error.staleStoredKey")
+
+const expiryProblemKeys: Record<ExpiryProblem, MessageKey> = {
+  past: "lab.generate.expiry.error.past",
+  tooFar: "lab.generate.expiry.error.tooFar",
+  invalid: "lab.generate.expiry.error.invalid",
+}
+
+const expiryProblemMessage = (problem: ExpiryProblem) =>
+  t(expiryProblemKeys[problem], { days: MAX_LIFETIME_MINUTES / (24 * 60) })
 
 const cameraDeviceStorageKey = "verifier-react-camera-device"
 const scannerKnownHostsStorageKey = "qr-trust-scanner-known-hosts"
@@ -251,6 +264,9 @@ export function useLabController() {
   const [usagePolicy, setUsagePolicy] = useState<UsagePolicy>(() =>
     parseInitialUsagePolicy(),
   )
+  // The operator's pick from the `time_limited` expiry picker, kept as the
+  // `datetime-local` value it came in as; null keeps the policy default.
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState(() => readStoredVerifierApiKey())
   const [demo, setDemo] = useState<DemoMaterialsResponse | null>(null)
   // Keyed by nonce so a regenerated demo never shows the previous code's scans.
@@ -619,10 +635,21 @@ export function useLabController() {
     nextScenario: ScenarioKey,
     nextNonceMode: NonceMode,
     nextUsagePolicy: UsagePolicy,
+    nextExpiresAt: string | null = expiresAt,
   ): Promise<boolean> {
+    // A bad pick is refused out loud rather than silently sealed as the
+    // 60-minute default: the operator asked for a specific expiry.
+    const timeLimited = nextUsagePolicy === "time_limited"
+    const expiryProblem = timeLimited ? expiryValidation(nextExpiresAt) : null
+    if (expiryProblem) {
+      setGenerationError(expiryProblemMessage(expiryProblem))
+      return false
+    }
     stopCamera()
     setIsGenerating(true)
-    const request = buildScenarioRequest(nextScenario, nextNonceMode, nextUsagePolicy)
+    const request = buildScenarioRequest(nextScenario, nextNonceMode, nextUsagePolicy, {
+      customExpiryMinutes: timeLimited ? customExpiryMinutes(nextExpiresAt) : null,
+    })
     setGenerationError(null)
     try {
       const response = await requestJson<DemoMaterialsResponse>(
@@ -1504,6 +1531,7 @@ export function useLabController() {
     scenario,
     nonceMode,
     usagePolicy,
+    expiresAt,
     apiKey,
     demo,
     scannedPayload,
@@ -1553,6 +1581,7 @@ export function useLabController() {
     setScenario,
     setNonceMode,
     setUsagePolicy,
+    setExpiresAt,
     setApiKey,
     setSelectedCameraId,
     setScannedPayload: updateScannedPayload,

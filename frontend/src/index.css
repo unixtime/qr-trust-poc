@@ -173,3 +173,23 @@ textarea {
   background-image: var(--glass);
   box-shadow: var(--glass-shadow);
 }
+
+/*
+ * Scan-feedback pulse. The frame sets `--scan-glow` to the verdict colour as
+ * an RGB triplet; the layer flares to the ring-plus-halo the verdict used to
+ * wear permanently and fades back out, so after the animation only the
+ * bracket tint and the message remain on the code.
+ */
+@keyframes scan-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgb(var(--scan-glow) / 0),
+      0 0 0 0 rgb(var(--scan-glow) / 0);
+  }
+  35% {
+    box-shadow:
+      0 0 0 2px rgb(var(--scan-glow) / 0.9),
+      0 0 56px 0 rgb(var(--scan-glow) / 0.5);
+  }
+}

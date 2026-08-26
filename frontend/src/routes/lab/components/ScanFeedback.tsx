@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import {
   scanFeedbackPresentation,
   scanFeedbackStateFor,
+  scanPulseKey,
   type ScanFeedbackState,
   type ScanFeedbackTone,
 } from "@/routes/lab/scan-feedback-state"
@@ -64,18 +65,21 @@ const dotClassName: Record<PillState, string> = {
 }
 
 /**
- * Frame glow per verdict tone. The 2px ring is the verdict colour at full
- * strength; the halo is the same colour softened, so the frame reads as
- * "lit" rather than outlined. Corner brackets use `currentColor`, so the
- * text colour set here recolours them too.
+ * Frame tint per verdict tone. Corner brackets use `currentColor`, so the
+ * text colour recolours them; `--scan-glow` is the same colour as an RGB
+ * triplet for the `scan-pulse` keyframes (see `index.css`). The glow itself
+ * is not persistent: the pulse layer flares twice when a scan lands and then
+ * leaves only the tint, so an old verdict does not keep a ring on the code.
  */
 const frameToneClassName: Record<ScanFeedbackTone, string> = {
-  green:
-    "text-trust-green shadow-[0_0_0_2px_rgba(69,212,131,0.9),0_0_56px_rgba(69,212,131,0.5)]",
-  amber:
-    "text-trust-amber shadow-[0_0_0_2px_rgba(245,165,36,0.9),0_0_56px_rgba(245,165,36,0.5)]",
-  red: "text-trust-red shadow-[0_0_0_2px_rgba(242,95,92,0.9),0_0_56px_rgba(242,95,92,0.5)]",
+  green: "text-trust-green [--scan-glow:69_212_131]",
+  amber: "text-trust-amber [--scan-glow:245_165_36]",
+  red: "text-trust-red [--scan-glow:242_95_92]",
 }
+
+/** Two 900ms pulses: noticed before the pill fades in, gone before it is read. */
+const pulseClassName =
+  "pointer-events-none absolute inset-0 rounded-[1.6rem] motion-safe:animate-[scan-pulse_900ms_ease-out_2]"
 
 const scannedKeys: Record<"green" | "orange" | "red", MessageKey> = {
   green: "lab.scanFeedback.scanned.green",
@@ -157,18 +161,28 @@ export function ScanFeedbackFrame({
 }: ScanFeedbackProps & { className?: string; children: ReactNode }) {
   const state = stateFor(props)
   const { tone } = scanFeedbackPresentation(state)
+  const pulseKey = scanPulseKey(props.activity)
   return (
     <div
       data-testid="scan-feedback-frame"
       data-state={state}
       data-tone={tone ?? "none"}
       className={cn(
-        "relative rounded-[1.6rem] transition-shadow duration-700 ease-out",
+        "relative rounded-[1.6rem]",
         tone ? frameToneClassName[tone] : "text-trust-green",
         className,
       )}
     >
       {children}
+      {tone && pulseKey ? (
+        // Keyed per scan: a new scan remounts the layer and restarts the pulse.
+        <span
+          key={pulseKey}
+          aria-hidden
+          data-testid="scan-feedback-pulse"
+          className={pulseClassName}
+        />
+      ) : null}
       <ScanFeedbackOverlay {...props} />
     </div>
   )

@@ -185,7 +185,26 @@ export const es: Record<MessageKey, string> = {
   "lab.scanFeedback.oneTime.usedAtBlocked": "Usado {time} · repetición bloqueada ×{count}",
   "lab.scanFeedback.expires.in": "en {duration}",
   "lab.scanFeedback.expires.ago": "caducó hace {duration}",
-  "lab.generate.advanced": "Opciones avanzadas",
+  "lab.generate.configure": "Configurar el tipo de código QR",
+  "lab.generate.options": "Opciones",
+  "lab.generate.usagePolicy.help.reusable_public":
+    "Se puede escanear hasta que caduque el certificado del emisor. Para señalización o documentación que no admite caducidad.",
+  "lab.generate.usagePolicy.help.one_time":
+    "El primer veredicto verde consume el código; cualquier escaneo posterior se rechaza. Para entradas, vales y entregas.",
+  "lab.generate.usagePolicy.help.time_limited":
+    "Se puede escanear hasta la caducidad que elija abajo; después se rechaza. Para carteles, avisos y todo lo que tenga una fecha de fin natural.",
+  "lab.generate.nonce.help.fixed":
+    "El mismo nonce cada vez: un código regenerado comparte el historial de escaneos, y cualquier bloqueo de repetición, del anterior.",
+  "lab.generate.nonce.help.timestamped":
+    "Añade la hora actual, así cada generación es un código nuevo con el historial vacío.",
+  "lab.generate.expiry.label": "Caduca el",
+  "lab.generate.expiry.help":
+    "Hora local. Déjelo así para los 60 minutos por defecto; el verificador rechaza el código después de este instante.",
+  "lab.generate.expiry.error.past": "Elija una hora futura. El código ya estaría caducado.",
+  "lab.generate.expiry.error.tooFar": "Elija una hora dentro de los próximos {days} días. El servidor rechaza vidas más largas.",
+  "lab.generate.expiry.error.invalid": "Eso no es una fecha y hora que el selector pueda sellar.",
+  "lab.generate.lifetime.until": "El siguiente código seguirá siendo válido hasta {when}.",
+  "lab.generate.sealed.details": "Detalles del código",
   "lab.generate.nonceMode": "Modo «nonce»",
   "lab.generate.nonce.fixed": "Nonce fijo",
   "lab.generate.nonce.timestamped": "Nonce con marca de tiempo",

@@ -511,6 +511,26 @@ def test_verifier_reference_api_rejects_malformed_payload_port(
     assert "Invalid destination URL" in payload["reason"]
 
 
+def test_verifier_demo_materials_reject_lifetimes_beyond_thirty_days(
+    client: TestClient,
+) -> None:
+    # The lab's time-limited picker caps at 30 days; the server enforces the
+    # same bound so a hand-crafted request cannot seal a longer-lived code.
+    thirty_days = 30 * 24 * 60
+    accepted = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": "api-lifetime-cap-ok-001", "expires_offset_minutes": thirty_days},
+    )
+    assert accepted.status_code == 200
+
+    rejected = client.post(
+        "/verifier/demo-materials",
+        json={"nonce": "api-lifetime-cap-001", "expires_offset_minutes": thirty_days + 1},
+    )
+    assert rejected.status_code == 422
+    assert rejected.json()["detail"][0]["loc"] == ["body", "expires_offset_minutes"]
+
+
 def test_verifier_demo_materials_support_expired_reusable_public_lab_case(
     client: TestClient,
 ) -> None:

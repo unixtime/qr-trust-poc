@@ -242,7 +242,26 @@ export const en = {
   "lab.scanFeedback.oneTime.usedAtBlocked": "Used {time} · replay blocked ×{count}",
   "lab.scanFeedback.expires.in": "in {duration}",
   "lab.scanFeedback.expires.ago": "expired {duration} ago",
-  "lab.generate.advanced": "Advanced options",
+  "lab.generate.configure": "Configure the QR type",
+  "lab.generate.options": "Options",
+  "lab.generate.usagePolicy.help.reusable_public":
+    "Stays scannable until the issuer's certificate expires. For signage or documentation that cannot carry an expiry.",
+  "lab.generate.usagePolicy.help.one_time":
+    "The first green verdict consumes the code; every later scan is refused. For tickets, vouchers and hand-offs.",
+  "lab.generate.usagePolicy.help.time_limited":
+    "Scannable until the expiry you pick below, then refused. For posters, notices and anything with a natural end date.",
+  "lab.generate.nonce.help.fixed":
+    "Same nonce every time: a regenerated code shares the scan history, and any replay lock, of the earlier one.",
+  "lab.generate.nonce.help.timestamped":
+    "Appends the current time, so every generation is a brand-new code with an empty history.",
+  "lab.generate.expiry.label": "Expires at",
+  "lab.generate.expiry.help":
+    "Local time. Leave it for the 60-minute default; the verifier refuses the code after this instant.",
+  "lab.generate.expiry.error.past": "Pick a time in the future. The code would already be expired.",
+  "lab.generate.expiry.error.tooFar": "Pick a time within {days} days. The server refuses longer lifetimes.",
+  "lab.generate.expiry.error.invalid": "That is not a date and time the picker can seal.",
+  "lab.generate.lifetime.until": "The next code will stay valid until {when}.",
+  "lab.generate.sealed.details": "Code details",
   "lab.generate.nonceMode": "Nonce mode",
   "lab.generate.nonce.fixed": "Fixed nonce",
   "lab.generate.nonce.timestamped": "Timestamped nonce",

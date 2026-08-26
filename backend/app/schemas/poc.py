@@ -313,7 +313,8 @@ class DemoMaterialsRequest(BaseModel):
     certificate_revoked: bool = False
     certificate_revocation_reason: str | None = Field(default=None, max_length=512)
     issued_offset_minutes: int = -1
-    expires_offset_minutes: int = 5
+    # Upper bound shared with the lab's time-limited picker (30 days).
+    expires_offset_minutes: int = Field(default=5, le=30 * 24 * 60)
     register_scanner_trust: bool = True
     artifact_profile: ArtifactRenderProfile = "clean"
 

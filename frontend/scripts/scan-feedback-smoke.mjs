@@ -12,6 +12,10 @@
 //    `decision_color` and the message follows the glow. Both the sealed card
 //    and the full-screen view go through the same frame component, so the
 //    source check below is what keeps the modal from drifting.
+// 3. The glow is a pulse, not a border. It runs a couple of times when a
+//    scan lands and then settles to the bracket tint, so a code that was
+//    scanned an hour ago is not still wearing a green ring. Every new scan
+//    pulses again, which is what `scanPulseKey` exists for.
 
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -19,6 +23,7 @@ import { readFileSync } from "node:fs"
 import {
   scanFeedbackPresentation,
   scanFeedbackStateFor,
+  scanPulseKey,
 } from "../src/routes/lab/scan-feedback-state.ts"
 import { en } from "../src/i18n/catalog/en.ts"
 import { es } from "../src/i18n/catalog/es.ts"
@@ -65,6 +70,45 @@ assert.deepEqual(scanFeedbackPresentation("unavailable"), { tone: null, pill: tr
 assert.deepEqual(scanFeedbackPresentation("green"), { tone: "green", pill: true })
 assert.deepEqual(scanFeedbackPresentation("orange"), { tone: "amber", pill: true })
 assert.deepEqual(scanFeedbackPresentation("red"), { tone: "red", pill: true })
+
+// --- pulse: once per scan, never before one ---------------------------------
+
+// No verdict, no pulse: the frame must not flash on mount or on an error.
+assert.equal(scanPulseKey(null), null)
+assert.equal(scanPulseKey(observable()), null)
+assert.equal(scanPulseKey(observable({ persistence_state: "unavailable" })), null)
+const firstScan = observable({
+  scan_count: 1,
+  last_scanned_at: "2026-08-26T10:00:00Z",
+  latest: { decision_color: "green" },
+})
+const firstKey = scanPulseKey(firstScan)
+assert.ok(typeof firstKey === "string" && firstKey.length > 0, "a verdict has a pulse key")
+// Polling the same scan again must not re-pulse.
+assert.equal(scanPulseKey({ ...firstScan }), firstKey)
+// A later scan (more scans, later timestamp) pulses again, whatever its colour.
+const secondScan = observable({
+  scan_count: 2,
+  last_scanned_at: "2026-08-26T10:05:00Z",
+  latest: { decision_color: "red" },
+})
+assert.notEqual(scanPulseKey(secondScan), firstKey)
+
+// The frame animates the pulse and no longer carries a persistent ring.
+const frameSource = repoFile("src/routes/lab/components/ScanFeedback.tsx")
+assert.ok(
+  !/shadow-\[0_0_0_2px/.test(frameSource),
+  "ScanFeedback.tsx: no persistent verdict ring on the frame",
+)
+assert.ok(
+  /animate-\[scan-pulse_[^\]]*_2\]/.test(frameSource),
+  "ScanFeedback.tsx: the pulse runs the scan-pulse keyframes twice",
+)
+assert.ok(frameSource.includes("scanPulseKey("), "ScanFeedback.tsx: keys the pulse per scan")
+assert.ok(
+  repoFile("src/index.css").includes("@keyframes scan-pulse"),
+  "index.css: defines the scan-pulse keyframes",
+)
 
 // --- catalogue: device-neutral wording, no waiting message -----------------
 

@@ -187,14 +187,18 @@ stay valid rather than by habit:
 | `reusable_public` | Signage or documentation that genuinely cannot carry an expiry | Only the per-code budget, the verdict cache and the edge rate limit; the code stays replayable for as long as the issuer's certificate is valid. Re-issue it with an expiry whenever one is possible |
 
 The workbench seals a lifetime that follows the policy you pick under
-**Advanced options**: `one_time` codes get 5 minutes (a single scan does not
-need more, and the short window keeps the freshness stage cheap to
-demonstrate), `time_limited` and `reusable_public` codes get 60 minutes so a
-poster-style code does not die halfway through a session. The **Expired
-credential** scenario seals an already-expired claim whatever the policy. The
-Advanced options panel says which lifetime the next code will get before you
-press **Generate**, and the sealed card counts it down afterwards (see the
-`Expires` row below). The verifier's freshness stage runs before any policy
+**Configure the QR type**: `one_time` codes get 5 minutes (a single scan does
+not need more, and the short window keeps the freshness stage cheap to
+demonstrate), `reusable_public` codes get 60 minutes so a poster-style code
+does not die halfway through a session, and `time_limited` shows an
+**Expires at** picker (default 60 minutes ahead, at most 30 days; the server
+rejects longer lifetimes with `422`) so you seal the exact end of the
+campaign. The **Expired credential** scenario seals an already-expired claim
+whatever the policy. The step says which lifetime the next code will get
+before you press **Generate**, and the sealed card counts it down afterwards
+under its collapsed **Code details** (see the `Expires` row below). The
+**Options** section below the policy picks the nonce mode, with a one-line
+explanation of each choice. The verifier's freshness stage runs before any policy
 check, so an expired `reusable_public` code is rejected like any other; the
 lifetime is a workbench default, not something the policy relaxes.
 
