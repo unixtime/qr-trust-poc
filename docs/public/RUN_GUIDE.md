@@ -186,6 +186,18 @@ stay valid rather than by habit:
 | `one_time` | Tickets, vouchers, hand-offs where a second scan must fail | The replay guard consumes the nonce on the first green verdict; every later scan is a cheap red verdict, so no budget or cache is needed |
 | `reusable_public` | Signage or documentation that genuinely cannot carry an expiry | Only the per-code budget, the verdict cache and the edge rate limit; the code stays replayable for as long as the issuer's certificate is valid. Re-issue it with an expiry whenever one is possible |
 
+The workbench seals a lifetime that follows the policy you pick under
+**Advanced options**: `one_time` codes get 5 minutes (a single scan does not
+need more, and the short window keeps the freshness stage cheap to
+demonstrate), `time_limited` and `reusable_public` codes get 60 minutes so a
+poster-style code does not die halfway through a session. The **Expired
+credential** scenario seals an already-expired claim whatever the policy. The
+Advanced options panel says which lifetime the next code will get before you
+press **Generate**, and the sealed card counts it down afterwards (see the
+`Expires` row below). The verifier's freshness stage runs before any policy
+check, so an expired `reusable_public` code is rejected like any other; the
+lifetime is a workbench default, not something the policy relaxes.
+
 ### Scan accounting and spike alerts
 
 Every computed verdict lands in `qr_trust.scanner_decisions`, and the two
@@ -332,9 +344,10 @@ the whole 24-hour history of the nonce. The card shows:
 - a status pill on the QR image: **Waiting for a phone scan**, then
   **Scanned · verified / needs review / blocked `<time>`** in the verdict colour
   once a scanner decision for the nonce exists;
-- `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`,
-  then `expired 2m 10s ago`). It is computed from the signed claims on the
-  page, not from the verifier, and is shown for every usage policy because the
+- `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`
+  for a `one_time` code, `in 59m 43s` for a public one, then
+  `expired 2m 10s ago`). It is computed from the signed claims on the page,
+  not from the verifier, and is shown for every usage policy because the
   verifier rejects an expired claim whatever the policy says;
 - `Scans` (total plus a verified / review / blocked breakdown), `First scan`
   (only once there is more than one scan), `Last scan`, and `Scanner`

@@ -248,6 +248,10 @@ export const en = {
   "lab.generate.nonce.fixed": "Fixed nonce",
   "lab.generate.nonce.timestamped": "Timestamped nonce",
   "lab.generate.usagePolicyLegend": "Usage policy",
+  "lab.generate.lifetime.fresh":
+    "The sealed QR will stay valid for {minutes} min after generation; the verifier rejects it after that whatever the policy says.",
+  "lab.generate.lifetime.expired":
+    "This scenario seals a QR that has already expired, so every scan is rejected at the freshness check.",
   "lab.generate.next": "Next: Scan",
 
   // ── Lab: scan step ───────────────────────────────────────────────────────

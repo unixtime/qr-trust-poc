@@ -8,7 +8,11 @@ import { useT } from "@/i18n"
 import { requestJson, type ScannerDecisionRecent, type VerifierStatus } from "@/lib/verifier-client"
 import { FlowStepper } from "@/routes/lab/components/FlowStepper"
 import QrDisplayModal from "@/routes/lab/components/QrDisplayModal"
-import { shouldAutogenerateFromRoute } from "@/routes/lab/content"
+import {
+  lifetimeMinutesFor,
+  scenarioMeta,
+  shouldAutogenerateFromRoute,
+} from "@/routes/lab/content"
 import { deriveFlowState, type FlowStepId } from "@/routes/lab/deriveFlowStep"
 import GenerateStep from "@/routes/lab/steps/GenerateStep"
 import { ScanStep } from "@/routes/lab/steps/ScanStep"
@@ -218,6 +222,7 @@ export default function FlowPage() {
               isVerifyingCurrent={lab.isVerifyingCurrent}
               nonceMode={lab.nonceMode}
               usagePolicy={lab.usagePolicy}
+              lifetimeMinutes={lifetimeMinutesFor(scenarioMeta[lab.scenario], lab.usagePolicy)}
               showKeyIssue={lab.apiAuthEnabled && lab.adminFlowEnabled && !lab.apiKey.trim()}
               isIssuingLabKey={lab.isIssuingLabKey}
               latestActivity={lab.history[0] ?? null}

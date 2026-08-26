@@ -191,6 +191,10 @@ export const es: Record<MessageKey, string> = {
   "lab.generate.nonce.fixed": "Nonce fijo",
   "lab.generate.nonce.timestamped": "Nonce con marca de tiempo",
   "lab.generate.usagePolicyLegend": "Política de uso",
+  "lab.generate.lifetime.fresh":
+    "El QR sellado seguirá siendo válido durante {minutes} min tras generarlo; después el verificador lo rechaza diga lo que diga la política.",
+  "lab.generate.lifetime.expired":
+    "Este escenario sella un QR ya caducado, así que cada escaneo se rechaza en la comprobación de frescura.",
   "lab.generate.next": "Siguiente: Escanear",
   "lab.scan.title": "Escanear",
   "lab.scan.subtitle": "Cargue una imagen QR, pegue una carga útil descodificada o ejecute directamente el proceso de escaneo sobre el código QR del paso 2. Se dispone de un escaneo en directo con la cámara para demostraciones en una segunda pantalla.",

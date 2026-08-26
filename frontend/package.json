@@ -11,6 +11,7 @@
     "vite-config:smoke": "node scripts/vite-config-smoke.mjs",
     "trust-tone:smoke": "node scripts/trust-tone-smoke.mjs",
     "comparison:smoke": "node --experimental-strip-types scripts/comparison-smoke.mjs",
+    "lifetime:smoke": "node --experimental-strip-types scripts/lifetime-smoke.mjs",
     "i18n:translate": "node --env-file-if-exists=../.env --experimental-strip-types scripts/translate-catalog.mjs"
   },
   "dependencies": {

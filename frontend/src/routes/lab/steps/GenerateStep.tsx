@@ -44,6 +44,10 @@ type GenerateStepProps = {
   isVerifyingCurrent: boolean
   nonceMode: NonceMode
   usagePolicy: UsagePolicy
+  // Minutes the next generated QR will stay valid; non-positive means the
+  // scenario seals an already-expired code. Computed by the caller from the
+  // same helper that builds the request, so the hint cannot drift from it.
+  lifetimeMinutes: number
   showKeyIssue: boolean
   isIssuingLabKey: boolean
   latestActivity: HistoryEntry | null
@@ -68,6 +72,7 @@ export default function GenerateStep({
   isVerifyingCurrent,
   nonceMode,
   usagePolicy,
+  lifetimeMinutes,
   showKeyIssue,
   isIssuingLabKey,
   latestActivity,
@@ -301,6 +306,14 @@ export default function GenerateStep({
                 </ConsoleChip>
               ))}
             </div>
+            <p
+              data-testid="generate-lifetime"
+              className="mt-2 text-xs text-muted-foreground"
+            >
+              {lifetimeMinutes > 0
+                ? t("lab.generate.lifetime.fresh", { minutes: lifetimeMinutes })
+                : t("lab.generate.lifetime.expired")}
+            </p>
           </fieldset>
         </div>
       </details>

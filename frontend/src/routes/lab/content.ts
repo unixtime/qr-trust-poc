@@ -325,6 +325,27 @@ export function shouldAutogenerateFromRoute() {
   return new URLSearchParams(window.location.search).get("autogenerate") === "1"
 }
 
+// How long a freshly sealed demo QR stays valid, by usage policy. A one-time
+// code only has to survive its single scan, so it keeps the short window that
+// makes the freshness stage cheap to demonstrate; the two public policies are
+// meant to hang on a wall, so a workbench session should not outlive them.
+// The scenario's own `expiresOffsetMinutes` is a floor, not the value: it keeps
+// its sign (which is what the comparison card's freshness row reads) and a
+// non-positive offset -- the `expired` scenario -- wins whatever the policy.
+const policyLifetimeMinutes: Record<UsagePolicy, number> = {
+  one_time: 5,
+  reusable_public: 60,
+  time_limited: 60,
+}
+
+export function lifetimeMinutesFor(
+  meta: Pick<ScenarioMeta, "expiresOffsetMinutes">,
+  usagePolicy: UsagePolicy,
+): number {
+  if (meta.expiresOffsetMinutes <= 0) return meta.expiresOffsetMinutes
+  return Math.max(meta.expiresOffsetMinutes, policyLifetimeMinutes[usagePolicy])
+}
+
 function nonceForScenario(scenario: ScenarioKey, mode: NonceMode) {
   const base = fixedNonces[scenario]
   return mode === "timestamped" ? `${base}-${Date.now()}` : base
@@ -347,7 +368,7 @@ export function buildScenarioRequest(
     certificate_revoked: meta.certificateRevoked,
     certificate_revocation_reason: meta.certificateRevocationReason,
     issued_offset_minutes: meta.issuedOffsetMinutes ?? -1,
-    expires_offset_minutes: meta.expiresOffsetMinutes,
+    expires_offset_minutes: lifetimeMinutesFor(meta, usagePolicy),
     register_scanner_trust: meta.registerScannerTrust ?? true,
     artifact_profile: meta.artifactProfile ?? "clean",
   }
