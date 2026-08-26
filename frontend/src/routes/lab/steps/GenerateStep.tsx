@@ -14,8 +14,8 @@ import {
 } from "@/lib/verifier-client"
 import {
   ClaimExpiryRow,
+  ScanFeedbackFrame,
   ScanFeedbackNote,
-  ScanFeedbackOverlay,
   ScanFeedbackRows,
 } from "@/routes/lab/components/ScanFeedback"
 import type { HistoryEntry } from "@/routes/lab/types"
@@ -170,34 +170,36 @@ export default function GenerateStep({
               {t("lab.generate.fullscreen")}
             </Button>
           </div>
-          <div className="relative p-3">
+          <ScanFeedbackFrame
+            className="p-3"
+            activity={scanActivity}
+            error={scanActivityError}
+            usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+          >
+            {/* Corner brackets follow the frame's text colour: sealed green
+                until a verdict, then the verdict tone. */}
             <span
               aria-hidden
-              className="absolute top-0 left-0 size-[18px] border-t-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+              className="absolute top-0 left-0 size-[18px] border-t-2 border-l-2 border-current opacity-80"
             />
             <span
               aria-hidden
-              className="absolute top-0 right-0 size-[18px] border-t-2 border-r-2 border-[rgba(69,212,131,0.8)]"
+              className="absolute top-0 right-0 size-[18px] border-t-2 border-r-2 border-current opacity-80"
             />
             <span
               aria-hidden
-              className="absolute bottom-0 left-0 size-[18px] border-b-2 border-l-2 border-[rgba(69,212,131,0.8)]"
+              className="absolute bottom-0 left-0 size-[18px] border-b-2 border-l-2 border-current opacity-80"
             />
             <span
               aria-hidden
-              className="absolute right-0 bottom-0 size-[18px] border-r-2 border-b-2 border-[rgba(69,212,131,0.8)]"
+              className="absolute right-0 bottom-0 size-[18px] border-r-2 border-b-2 border-current opacity-80"
             />
             <img
               src={qrImageDataUrl(demo.qr_png_base64)}
               alt={t("lab.generate.qrAlt")}
               className="aspect-square w-full rounded-2xl bg-white p-4 shadow-[0_0_0_1px_rgba(255,255,255,0.1),0_24px_48px_-20px_rgba(69,212,131,0.3)]"
             />
-            <ScanFeedbackOverlay
-              activity={scanActivity}
-              error={scanActivityError}
-              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
-            />
-          </div>
+          </ScanFeedbackFrame>
           <dl className="flex flex-col gap-1.5 font-mono text-[11px]">
             <div className="flex items-baseline justify-between gap-3">
               <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">

@@ -12,6 +12,7 @@
     "trust-tone:smoke": "node scripts/trust-tone-smoke.mjs",
     "comparison:smoke": "node --experimental-strip-types scripts/comparison-smoke.mjs",
     "lifetime:smoke": "node --experimental-strip-types scripts/lifetime-smoke.mjs",
+    "scan-feedback:smoke": "node --experimental-strip-types scripts/scan-feedback-smoke.mjs",
     "i18n:translate": "node --env-file-if-exists=../.env --experimental-strip-types scripts/translate-catalog.mjs"
   },
   "dependencies": {

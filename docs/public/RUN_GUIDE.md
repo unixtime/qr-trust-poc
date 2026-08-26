@@ -341,9 +341,13 @@ before the issuance are left out, while the scan-flood budget stays per nonce
 because a reissue must not reset it. Without `issued_at` the endpoint returns
 the whole 24-hour history of the nonce. The card shows:
 
-- a status pill on the QR image: **Waiting for a phone scan**, then
-  **Scanned · verified / needs review / blocked `<time>`** in the verdict colour
-  once a scanner decision for the nonce exists;
+- the QR frame itself: nothing is drawn on the code before the first scan
+  (a scan can come from a phone, a tablet, a laptop camera or the browser
+  lab, so the page does not guess). Once a scanner decision for the nonce
+  exists the frame glows in the verdict colour — green, amber or red — and a
+  moment later shows **Scanned · verified / needs review / blocked `<time>`**
+  in the same colour. If the evidence store cannot answer, a muted pill says
+  so instead of implying "no scans yet";
 - `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`
   for a `one_time` code, `in 59m 43s` for a public one, then
   `expired 2m 10s ago`). It is computed from the signed claims on the page,
@@ -358,7 +362,7 @@ the whole 24-hour history of the nonce. The card shows:
   apply. It is composed from the same recorded decision as the "observed
   decision" toast, so the two never disagree;
 - `Destination` — what the scanner reported doing with that decision through
-  `POST /scanner/ux-events`: `Opened on the phone`, `Cancelled on the phone`,
+  `POST /scanner/ux-events`: `Opened by the scanner`, `Cancelled by the scanner`,
   `Hold completed, not opened`, `Previewed, not opened`, or `Not reported by the
   scanner`. UX events are kept in the verifier process's memory (not the
   evidence store), so this row says *not reported* rather than guessing when no

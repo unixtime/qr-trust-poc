@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import { useT, type MessageKey } from "@/i18n"
 import type {
@@ -8,15 +8,23 @@ import type {
   UsagePolicy,
 } from "@/lib/verifier-client"
 import { cn } from "@/lib/utils"
+import {
+  scanFeedbackPresentation,
+  scanFeedbackStateFor,
+  type ScanFeedbackState,
+  type ScanFeedbackTone,
+} from "@/routes/lab/scan-feedback-state"
 import { formatLocalClock } from "@/routes/lab/utils"
 
 /**
- * Phone-scan feedback for the demo QR, fed by `GET /verifier/scan-activity`.
+ * Scan feedback for the demo QR, fed by `GET /verifier/scan-activity`.
  *
  * Every state here is grounded in what the verifier actually recorded: the
- * pill only says "scanned" once a decision row for this nonce exists, and
- * when the evidence store cannot answer it says so instead of implying
- * "no scans yet". The one-time "Used" stamp comes from the live replay
+ * frame only glows and says "scanned" once a decision row for this nonce
+ * exists, and when the evidence store cannot answer it says so instead of
+ * implying "no scans yet". Before the first scan the code simply sits in its
+ * frame — there is no "waiting" message, because nothing true has been
+ * observed yet and a scan can come from any device. The one-time "Used" stamp comes from the live replay
  * guard, so it reflects the verifier's own view of the nonce, not a guess
  * from the scan count. Rows that need data the verifier does not have
  * (a destination outcome the scanner never reported, an issuer before a
@@ -36,33 +44,37 @@ export type ScanFeedbackProps = {
   verifiedDomains?: readonly string[]
 }
 
-type PillState =
-  | "checking"
-  | "offline"
-  | "unavailable"
-  | "waiting"
-  | "green"
-  | "orange"
-  | "red"
+/** States that put a pill on the image; see `scanFeedbackPresentation`. */
+type PillState = Exclude<ScanFeedbackState, "waiting" | "checking">
 
 const pillClassName: Record<PillState, string> = {
-  checking: "border-white/15 bg-[rgba(5,10,18,0.82)] text-muted-foreground",
   offline: "border-trust-amber/40 bg-[rgba(5,10,18,0.82)] text-trust-amber",
   unavailable: "border-white/15 bg-[rgba(5,10,18,0.82)] text-muted-foreground",
-  waiting: "border-white/20 bg-[rgba(5,10,18,0.82)] text-foreground/80",
   green: "border-trust-green/60 bg-[rgba(5,10,18,0.9)] text-trust-green",
   orange: "border-trust-amber/60 bg-[rgba(5,10,18,0.9)] text-trust-amber",
   red: "border-trust-red/60 bg-[rgba(5,10,18,0.9)] text-trust-red",
 }
 
 const dotClassName: Record<PillState, string> = {
-  checking: "bg-muted-foreground/60",
   offline: "bg-trust-amber",
   unavailable: "bg-muted-foreground/60",
-  waiting: "bg-foreground/70 animate-pulse",
   green: "bg-trust-green shadow-[0_0_8px_rgba(69,212,131,0.9)]",
   orange: "bg-trust-amber",
   red: "bg-trust-red",
+}
+
+/**
+ * Frame glow per verdict tone. The 2px ring is the verdict colour at full
+ * strength; the halo is the same colour softened, so the frame reads as
+ * "lit" rather than outlined. Corner brackets use `currentColor`, so the
+ * text colour set here recolours them too.
+ */
+const frameToneClassName: Record<ScanFeedbackTone, string> = {
+  green:
+    "text-trust-green shadow-[0_0_0_2px_rgba(69,212,131,0.9),0_0_56px_rgba(69,212,131,0.5)]",
+  amber:
+    "text-trust-amber shadow-[0_0_0_2px_rgba(245,165,36,0.9),0_0_56px_rgba(245,165,36,0.5)]",
+  red: "text-trust-red shadow-[0_0_0_2px_rgba(242,95,92,0.9),0_0_56px_rgba(242,95,92,0.5)]",
 }
 
 const scannedKeys: Record<"green" | "orange" | "red", MessageKey> = {
@@ -119,11 +131,8 @@ function useNow(intervalMs: number) {
   return now
 }
 
-function pillStateFor({ activity, error }: ScanFeedbackProps): PillState {
-  if (!activity) return error ? "offline" : "checking"
-  if (activity.persistence_state !== "observable") return "unavailable"
-  if (activity.scan_count === 0 || !activity.latest) return "waiting"
-  return activity.latest.decision_color
+function stateFor({ activity, error }: ScanFeedbackProps): ScanFeedbackState {
+  return scanFeedbackStateFor(activity, error)
 }
 
 function isOneTimeConsumed({ activity, usagePolicy }: ScanFeedbackProps) {
@@ -135,28 +144,56 @@ function isOneTimeConsumed({ activity, usagePolicy }: ScanFeedbackProps) {
 }
 
 /**
- * Absolutely positioned; the parent must be `relative`. The pill straddles
- * the image's bottom edge so it sits on the white quiet-zone padding and
- * never over the modules — a "waiting" pill must not make the code harder
- * to scan. The "Used" stamp deliberately does cover the modules: a consumed
- * one-time code only ever verifies red again.
+ * Wraps the QR image (and any decoration such as corner brackets) and owns
+ * everything the scan feedback draws on it. On a verdict the whole frame
+ * glows in the verdict colour first and the message pill follows a beat
+ * later, so the colour is what a viewer notices before they read anything.
+ * The frame itself is `relative`; children are positioned against it.
  */
-export function ScanFeedbackOverlay(props: ScanFeedbackProps) {
+export function ScanFeedbackFrame({
+  className,
+  children,
+  ...props
+}: ScanFeedbackProps & { className?: string; children: ReactNode }) {
+  const state = stateFor(props)
+  const { tone } = scanFeedbackPresentation(state)
+  return (
+    <div
+      data-testid="scan-feedback-frame"
+      data-state={state}
+      data-tone={tone ?? "none"}
+      className={cn(
+        "relative rounded-[1.6rem] transition-shadow duration-700 ease-out",
+        tone ? frameToneClassName[tone] : "text-trust-green",
+        className,
+      )}
+    >
+      {children}
+      <ScanFeedbackOverlay {...props} />
+    </div>
+  )
+}
+
+/**
+ * Absolutely positioned inside `ScanFeedbackFrame`. The pill straddles the
+ * image's bottom edge so it sits on the white quiet-zone padding and never
+ * over the modules — feedback must not make the code harder to scan. The
+ * "Used" stamp deliberately does cover the modules: a consumed one-time code
+ * only ever verifies red again.
+ */
+function ScanFeedbackOverlay(props: ScanFeedbackProps) {
   const t = useT()
-  const state = pillStateFor(props)
+  const state = stateFor(props)
+  const { pill } = scanFeedbackPresentation(state)
   const consumed = isOneTimeConsumed(props)
   const time = formatLocalClock(props.activity?.last_scanned_at)
 
-  const label =
-    state === "green" || state === "orange" || state === "red"
-      ? t(scannedKeys[state], { time: time ?? "" }).trim()
-      : state === "waiting"
-        ? t("lab.scanFeedback.waiting")
-        : state === "unavailable"
-          ? t("lab.scanFeedback.unavailable")
-          : state === "offline"
-            ? t("lab.scanFeedback.offline")
-            : t("lab.scanFeedback.checking")
+  const label = (pillState: PillState) =>
+    pillState === "green" || pillState === "orange" || pillState === "red"
+      ? t(scannedKeys[pillState], { time: time ?? "" }).trim()
+      : pillState === "unavailable"
+        ? t("lab.scanFeedback.unavailable")
+        : t("lab.scanFeedback.offline")
 
   return (
     <>
@@ -170,24 +207,28 @@ export function ScanFeedbackOverlay(props: ScanFeedbackProps) {
           </span>
         </div>
       ) : null}
-      <div className="pointer-events-none absolute inset-x-3 bottom-1 flex justify-center">
-        <span
-          data-testid="scan-feedback-pill"
-          data-state={state}
-          role="status"
-          aria-live="polite"
-          className={cn(
-            "flex max-w-full items-center gap-2 rounded-full border px-3 py-1 font-mono text-[11px] tracking-[0.1em] uppercase backdrop-blur-md",
-            pillClassName[state],
-          )}
-        >
+      {pill && state !== "waiting" && state !== "checking" ? (
+        <div className="pointer-events-none absolute inset-x-3 bottom-1 flex justify-center">
           <span
-            aria-hidden
-            className={cn("size-1.5 shrink-0 rounded-full", dotClassName[state])}
-          />
-          <span className="truncate">{label}</span>
-        </span>
-      </div>
+            key={state}
+            data-testid="scan-feedback-pill"
+            data-state={state}
+            role="status"
+            aria-live="polite"
+            className={cn(
+              "flex max-w-full items-center gap-2 rounded-full border px-3 py-1 font-mono text-[11px] tracking-[0.1em] uppercase backdrop-blur-md",
+              "animate-in fade-in slide-in-from-bottom-1 fill-mode-both duration-500 [animation-delay:700ms]",
+              pillClassName[state],
+            )}
+          >
+            <span
+              aria-hidden
+              className={cn("size-1.5 shrink-0 rounded-full", dotClassName[state])}
+            />
+            <span className="truncate">{label(state)}</span>
+          </span>
+        </div>
+      ) : null}
     </>
   )
 }

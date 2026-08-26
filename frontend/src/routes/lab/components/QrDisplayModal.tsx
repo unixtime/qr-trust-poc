@@ -12,7 +12,7 @@ import {
 import { Eyebrow } from "@/components/ui/eyebrow"
 import { useT } from "@/i18n"
 import { qrImageDataUrl } from "@/lib/verifier-client"
-import { ScanFeedbackOverlay } from "@/routes/lab/components/ScanFeedback"
+import { ScanFeedbackFrame } from "@/routes/lab/components/ScanFeedback"
 import type { QrDisplayModalProps } from "@/routes/lab/types"
 import { cn } from "@/lib/utils"
 
@@ -60,7 +60,12 @@ function QrDisplayModal({
               </Button>
             </div>
 
-            <div className="relative p-3">
+            <ScanFeedbackFrame
+              className="p-3"
+              activity={scanActivity}
+              error={scanActivityError}
+              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
+            >
               <img
                 src={qrImageDataUrl(demo.qr_png_base64)}
                 alt={t("lab.qrModal.qrAlt")}
@@ -71,12 +76,7 @@ function QrDisplayModal({
                     : "border-border/70 bg-white",
                 )}
               />
-              <ScanFeedbackOverlay
-                activity={scanActivity}
-                error={scanActivityError}
-                usagePolicy={demo.verify_request.envelope.claims.usage_policy}
-              />
-            </div>
+            </ScanFeedbackFrame>
 
             {showMetadata ? (
               <div className="grid gap-4 rounded-[1.4rem] border border-border/70 bg-background/80 p-5 md:grid-cols-3">
