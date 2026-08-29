@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-UsagePolicy = Literal["reusable_public", "one_time", "time_limited"]
 # Whether a verdict was computed for this request or served from the
 # short-lived verdict cache that reusable codes share (see verdict_cache.py).
 VerdictSource = Literal["computed", "cached"]
@@ -12,14 +11,21 @@ GovernanceCacheProfile = Literal["fresh", "stale", "expired"]
 ArtifactRenderProfile = Literal["clean", "low-quiet-zone", "payload-mismatch"]
 VerifierProfileState = Literal["active", "stale", "revoked"]
 
+# One cap per trust-store value, shared by the request models that accept it and
+# the response models that echo it back. They were separate literals once, and
+# the response side sat lower: a legal 300-character revocation reason went into
+# the store and then failed TrustStoreKeyResponse validation, turning
+# GET /verifier/trust-store into a 500. Keeping both sides on one constant is
+# what stops that from drifting apart again.
+TRUST_REF_MAX_LENGTH = 256
+TRUST_REASON_MAX_LENGTH = 512
+
 
 class SignedClaimsInput(BaseModel):
     version: str = Field(min_length=1, max_length=8)
-    usage_policy: UsagePolicy = "reusable_public"
-    certificate_ref: str = Field(min_length=1, max_length=256)
+    certificate_ref: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     issued_at: str = Field(min_length=1, max_length=64)
-    expires_at: str = Field(min_length=1, max_length=64)
-    nonce: str = Field(min_length=1, max_length=256)
+    expires_at: str | None = Field(default=None, min_length=1, max_length=64)
     payload: str = Field(min_length=1, max_length=2048)
 
 
@@ -30,8 +36,8 @@ class SignedEnvelopeInput(BaseModel):
 
 
 class CertificateRecordInput(BaseModel):
-    certificate_ref: str = Field(min_length=1, max_length=256)
-    issuer_name: str = Field(min_length=1, max_length=256)
+    certificate_ref: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    issuer_name: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     algorithm_id: str = Field(min_length=1, max_length=64)
     public_key_pem: str = Field(min_length=1, max_length=8192)
 
@@ -39,25 +45,36 @@ class CertificateRecordInput(BaseModel):
 class IssuerVerificationStateInput(BaseModel):
     verified_domains: list[str] = Field(default_factory=list)
     allow_subdomains: bool = False
+    # Legacy shape. Still accepted, still the default for callers that predate the
+    # trust store; folded onto issuer_status by the verify endpoint's adapter.
     certificate_active: bool = True
     certificate_revoked: bool = False
-    certificate_revocation_reason: str | None = Field(default=None, max_length=512)
+    certificate_revocation_reason: str | None = Field(
+        default=None, max_length=TRUST_REASON_MAX_LENGTH
+    )
+    # Trust-store shape. Every field is optional: absent windows are unbounded and
+    # absent states are active, so a legacy request verifies exactly as it did.
+    issuer_status: Literal["active", "suspended", "revoked"] | None = None
+    issuer_record_issued_at: str | None = Field(default=None, max_length=64)
+    issuer_record_expires_at: str | None = Field(default=None, max_length=64)
+    key_state: Literal["active", "retired", "revoked"] | None = None
+    key_not_before: str | None = Field(default=None, max_length=64)
+    key_not_after: str | None = Field(default=None, max_length=64)
+    key_revocation_reason: str | None = Field(
+        default=None, max_length=TRUST_REASON_MAX_LENGTH
+    )
 
 
 class NarrowedVerifierRequest(BaseModel):
     envelope: SignedEnvelopeInput
     certificate: CertificateRecordInput
     issuer_state: IssuerVerificationStateInput
-    reservation_ttl_seconds: int = Field(default=5, gt=0)
-    consumed_ttl_seconds: int = Field(default=60, gt=0)
 
 
 class ScannedVerifierRequest(BaseModel):
     qr_payload: str = Field(min_length=1, max_length=8192)
     certificate: CertificateRecordInput
     issuer_state: IssuerVerificationStateInput
-    reservation_ttl_seconds: int = Field(default=5, gt=0)
-    consumed_ttl_seconds: int = Field(default=60, gt=0)
 
 
 class QRCodeImageDecodeRequest(BaseModel):
@@ -273,10 +290,55 @@ class ScannerDecisionGovernance(BaseModel):
     source_artifacts: dict[str, str]
 
 
+class ResidualEntry(BaseModel):
+    tier: str = Field(min_length=1, max_length=32)
+    cause: str | None = Field(default=None, max_length=64)
+
+
+class TrustStoreIssuerResponse(BaseModel):
+    issuer_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    issuer_name: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    root_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    status: Literal["active", "suspended", "revoked"]
+    issued_at: str = Field(min_length=1, max_length=64)
+    expires_at: str | None = Field(default=None, max_length=64)
+    verified_domains: list[str] = Field(default_factory=list)
+    allow_subdomains: bool
+
+
+class TrustStoreKeyResponse(BaseModel):
+    key_ref: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    issuer_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
+    algorithm_id: str = Field(min_length=1, max_length=64)
+    state: Literal["active", "retired", "revoked"]
+    not_before: str = Field(min_length=1, max_length=64)
+    not_after: str | None = Field(default=None, max_length=64)
+    revoked_at: str | None = Field(default=None, max_length=64)
+    revocation_reason: str | None = Field(
+        default=None, max_length=TRUST_REASON_MAX_LENGTH
+    )
+
+
+class TrustStoreResponse(BaseModel):
+    generated_at: str = Field(min_length=1, max_length=64)
+    issuers: list[TrustStoreIssuerResponse] = Field(default_factory=list)
+    keys: list[TrustStoreKeyResponse] = Field(default_factory=list)
+
+
+class ModelDecisionResponse(BaseModel):
+    profile: str = Field(min_length=1, max_length=64)
+    primary_state: str = Field(min_length=1, max_length=64)
+    annotations: list[str] = Field(default_factory=list)
+    reason_codes: list[str] = Field(default_factory=list)
+    attention_level: Literal["positive", "neutral", "warning", "block"]
+
+
 class ScannerDecisionResponse(BaseModel):
     decision_state: str = Field(min_length=1, max_length=64)
     open_allowed: bool
-    usage_policy: UsagePolicy | None = None
+    envelope_id: str | None = Field(default=None, min_length=64, max_length=64)
+    residual_vector: dict[str, ResidualEntry]
+    model_decision: ModelDecisionResponse | None = None
     primary_message: str = Field(min_length=1, max_length=512)
     issuer: ScannerDecisionIssuer
     destination: ScannerDecisionDestination
@@ -295,28 +357,46 @@ class NarrowedVerifierResponse(BaseModel):
     allowed: bool
     stage: str
     reason: str
-    usage_policy: UsagePolicy
     canonical_claims_sha256: str | None
     matched_rule: str | None
-    reservation_state: str | None
+    # Closed-vocabulary slug the residual vector, the frontend catalogues and the
+    # iOS app key on. None on an accepting verdict.
+    cause: str | None = None
     verdict_source: VerdictSource = "computed"
 
 
 class DemoMaterialsRequest(BaseModel):
     payload: str = Field(default="https://acme.example/pay", min_length=1, max_length=2048)
-    nonce: str = Field(default="demo-nonce-api-001", min_length=1, max_length=256)
-    usage_policy: UsagePolicy = "reusable_public"
     governance_cache_profile: GovernanceCacheProfile = "fresh"
     verified_domains: list[str] = Field(default_factory=lambda: ["acme.example"])
     allow_subdomains: bool = False
     certificate_active: bool = True
     certificate_revoked: bool = False
-    certificate_revocation_reason: str | None = Field(default=None, max_length=512)
+    certificate_revocation_reason: str | None = Field(
+        default=None, max_length=TRUST_REASON_MAX_LENGTH
+    )
     issued_offset_minutes: int = -1
-    # Upper bound shared with the lab's time-limited picker (30 days).
-    expires_offset_minutes: int = Field(default=5, le=30 * 24 * 60)
+    # Upper bound shared with the lab's validity-window picker (30 days).
+    # None means open-ended: the claim carries a literal null and no artifact
+    # expiry is checked. The 30-day cap only bounds a value that exists.
+    expires_offset_minutes: int | None = Field(default=5, le=30 * 24 * 60)
+    issuer_record_expires_offset_minutes: int | None = None
+    key_state: Literal["active", "retired", "revoked"] | None = None
+    # Mints a fresh demo keypair. Retiring the previous key is part of trust
+    # enrollment, not of minting, so `rotate_key=True` together with
+    # `register_scanner_trust=False` signs under a new ref but retires nothing
+    # and echoes back only what an earlier call had already retired -- an empty
+    # `retired_key_refs` in a fresh process.
+    rotate_key: bool = False
     register_scanner_trust: bool = True
     artifact_profile: ArtifactRenderProfile = "clean"
+
+
+class DemoTrustEcho(BaseModel):
+    key_ref: str
+    key_state: str
+    issuer_status: str
+    retired_key_refs: list[str] = Field(default_factory=list)
 
 
 class DemoMaterialsResponse(BaseModel):
@@ -326,6 +406,8 @@ class DemoMaterialsResponse(BaseModel):
     verify_request: NarrowedVerifierRequest
     qr_payload: str = Field(min_length=1, max_length=8192)
     qr_png_base64: str = Field(min_length=1, max_length=8_000_000)
+    envelope_id: str = Field(min_length=64, max_length=64)
+    trust: DemoTrustEcho
 
 
 class VerifierAPIKeyIssueRequest(BaseModel):
@@ -457,13 +539,10 @@ class ScannerDecisionRecentResponse(BaseModel):
     reason_codes: list[str] = Field(default_factory=list)
     risk_score: int | None = Field(default=None, ge=0, le=100)
     destination_fingerprint: str | None = None
-    usage_policy: UsagePolicy | None = None
     hold_to_open_required: bool
     hold_to_open_duration_ms: int = Field(ge=0)
     created_at: str
 
-
-ScanActivityReplayState = Literal["not_applicable", "unused", "reserved", "consumed"]
 
 # What the scanner did after its latest decision, as reported through
 # ``POST /scanner/ux-events``. ``unreported`` means no event reached this
@@ -479,29 +558,21 @@ class ScanActivityDecisionResponse(ScannerDecisionRecentResponse):
     client_platform: str | None = None
 
 
-class ScanActivityReplayGuardResponse(BaseModel):
-    """Live replay-guard view for one-time nonces (``applies`` is False otherwise)."""
-
-    applies: bool
-    state: ScanActivityReplayState
-    expires_at: str | None = None
-
-
 class ScanActivityThrottleResponse(BaseModel):
     """Scan-flood state for one reusable QR, overlaid by the endpoint.
 
     ``cached_verdicts`` counts scans answered from the verdict cache (no
     evidence row is written for those; the counter is a fixed window that
-    starts at the first cached hit). ``nonce_budget_remaining`` is what is left
-    of the per-QR budget in the current limiter window.
+    starts at the first cached hit). ``envelope_budget_remaining`` is what is
+    left of the per-envelope budget in the current limiter window.
     """
 
     cached_verdicts: int = Field(ge=0)
     last_cached_at: str | None = None
     verdict_cache_ttl_seconds: int = Field(ge=0)
-    nonce_budget_limit: int = Field(ge=1)
-    nonce_budget_remaining: int = Field(ge=0)
-    nonce_budget_window_seconds: int = Field(ge=1)
+    envelope_budget_limit: int = Field(ge=1)
+    envelope_budget_remaining: int = Field(ge=0)
+    envelope_budget_window_seconds: int = Field(ge=1)
 
 
 class ScanActivityResponse(BaseModel):
@@ -512,31 +583,25 @@ class ScanActivityResponse(BaseModel):
     counts are zero because nothing could be read, not because nothing happened.
     """
 
-    nonce_fingerprint: str
+    envelope_fingerprint: str
     persistence_state: ScannerDecisionPersistenceState
     lookback_seconds: int = Field(ge=1)
-    # When set, every count and ``latest`` below is scoped to scans at or after
-    # this issuance: a lab nonce is reused across regenerations, and a fresh
-    # code must not inherit an earlier code's history.
-    issued_at: str | None = None
     scan_count: int = Field(ge=0)
     green_count: int = Field(ge=0)
     orange_count: int = Field(ge=0)
     red_count: int = Field(ge=0)
     first_scanned_at: str | None = None
     last_scanned_at: str | None = None
-    # First green decision for this nonce; for ``one_time`` codes this is the
-    # scan that consumed the nonce. ``blocked_since_verified`` counts the red
-    # decisions recorded after it (replay attempts, for one-time codes).
+    # First green decision for this envelope. ``blocked_since_verified`` counts
+    # the red decisions recorded after it.
     first_verified_at: str | None = None
     blocked_since_verified: int = Field(default=0, ge=0)
     latest: ScanActivityDecisionResponse | None = None
-    replay_guard: ScanActivityReplayGuardResponse
     # Overlaid by the endpoint from its in-memory UX-event log; None without a
     # latest decision to match events against.
     destination_outcome: ScanActivityDestinationOutcome | None = None
-    # Overlaid by the endpoint for reusable_public / time_limited codes only;
-    # None for one_time codes, which have no scan-flood budget or cache.
+    # Overlaid by the endpoint when the envelope rate limit applies; None
+    # otherwise.
     throttle: ScanActivityThrottleResponse | None = None
     error: str | None = None
 
@@ -576,8 +641,8 @@ class VerifierStatusResponse(BaseModel):
     rate_limit_window_seconds: int = Field(ge=1)
     rate_limit_max_requests: int = Field(ge=1)
     decode_rate_limit_max_requests: int = Field(ge=1)
-    nonce_rate_limit_window_seconds: int = Field(ge=1)
-    nonce_rate_limit_max_requests: int = Field(ge=1)
+    envelope_rate_limit_window_seconds: int = Field(ge=1)
+    envelope_rate_limit_max_requests: int = Field(ge=1)
     issuer_rate_limit_max_requests: int = Field(ge=1)
     verdict_cache_enabled: bool
     verdict_cache_ttl_seconds: int = Field(ge=0)

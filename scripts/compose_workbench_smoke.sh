@@ -7,7 +7,7 @@ FRONTEND_PUBLIC_URL="${FRONTEND_PUBLIC_URL:-http://127.0.0.1:${FRONTEND_PUBLISH_
 # The default lives in its own variable because semgrep's bash parser rejects
 # a bare "&" inside a ${VAR:-default} expansion, and a parse error there
 # silently drops every rule that would have matched this file.
-LAB_SMOKE_DEFAULT_PATH='/?scenario=payload-mismatch&nonce=fixed&autogenerate=1&compare=valid'
+LAB_SMOKE_DEFAULT_PATH='/?scenario=payload-mismatch&autogenerate=1&compare=valid'
 LAB_SMOKE_PATH="${LAB_SMOKE_PATH:-$LAB_SMOKE_DEFAULT_PATH}"
 VERIFIER_SMOKE_ADMIN_TOKEN="${VERIFIER_SMOKE_ADMIN_TOKEN:-local-lab-admin}"
 VERIFIER_SMOKE_INSECURE_TLS="${VERIFIER_SMOKE_INSECURE_TLS:-false}"

@@ -130,10 +130,6 @@ const reasonCopy = {
     labelKey: "lab.reason.newlyRegisteredDomain.label",
     detailKey: "lab.reason.newlyRegisteredDomain.detail",
   },
-  one_time_used: {
-    labelKey: "lab.reason.oneTimeUsed.label",
-    detailKey: "lab.reason.oneTimeUsed.detail",
-  },
   plain_url: {
     labelKey: "lab.reason.plainUrl.label",
     detailKey: "lab.reason.plainUrl.detail",
@@ -161,10 +157,6 @@ const reasonCopy = {
   stale_trust_state: {
     labelKey: "lab.reason.staleTrustState.label",
     detailKey: "lab.reason.staleTrustState.detail",
-  },
-  suspicious_tld: {
-    labelKey: "lab.reason.suspiciousTld.label",
-    detailKey: "lab.reason.suspiciousTld.detail",
   },
   trust_cache_unavailable: {
     labelKey: "lab.reason.trustCacheUnavailable.label",
@@ -204,9 +196,6 @@ function scannerPreviewSummaryKey(decision: ScanDecision): MessageKey | null {
     return "lab.scanner.summary.verified"
   }
   if (riskLevel === "red") {
-    if (reasons.includes("one_time_used")) {
-      return "lab.scanner.summary.oneTimeUsed"
-    }
     if (reasons.includes("destination_mismatch")) {
       return "lab.scanner.summary.destinationMismatch"
     }

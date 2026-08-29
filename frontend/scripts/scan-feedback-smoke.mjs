@@ -35,7 +35,6 @@ const observable = (overrides = {}) => ({
   persistence_state: "observable",
   scan_count: 0,
   latest: null,
-  replay_guard: { applies: false, state: "not_applicable" },
   ...overrides,
 })
 
@@ -70,6 +69,18 @@ assert.deepEqual(scanFeedbackPresentation("unavailable"), { tone: null, pill: tr
 assert.deepEqual(scanFeedbackPresentation("green"), { tone: "green", pill: true })
 assert.deepEqual(scanFeedbackPresentation("orange"), { tone: "amber", pill: true })
 assert.deepEqual(scanFeedbackPresentation("red"), { tone: "red", pill: true })
+
+// The feedback surface has no replay-guard branch and keys activity by envelope.
+const feedbackSource = repoFile("src/routes/lab/components/ScanFeedback.tsx")
+assert.equal(
+  /replay|usagePolicy|nonce/i.test(feedbackSource),
+  false,
+  "ScanFeedback still mentions replay/usagePolicy/nonce",
+)
+assert.ok(
+  feedbackSource.includes("envelope_budget_remaining"),
+  "throttle should read envelope_budget_remaining",
+)
 
 // --- pulse: once per scan, never before one ---------------------------------
 

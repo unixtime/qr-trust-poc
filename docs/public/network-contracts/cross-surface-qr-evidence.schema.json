@@ -35,7 +35,6 @@
       "required": [
         "artifact_ref",
         "payload_hash",
-        "usage_policy",
         "destination_fingerprint"
       ],
       "properties": {
@@ -46,12 +45,6 @@
         "payload_hash": {
           "type": "string",
           "pattern": "^sha256:[a-f0-9]{64}$"
-        },
-        "usage_policy": {
-          "enum": [
-            "one_time",
-            "reusable_public"
-          ]
         },
         "destination_fingerprint": {
           "$ref": "#/$defs/domain_fingerprint"

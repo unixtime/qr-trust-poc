@@ -2,17 +2,13 @@ import { useSyncExternalStore } from "react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { Eyebrow } from "@/components/ui/eyebrow"
 import { Input } from "@/components/ui/input"
-import { usagePolicyLabelKeys, type NonceMode } from "@/domain/scenarios"
 import { useT, type MessageKey } from "@/i18n"
 import { useTNodes } from "@/i18n/nodes"
-import { cn } from "@/lib/utils"
 import {
   qrImageDataUrl,
   type DemoMaterialsResponse,
   type ScanActivity,
-  type UsagePolicy,
   type VerifierDecision,
 } from "@/lib/verifier-client"
 import {
@@ -26,36 +22,12 @@ import {
   customExpiryMinutes,
   expiryInputValue,
   expiryValidation,
+  lifetimeMinutesFor,
+  scenarioMeta,
   type ExpiryProblem,
 } from "@/routes/lab/content"
-import type { HistoryEntry } from "@/routes/lab/types"
+import type { HistoryEntry, ScenarioKey } from "@/routes/lab/types"
 import { formatLocalDateTime } from "@/routes/lab/utils"
-
-const nonceModeLabelKeys: Record<NonceMode, MessageKey> = {
-  fixed: "lab.generate.nonce.fixed",
-  timestamped: "lab.generate.nonce.timestamped",
-}
-
-const nonceModeHelpKeys: Record<NonceMode, MessageKey> = {
-  fixed: "lab.generate.nonce.help.fixed",
-  timestamped: "lab.generate.nonce.help.timestamped",
-}
-
-const nonceModeOrder: NonceMode[] = ["fixed", "timestamped"]
-
-// The labels live in `usagePolicyLabelKeys` beside the wire values; this array
-// only fixes the order the options appear in.
-const usagePolicyOrder: UsagePolicy[] = [
-  "reusable_public",
-  "one_time",
-  "time_limited",
-]
-
-const usagePolicyHelpKeys: Record<UsagePolicy, MessageKey> = {
-  reusable_public: "lab.generate.usagePolicy.help.reusable_public",
-  one_time: "lab.generate.usagePolicy.help.one_time",
-  time_limited: "lab.generate.usagePolicy.help.time_limited",
-}
 
 const expiryProblemKeys: Record<ExpiryProblem, MessageKey> = {
   past: "lab.generate.expiry.error.past",
@@ -63,7 +35,6 @@ const expiryProblemKeys: Record<ExpiryProblem, MessageKey> = {
   invalid: "lab.generate.expiry.error.invalid",
 }
 
-const DEFAULT_TIME_LIMITED_MINUTES = 60
 const MINUTE_MS = 60_000
 
 // The picker's bounds and default depend on "now", which render must not read
@@ -77,21 +48,16 @@ function subscribeMinute(onChange: () => void) {
 const minuteNow = () => Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
 
 type GenerateStepProps = {
+  scenario: ScenarioKey
   scenarioLabel: string
   demo: DemoMaterialsResponse | null
   isGenerating: boolean
   generationError: string | null
   isVerifyingCurrent: boolean
-  nonceMode: NonceMode
-  usagePolicy: UsagePolicy
-  // The `time_limited` picker value (datetime-local); null means the policy
-  // default, which the picker shows as a live "+60 minutes" so the operator
-  // sees what will be sealed either way.
+  // The validity-window picker value (datetime-local); null keeps the
+  // scenario's own window, which the picker shows so the operator sees what
+  // will be sealed either way.
   expiresAt: string | null
-  // Minutes the next generated QR will stay valid; non-positive means the
-  // scenario seals an already-expired code. Computed by the caller from the
-  // same helper that builds the request, so the hint cannot drift from it.
-  lifetimeMinutes: number
   showKeyIssue: boolean
   isIssuingLabKey: boolean
   latestActivity: HistoryEntry | null
@@ -101,15 +67,13 @@ type GenerateStepProps = {
   onGenerate: () => void
   onVerifyCurrent: () => void
   onIssueLabKey: () => void
-  onNonceModeChange: (mode: NonceMode) => void
-  onUsagePolicyChange: (policy: UsagePolicy) => void
   onExpiresAtChange: (value: string | null) => void
   onOpenFullscreen: () => void
   onBack: () => void
   onNext: () => void
 }
 
-// A numbered section: the step reads top to bottom as configure -> options ->
+// A numbered section: the step reads top to bottom as validity window ->
 // generate, so a first-time operator never has to guess what to press first.
 function StepSection({
   number,
@@ -138,52 +102,14 @@ function StepSection({
   )
 }
 
-// One selectable option with its explanation always visible: the explanation
-// is the point of the guided layout, so it is never hidden behind a hover.
-function OptionCard({
-  pressed,
-  label,
-  help,
-  testId,
-  onSelect,
-}: {
-  pressed: boolean
-  label: string
-  help: string
-  testId: string
-  onSelect: () => void
-}) {
-  return (
-    <button
-      type="button"
-      data-testid={testId}
-      aria-pressed={pressed}
-      onClick={onSelect}
-      className={cn(
-        "w-full rounded-xl border p-3 text-left transition-colors",
-        pressed
-          ? "border-trust-green/40 bg-trust-green/8"
-          : "border-white/8 bg-white/3 hover:border-white/20",
-      )}
-    >
-      <span className={cn("block text-sm font-medium", pressed ? "text-trust-green" : "")}>
-        {label}
-      </span>
-      <span className="mt-0.5 block text-xs text-muted-foreground">{help}</span>
-    </button>
-  )
-}
-
 export default function GenerateStep({
+  scenario,
   scenarioLabel,
   demo,
   isGenerating,
   generationError,
   isVerifyingCurrent,
-  nonceMode,
-  usagePolicy,
   expiresAt,
-  lifetimeMinutes,
   showKeyIssue,
   isIssuingLabKey,
   latestActivity,
@@ -193,8 +119,6 @@ export default function GenerateStep({
   onGenerate,
   onVerifyCurrent,
   onIssueLabKey,
-  onNonceModeChange,
-  onUsagePolicyChange,
   onExpiresAtChange,
   onOpenFullscreen,
   onBack,
@@ -203,17 +127,23 @@ export default function GenerateStep({
   const t = useT()
   const tNodes = useTNodes()
 
-  const timeLimited = usagePolicy === "time_limited"
   const now = useSyncExternalStore(subscribeMinute, minuteNow, minuteNow)
-  const expiryProblem = timeLimited ? expiryValidation(expiresAt, now) : null
-  const pickedMinutes = timeLimited && !expiryProblem ? customExpiryMinutes(expiresAt, now) : null
-  // An expired scenario still wins over a custom pick, so the hint only
-  // promises a custom expiry when the caller's lifetime is positive.
+  // The expired scenario seals a window that closed before the artifact
+  // existed; there is nothing for the operator to pick, so the field is off
+  // and its own pick can never be the reason the scan fails.
+  const sealsExpired = scenarioMeta[scenario].expiresOffsetMinutes <= 0
+  const expiryProblem = sealsExpired ? null : expiryValidation(expiresAt, now)
+  // Same helper the request builder uses, so the hint cannot drift from what
+  // is actually sealed: an expired scenario still wins over a custom pick.
+  const lifetimeMinutes = lifetimeMinutesFor(
+    scenarioMeta[scenario],
+    customExpiryMinutes(expiresAt, now),
+  )
   const pickedIso =
-    pickedMinutes !== null && expiresAt && lifetimeMinutes > 0
+    expiresAt && !expiryProblem && lifetimeMinutes > 0
       ? new Date(Date.parse(expiresAt)).toISOString()
       : null
-  const expiryInput = expiresAt ?? expiryInputValue(now + DEFAULT_TIME_LIMITED_MINUTES * MINUTE_MS)
+  const expiryInput = expiresAt ?? expiryInputValue(now + lifetimeMinutes * MINUTE_MS)
 
   return (
     <div className="flex flex-col gap-6">
@@ -251,78 +181,57 @@ export default function GenerateStep({
         </div>
       ) : null}
 
-      <StepSection number="01" title={t("lab.generate.configure")} testId="generate-configure">
-        <fieldset className="flex flex-col gap-2">
-          <Eyebrow as="legend" className="mb-1.5">
-            {t("lab.generate.usagePolicyLegend")}
-          </Eyebrow>
-          {usagePolicyOrder.map((value) => (
-            <OptionCard
-              key={value}
-              testId={`usage-${value}`}
-              pressed={usagePolicy === value}
-              label={t(usagePolicyLabelKeys[value])}
-              help={t(usagePolicyHelpKeys[value])}
-              onSelect={() => onUsagePolicyChange(value)}
-            />
-          ))}
-        </fieldset>
-        {timeLimited ? (
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="generate-expiry" className="text-sm font-medium">
-              {t("lab.generate.expiry.label")}
-            </label>
-            <Input
-              id="generate-expiry"
-              data-testid="expiry-input"
-              className="[color-scheme:dark]"
-              type="datetime-local"
-              value={expiryInput}
-              min={expiryInputValue(now + MINUTE_MS)}
-              max={expiryInputValue(now + MAX_LIFETIME_MINUTES * MINUTE_MS)}
-              aria-invalid={expiryProblem !== null}
-              aria-describedby={expiryProblem ? "generate-expiry-error" : "generate-expiry-help"}
-              onChange={(event) => onExpiresAtChange(event.target.value || null)}
-            />
-            {expiryProblem ? (
-              <p
-                id="generate-expiry-error"
-                data-testid="expiry-error"
-                role="alert"
-                className="text-xs text-trust-red"
-              >
-                {t(expiryProblemKeys[expiryProblem], {
-                  days: MAX_LIFETIME_MINUTES / (24 * 60),
-                })}
-              </p>
-            ) : (
-              <p id="generate-expiry-help" className="text-xs text-muted-foreground">
-                {t("lab.generate.expiry.help")}
-              </p>
-            )}
-          </div>
-        ) : null}
+      <StepSection
+        number="01"
+        title={t("lab.generate.validity.title")}
+        testId="generate-validity"
+      >
+        <p className="text-sm text-muted-foreground">
+          {t("lab.generate.validity.description")}
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="generate-expiry" className="text-sm font-medium">
+            {t("lab.generate.expiry.label")}
+          </label>
+          <Input
+            id="generate-expiry"
+            data-testid="expiry-input"
+            className="[color-scheme:dark]"
+            type="datetime-local"
+            value={expiryInput}
+            min={expiryInputValue(now + MINUTE_MS)}
+            max={expiryInputValue(now + MAX_LIFETIME_MINUTES * MINUTE_MS)}
+            disabled={sealsExpired}
+            aria-invalid={expiryProblem !== null}
+            aria-describedby={expiryProblem ? "generate-expiry-error" : "generate-expiry-help"}
+            onChange={(event) => onExpiresAtChange(event.target.value || null)}
+          />
+          {expiryProblem ? (
+            <p
+              id="generate-expiry-error"
+              data-testid="expiry-error"
+              role="alert"
+              className="text-xs text-trust-red"
+            >
+              {t(expiryProblemKeys[expiryProblem], {
+                days: MAX_LIFETIME_MINUTES / (24 * 60),
+              })}
+            </p>
+          ) : (
+            <p
+              id="generate-expiry-help"
+              data-testid="expiry-note"
+              className="text-xs text-muted-foreground"
+            >
+              {sealsExpired
+                ? t("lab.generate.expiry.expiredNote")
+                : t("lab.generate.expiry.help")}
+            </p>
+          )}
+        </div>
       </StepSection>
 
-      <StepSection number="02" title={t("lab.generate.options")} testId="generate-options">
-        <fieldset className="flex flex-col gap-2">
-          <Eyebrow as="legend" className="mb-1.5">
-            {t("lab.generate.nonceMode")}
-          </Eyebrow>
-          {nonceModeOrder.map((value) => (
-            <OptionCard
-              key={value}
-              testId={`nonce-${value}`}
-              pressed={nonceMode === value}
-              label={t(nonceModeLabelKeys[value])}
-              help={t(nonceModeHelpKeys[value])}
-              onSelect={() => onNonceModeChange(value)}
-            />
-          ))}
-        </fieldset>
-      </StepSection>
-
-      <StepSection number="03" title={t("lab.generate.generate")} testId="generate-section">
+      <StepSection number="02" title={t("lab.generate.generate")} testId="generate-section">
         <p data-testid="generate-lifetime" className="text-xs text-muted-foreground">
           {pickedIso
             ? t("lab.generate.lifetime.until", { when: formatLocalDateTime(pickedIso) })
@@ -377,7 +286,6 @@ export default function GenerateStep({
               className="p-3"
               activity={scanActivity}
               error={scanActivityError}
-              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
             >
               {/* Corner brackets follow the frame's text colour: sealed green
                   until a verdict, then the verdict tone. */}
@@ -412,22 +320,10 @@ export default function GenerateStep({
               <dl className="mt-3 flex flex-col gap-1.5 font-mono text-[11px]">
                 <div className="flex items-baseline justify-between gap-3">
                   <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
-                    {t("lab.generate.sealed.nonce")}
+                    {t("lab.qrModal.meta.envelope")}
                   </dt>
-                  <dd className="truncate text-foreground/90">
-                    {demo.verify_request.envelope.claims.nonce}
-                  </dd>
-                </div>
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
-                    {t("lab.generate.sealed.policy")}
-                  </dt>
-                  <dd className="truncate text-foreground/90">
-                    {t(
-                      usagePolicyLabelKeys[
-                        demo.verify_request.envelope.claims.usage_policy
-                      ],
-                    )}
+                  <dd data-testid="sealed-envelope" className="truncate text-foreground/90">
+                    <code>{demo.envelope_id.slice(0, 16)}…</code>
                   </dd>
                 </div>
                 <div className="flex items-baseline justify-between gap-3">
@@ -439,20 +335,43 @@ export default function GenerateStep({
                   </dd>
                 </div>
                 <ClaimExpiryRow expiresAt={demo.verify_request.envelope.claims.expires_at} />
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                    {t("lab.generate.sealed.keyRef")}
+                  </dt>
+                  <dd data-testid="sealed-key-ref" className="truncate text-foreground/90">
+                    <code>{demo.trust.key_ref}</code>
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                    {t("lab.generate.sealed.keyState")}
+                  </dt>
+                  <dd data-testid="sealed-key-state" className="truncate text-foreground/90">
+                    {t(`lab.generate.sealed.keyState.${demo.trust.key_state}` as MessageKey)}
+                  </dd>
+                </div>
+                {demo.trust.retired_key_refs.length > 0 ? (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="shrink-0 tracking-[0.14em] text-muted-foreground uppercase">
+                      {t("lab.generate.sealed.retiredKeys")}
+                    </dt>
+                    <dd data-testid="sealed-retired-keys" className="truncate text-foreground/90">
+                      {t("lab.generate.sealed.retiredKeys.count", {
+                        count: demo.trust.retired_key_refs.length,
+                      })}
+                    </dd>
+                  </div>
+                ) : null}
                 <ScanFeedbackRows
                   activity={scanActivity}
                   error={scanActivityError}
-                  usagePolicy={demo.verify_request.envelope.claims.usage_policy}
                   issuerName={demo.verify_request.certificate.issuer_name}
                   verifiedDomains={demo.verify_request.issuer_state.verified_domains}
                 />
               </dl>
               <div className="mt-3">
-                <ScanFeedbackNote
-                  activity={scanActivity}
-                  error={scanActivityError}
-                  usagePolicy={demo.verify_request.envelope.claims.usage_policy}
-                />
+                <ScanFeedbackNote activity={scanActivity} error={scanActivityError} />
               </div>
             </details>
           </div>

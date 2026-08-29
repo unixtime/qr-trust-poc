@@ -1,6 +1,11 @@
 """
 Demonstrate the integrated narrowed verifier pipeline.
 
+The verifier keeps no per-presentation state: it checks the signed schema,
+certificate status, validity window, and destination revalidation on every
+presentation, so a repeated presentation of the same signed artifact is
+evaluated identically each time.
+
 Usage:
     ./.venv/bin/python scripts/narrowed_verifier_poc_demo.py
 """
@@ -21,7 +26,6 @@ from backend.app.services.narrowed_verifier_poc import (  # noqa: E402
     IssuerVerificationState,
     NarrowedVerifierService,
 )
-from backend.app.services.replay_guard_poc import InMemoryReplayGuard  # noqa: E402
 from backend.app.services.signed_schema_poc import (  # noqa: E402
     SUPPORTED_ALGORITHM_ID,
     SignedQRCodeClaims,
@@ -30,50 +34,20 @@ from backend.app.services.signed_schema_poc import (  # noqa: E402
 )
 
 
-class FinalizeFailingReplayGuard(InMemoryReplayGuard):
-    async def finalize(
-        self,
-        nonce: str,
-        owner_token: str,
-        consumed_ttl_seconds: int,
-    ) -> bool:
-        return False
-
-
-class ReleaseFailingReplayGuard(InMemoryReplayGuard):
-    async def release(self, nonce: str, owner_token: str) -> bool:
-        return False
-
-
 def make_claims(
-    nonce: str,
     payload: str = "https://acme.example/pay",
     *,
-    usage_policy: str = "one_time",
     issued_offset_minutes: int = -1,
     expires_offset_minutes: int = 5,
 ) -> SignedQRCodeClaims:
     now = datetime.now(timezone.utc)
     return SignedQRCodeClaims(
-        version="1",
-        usage_policy=usage_policy,
+        version="2",
         certificate_ref="cert:acme-demo:2026-01",
         issued_at=(now + timedelta(minutes=issued_offset_minutes)).isoformat(),
         expires_at=(now + timedelta(minutes=expires_offset_minutes)).isoformat(),
-        nonce=nonce,
         payload=payload,
     )
-
-
-async def run_concurrent_worker(
-    verifier: NarrowedVerifierService,
-    envelope,
-    certificate,
-    issuer_state,
-    start: asyncio.Event,
-):
-    await start.wait()
-    return await verifier.verify_presented_code(envelope, certificate, issuer_state)
 
 
 async def main() -> None:
@@ -83,57 +57,30 @@ async def main() -> None:
         certificate_ref="cert:acme-demo:2026-01",
         algorithm_id=SUPPORTED_ALGORITHM_ID,
     )
-
-    # Case 1: valid first scan, then replay block on second attempt.
-    guard_a = InMemoryReplayGuard()
-    verifier_a = NarrowedVerifierService(guard_a)
+    verifier = NarrowedVerifierService()
     issuer_state_valid = IssuerVerificationState(verified_domains=["acme.example"])
-    claims_a = make_claims("demo-nonce-101")
-    envelope_a = create_signed_envelope(
-        claims_a,
+
+    # Case 1: a valid envelope is accepted, and accepted again on a repeated
+    # presentation — there is no per-presentation state to consume or block on.
+    claims_valid = make_claims()
+    envelope_valid = create_signed_envelope(
+        claims_valid,
         private_key_pem,
         code_algorithm_id=SUPPORTED_ALGORITHM_ID,
     )
-
-    first_scan = await verifier_a.verify_presented_code(
-        envelope_a,
+    first_scan = await verifier.verify_presented_code(
+        envelope_valid,
         certificate,
         issuer_state_valid,
     )
-    second_scan = await verifier_a.verify_presented_code(
-        envelope_a,
+    second_scan = await verifier.verify_presented_code(
+        envelope_valid,
         certificate,
         issuer_state_valid,
     )
 
-    # Case 2: issuer-state mismatch releases reservation, then later retry succeeds.
-    guard_b = InMemoryReplayGuard()
-    verifier_b = NarrowedVerifierService(guard_b)
-    claims_b = make_claims("demo-nonce-202")
-    envelope_b = create_signed_envelope(
-        claims_b,
-        private_key_pem,
-        code_algorithm_id=SUPPORTED_ALGORITHM_ID,
-    )
-    issuer_state_missing_domain = IssuerVerificationState(verified_domains=[])
-    issuer_state_restored = IssuerVerificationState(verified_domains=["acme.example"])
-
-    failed_then_released = await verifier_b.verify_presented_code(
-        envelope_b,
-        certificate,
-        issuer_state_missing_domain,
-    )
-    retry_after_release = await verifier_b.verify_presented_code(
-        envelope_b,
-        certificate,
-        issuer_state_restored,
-    )
-
-    # Case 3: expired credential is blocked before nonce reservation.
-    guard_expired = InMemoryReplayGuard()
-    verifier_expired = NarrowedVerifierService(guard_expired)
+    # Case 2: expired credential is blocked at the time_window stage.
     claims_expired = make_claims(
-        "demo-nonce-expired",
         issued_offset_minutes=-10,
         expires_offset_minutes=-1,
     )
@@ -142,16 +89,30 @@ async def main() -> None:
         private_key_pem,
         code_algorithm_id=SUPPORTED_ALGORITHM_ID,
     )
-    expired_result = await verifier_expired.verify_presented_code(
+    expired_result = await verifier.verify_presented_code(
         envelope_expired,
         certificate,
         issuer_state_valid,
     )
 
-    # Case 4: revoked certificate is blocked before nonce reservation.
-    guard_revoked = InMemoryReplayGuard()
-    verifier_revoked = NarrowedVerifierService(guard_revoked)
-    claims_revoked = make_claims("demo-nonce-revoked")
+    # Case 3: not-yet-valid credential is blocked at the time_window stage.
+    claims_not_yet_valid = make_claims(
+        issued_offset_minutes=1,
+        expires_offset_minutes=6,
+    )
+    envelope_not_yet_valid = create_signed_envelope(
+        claims_not_yet_valid,
+        private_key_pem,
+        code_algorithm_id=SUPPORTED_ALGORITHM_ID,
+    )
+    not_yet_valid_result = await verifier.verify_presented_code(
+        envelope_not_yet_valid,
+        certificate,
+        issuer_state_valid,
+    )
+
+    # Case 4: revoked certificate is blocked at the certificate_status stage.
+    claims_revoked = make_claims()
     envelope_revoked = create_signed_envelope(
         claims_revoked,
         private_key_pem,
@@ -162,70 +123,23 @@ async def main() -> None:
         certificate_revoked=True,
         certificate_revocation_reason="Issuer revoked credential after merchant offboarding",
     )
-    revoked_result = await verifier_revoked.verify_presented_code(
+    revoked_result = await verifier.verify_presented_code(
         envelope_revoked,
         certificate,
         issuer_state_revoked,
     )
 
-    # Case 5: release failure is surfaced when payload revalidation fails.
-    guard_release_fail = ReleaseFailingReplayGuard()
-    verifier_release_fail = NarrowedVerifierService(guard_release_fail)
-    claims_release_fail = make_claims("demo-nonce-release-fail")
-    envelope_release_fail = create_signed_envelope(
-        claims_release_fail,
+    # Case 5: destination mismatch is blocked at the payload_revalidation stage.
+    claims_mismatch = make_claims(payload="https://evil.example/pay")
+    envelope_mismatch = create_signed_envelope(
+        claims_mismatch,
         private_key_pem,
         code_algorithm_id=SUPPORTED_ALGORITHM_ID,
     )
-    release_failed_result = await verifier_release_fail.verify_presented_code(
-        envelope_release_fail,
-        certificate,
-        issuer_state_missing_domain,
-    )
-
-    # Case 6: finalize failure is surfaced when consume cannot complete.
-    guard_finalize_fail = FinalizeFailingReplayGuard()
-    verifier_finalize_fail = NarrowedVerifierService(guard_finalize_fail)
-    claims_finalize_fail = make_claims("demo-nonce-finalize-fail")
-    envelope_finalize_fail = create_signed_envelope(
-        claims_finalize_fail,
-        private_key_pem,
-        code_algorithm_id=SUPPORTED_ALGORITHM_ID,
-    )
-    finalize_failed_result = await verifier_finalize_fail.verify_presented_code(
-        envelope_finalize_fail,
+    mismatch_result = await verifier.verify_presented_code(
+        envelope_mismatch,
         certificate,
         issuer_state_valid,
-    )
-
-    # Case 7: concurrent valid scans share one nonce; only one may win.
-    guard_c = InMemoryReplayGuard()
-    verifier_c = NarrowedVerifierService(guard_c)
-    claims_c = make_claims("demo-nonce-303")
-    envelope_c = create_signed_envelope(
-        claims_c,
-        private_key_pem,
-        code_algorithm_id=SUPPORTED_ALGORITHM_ID,
-    )
-    start = asyncio.Event()
-    tasks = [
-        asyncio.create_task(
-            run_concurrent_worker(
-                verifier_c,
-                envelope_c,
-                certificate,
-                issuer_state_valid,
-                start,
-            )
-        )
-        for _ in range(10)
-    ]
-    start.set()
-    concurrent_results = await asyncio.gather(*tasks)
-    accepted_count = sum(1 for result in concurrent_results if result.allowed)
-    replay_blocked_count = sum(
-        1 for result in concurrent_results
-        if not result.allowed and result.stage == "replay_guard"
     )
 
     print("Narrowed Verifier PoC")
@@ -233,55 +147,33 @@ async def main() -> None:
     print(f"First valid scan: {'ALLOW' if first_scan.allowed else 'BLOCK'}")
     print(f"  stage: {first_scan.stage}")
     print(f"  reason: {first_scan.reason}")
-    print(f"  reservation_state: {first_scan.reservation_state}")
-
-    print(f"Second scan of same code: {'ALLOW' if second_scan.allowed else 'BLOCK'}")
-    print(f"  stage: {second_scan.stage}")
-    print(f"  reason: {second_scan.reason}")
-    print(f"  reservation_state: {second_scan.reservation_state}")
 
     print(
-        "Failed verification releases reservation:"
-        f" {'PASS' if failed_then_released.reservation_state == 'released' else 'FAIL'}"
+        "Repeated presentation of the same code:"
+        f" {'ALLOW' if second_scan.allowed else 'BLOCK'}"
     )
-    print(f"  stage: {failed_then_released.stage}")
-    print(f"  reason: {failed_then_released.reason}")
-    print(f"  reservation_state: {failed_then_released.reservation_state}")
-
-    print(f"Retry after issuer state is restored: {'ALLOW' if retry_after_release.allowed else 'BLOCK'}")
-    print(f"  stage: {retry_after_release.stage}")
-    print(f"  reason: {retry_after_release.reason}")
-    print(f"  reservation_state: {retry_after_release.reservation_state}")
+    print(f"  stage: {second_scan.stage}")
+    print(f"  reason: {second_scan.reason}")
+    print(
+        "  no per-presentation state:"
+        f" {'PASS' if first_scan.stage == second_scan.stage else 'FAIL'}"
+    )
 
     print(f"Expired credential: {'ALLOW' if expired_result.allowed else 'BLOCK'}")
     print(f"  stage: {expired_result.stage}")
     print(f"  reason: {expired_result.reason}")
-    print(f"  reservation_state: {expired_result.reservation_state}")
+
+    print(f"Not-yet-valid credential: {'ALLOW' if not_yet_valid_result.allowed else 'BLOCK'}")
+    print(f"  stage: {not_yet_valid_result.stage}")
+    print(f"  reason: {not_yet_valid_result.reason}")
 
     print(f"Revoked certificate: {'ALLOW' if revoked_result.allowed else 'BLOCK'}")
     print(f"  stage: {revoked_result.stage}")
     print(f"  reason: {revoked_result.reason}")
-    print(f"  reservation_state: {revoked_result.reservation_state}")
 
-    print(
-        "Release failure is surfaced:"
-        f" {'PASS' if release_failed_result.reservation_state == 'release_failed' else 'FAIL'}"
-    )
-    print(f"  stage: {release_failed_result.stage}")
-    print(f"  reason: {release_failed_result.reason}")
-    print(f"  reservation_state: {release_failed_result.reservation_state}")
-
-    print(
-        "Finalize failure is surfaced:"
-        f" {'PASS' if finalize_failed_result.reservation_state == 'finalize_failed' else 'FAIL'}"
-    )
-    print(f"  stage: {finalize_failed_result.stage}")
-    print(f"  reason: {finalize_failed_result.reason}")
-    print(f"  reservation_state: {finalize_failed_result.reservation_state}")
-
-    print("Concurrent first scans")
-    print(f"  accepted_count: {accepted_count}")
-    print(f"  replay_blocked_count: {replay_blocked_count}")
+    print(f"Destination mismatch: {'ALLOW' if mismatch_result.allowed else 'BLOCK'}")
+    print(f"  stage: {mismatch_result.stage}")
+    print(f"  reason: {mismatch_result.reason}")
 
 
 if __name__ == "__main__":

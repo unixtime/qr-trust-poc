@@ -170,7 +170,8 @@ ${LAB_URL}
 
 Use the iPhone app only to scan the laptop QR and show the user-facing result.
 Do not click the browser lab's \`Check scanner decision\` action before the
-phone scan, because scanner-preview checks can consume one-time QR state.
+phone scan; the evidence must be the decision the phone made, not a browser-side
+observation of the same QR.
 
 For fixture-by-fixture lab URLs, special setup, and capture order, generate:
 

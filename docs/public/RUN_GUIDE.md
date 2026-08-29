@@ -38,7 +38,7 @@ PYTHONPATH=.. ./.venv/bin/pytest
 
 Coverage includes:
 
-- unit tests for replay guard, payload revalidation, and signed schema
+- unit tests for signed schema, payload revalidation, and the residual vector
 - API tests for `/verifier/*`
 - QR artifact tests for PNG render, decode, and scanned verification
 - optional Playwright browser regression for the legacy backend-served lab
@@ -105,7 +105,6 @@ Current baseline:
 From [backend](../../backend):
 
 ```bash
-./.venv/bin/python scripts/replay_guard_poc_demo.py
 ./.venv/bin/python scripts/payload_revalidation_poc_demo.py
 ./.venv/bin/python scripts/signed_schema_poc_demo.py
 ./.venv/bin/python scripts/narrowed_verifier_poc_demo.py
@@ -114,14 +113,12 @@ From [backend](../../backend):
 
 What each demo proves:
 
-- `replay_guard_poc_demo.py`
-  - reserve, release, finalize, expiry, and one-winner concurrency behavior
 - `payload_revalidation_poc_demo.py`
   - exact host match, `www` normalization, subdomain policy behavior, and issuer-state changes
 - `signed_schema_poc_demo.py`
   - fixed claim order, deterministic serialization, signature verification, and metadata-conflict rejection
 - `narrowed_verifier_poc_demo.py`
-  - full verifier chain across valid, replayed, expired, revoked, mismatch, release-failure, and finalize-failure cases
+  - full verifier chain across valid, expired, not-yet-valid, revoked, inactive-issuer, and destination-mismatch cases
 - `qr_artifact_poc_demo.py`
   - signed envelope -> QR PNG -> decoded scan payload -> verifier result
 
@@ -130,6 +127,7 @@ What each demo proves:
 The canonical reference API is:
 
 - `GET /verifier/status`
+- `GET /verifier/trust-store`
 - `POST /verifier/demo-materials`
 - `POST /verifier/verify`
 - `POST /verifier/verify-scanned`
@@ -138,17 +136,30 @@ The canonical reference API is:
 Notes:
 
 - `POST /verifier/demo-materials` returns demo certificate data, issuer state,
-  a ready-to-submit verifier request, and QR artifact data
+  a ready-to-submit verifier request, QR artifact data, and a `trust` echo
+  (`key_ref`, `key_state`, `issuer_status`, `retired_key_refs`) describing the
+  key the artifact was sealed under
+- the demo issuer keeps one process-stable signing key, so every demo QR
+  issued since the API started keeps verifying; `rotate_key: true` mints a
+  successor key and retires the previous one, and `key_state: "revoked"`
+  revokes the current key (terminal — the next plain call mints a fresh key)
+- `GET /verifier/trust-store` lists the issuers and keys the scanned path
+  trusts right now, with each key's `state` (`active`, `retired`, `revoked`)
+  and validity window; it is read-only and gated like `/status` evidence
+  (open when verifier auth is disabled, otherwise a management credential)
+- the trust store is in-memory for this cycle: it resets when the API
+  container restarts, and demo artifacts sealed before the restart stop
+  verifying until they are regenerated
 - `GET /verifier/status` returns the current verifier posture for auth, rate
   limits, Redis-backed coordination, and decode fallback support
 - it does not return the signing private key
 - `POST /verifier/decode-image` rejects oversized image payloads before decode
 - verifier POST routes are rate-limited per client, using Redis-backed coordination when Redis is available and in-memory fallback otherwise
-- reusable QR codes (`reusable_public`, `time_limited`) also carry two scan-flood budgets that a flood spread across many source addresses cannot dodge: a per-QR-code budget (`VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS`, default 300 per `VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS`, default 60) checked before the signature is verified, and a per-issuer budget (`VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS`, default 3000) that only signature-valid scans spend; `one_time` codes are exempt because the replay guard already limits them to one accepted scan; an exhausted budget returns `429` with `Retry-After` and records no scanner evidence
+- every signed QR code carries two scan-flood budgets that a flood spread across many source addresses cannot dodge: a per-envelope budget (`VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS`, default 300 per `VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS`, default 60) checked before the signature is verified, and a per-issuer budget (`VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS`, default 3000) that only signature-valid scans spend; an exhausted budget returns `429` with `Retry-After` and records no scanner evidence. The budget bounds how much evidence one envelope may accumulate; it is not a per-presentation gate, and a repeat presentation inside the validity window still verifies
 - behind a reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address (uvicorn's own setting; the compose files default it to `127.0.0.1`) so the per-client limit keys on the real client address instead of the proxy's; `GET /verifier/status` reports `forwarded_ip_trust_configured`, which is true only when something beyond loopback is trusted
 - without Redis every limit is per-process and in-memory, so budgets do not add up across API replicas; the API logs a startup warning when it falls back
-- verdicts for reusable codes are served from a short-lived cache: the first scan of an envelope in each window pays for the signature check, the budget spend and the evidence write, and identical scans inside the window get the same verdict back with `X-QR-Trust-Verdict: cached` (`computed` otherwise) and no evidence row. `VERIFIER_VERDICT_CACHE_TTL_SECONDS` (default `30`) caps the window, the code's own `expires_at` caps it further, and `0` disables the cache. Cached scans are still counted per code (a counter, not a row) so the workbench card stays honest; without Redis that counter, like the cache itself, is per API replica
-- the evidence store doubles as the scan ledger: `GET /admin/scan-accounting` (management credential, `audit:read`) returns scans per issuer per UTC day with the green/orange/red split and distinct-nonce count, plus the nonces currently spiking; a background monitor runs the same spike query every `VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS` and writes one `scanner.spike.detected` outbox event per nonce per baseline window when the last `VERIFIER_SCAN_SPIKE_WINDOW_SECONDS` hold at least `VERIFIER_SCAN_SPIKE_MIN_SCANS` scans and at least `VERIFIER_SCAN_SPIKE_RATIO` times the code's own per-window baseline over `VERIFIER_SCAN_SPIKE_BASELINE_SECONDS` (defaults `60`, `60`, `30`, `10.0`, `3600`); the monitor only runs with `QRTRUST_NETWORK_DATABASE_URL` set and reports itself as `scan_spike_alerts_enabled` on `/verifier/status`
+- verdicts are served from a short-lived cache: the first scan of an envelope in each window pays for the signature check, the budget spend and the evidence write, and identical scans inside the window get the same verdict back with `X-QR-Trust-Verdict: cached` (`computed` otherwise) and no evidence row. `VERIFIER_VERDICT_CACHE_TTL_SECONDS` (default `30`) caps the window, the code's own `expires_at` caps it further, and `0` disables the cache. Cached scans are still counted per code (a counter, not a row) so the workbench card stays honest; without Redis that counter, like the cache itself, is per API replica
+- the evidence store doubles as the scan ledger: `GET /admin/scan-accounting` (management credential, `audit:read`) returns scans per issuer per UTC day with the green/orange/red split and a `distinct_envelopes` count, plus the envelopes currently spiking; a background monitor runs the same spike query every `VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS` and writes one `scanner.spike.detected` outbox event per envelope per baseline window when the last `VERIFIER_SCAN_SPIKE_WINDOW_SECONDS` hold at least `VERIFIER_SCAN_SPIKE_MIN_SCANS` scans and at least `VERIFIER_SCAN_SPIKE_RATIO` times the code's own per-window baseline over `VERIFIER_SCAN_SPIKE_BASELINE_SECONDS` (defaults `60`, `60`, `30`, `10.0`, `3600`); the monitor only runs with `QRTRUST_NETWORK_DATABASE_URL` set and reports itself as `scan_spike_alerts_enabled` on `/verifier/status`
 - at the edge, add a rate limit the application cannot see past: a Cloudflare or WAF rule of about 100 requests a minute per client address on `/verifier/*`, with a challenge on bursts, absorbs the volumetric flood before it reaches the per-code budget
 - DB-backed verifier-client keys protect verifier POST routes; static
   `VERIFIER_API_KEYS` require explicit `VERIFIER_STATIC_API_KEYS_ENABLED=true`
@@ -174,33 +185,34 @@ The API is headless: `GET /` returns a JSON service descriptor, and the React
 workbench in [frontend](../../frontend) is the interactive client. There are no
 server-rendered HTML pages.
 
-### Choosing a usage policy
+### Choosing a validity window
 
-The `usage_policy` on a signed payload decides how much a code that has been
-photographed is worth to an attacker, so pick it by how long the code has to
-stay valid rather than by habit:
+Signed claims carry `issued_at` and `expires_at` and nothing else about
+freshness. The scanner consults the artifact the same way on every
+presentation inside that window, and the `freshness` residual family blocks it
+past `expires_at`. Every presentation of one envelope is evaluated the same
+way; the verifier keeps no per-presentation state.
 
-| Policy | Use it for | What limits replay |
-|---|---|---|
-| `time_limited` | Public codes with a natural end — a campaign poster, an event week, a batch of packaging | The signed `expires_at`: the replay window closes with the campaign. Also covered by the per-code budget and the verdict cache. **Prefer this for anything printed in public.** |
-| `one_time` | Tickets, vouchers, hand-offs where a second scan must fail | The replay guard consumes the nonce on the first green verdict; every later scan is a cheap red verdict, so no budget or cache is needed |
-| `reusable_public` | Signage or documentation that genuinely cannot carry an expiry | Only the per-code budget, the verdict cache and the edge rate limit; the code stays replayable for as long as the issuer's certificate is valid. Re-issue it with an expiry whenever one is possible |
+So the window is the whole decision. Pick it by how long the code must stay
+valid, and re-issue rather than expect the verifier to remember anything:
 
-The workbench seals a lifetime that follows the policy you pick under
-**Configure the QR type**: `one_time` codes get 5 minutes (a single scan does
-not need more, and the short window keeps the freshness stage cheap to
-demonstrate), `reusable_public` codes get 60 minutes so a poster-style code
-does not die halfway through a session, and `time_limited` shows an
-**Expires at** picker (default 60 minutes ahead, at most 30 days; the server
-rejects longer lifetimes with `422`) so you seal the exact end of the
-campaign. The **Expired credential** scenario seals an already-expired claim
-whatever the policy. The step says which lifetime the next code will get
-before you press **Generate**, and the sealed card counts it down afterwards
-under its collapsed **Code details** (see the `Expires` row below). The
-**Options** section below the policy picks the nonce mode, with a one-line
-explanation of each choice. The verifier's freshness stage runs before any policy
-check, so an expired `reusable_public` code is rejected like any other; the
-lifetime is a workbench default, not something the policy relaxes.
+- a code with a natural end — a campaign poster, an event week, a batch of
+  packaging — should carry that end as `expires_at`
+- a hand-off worth little once used — a ticket, a voucher — should carry a
+  short window, minutes rather than days, so a photographed code goes cold on
+  its own
+- signage that genuinely cannot carry a short expiry stays acceptable for as
+  long as the window and the issuer's certificate both hold; the per-envelope
+  budget, the verdict cache and the edge rate limit bound the volume, not the
+  acceptance
+
+The workbench's **Validity window** section seals the window. It defaults to 5
+minutes ahead and offers an **Expires at** picker up to 30 days out; the
+server rejects longer lifetimes with `422`. The **Expired credential**
+scenario seals an already-closed window whatever you pick. The step says how
+long the next code will stay valid before you press **Generate**, and the
+sealed card counts it down afterwards under its collapsed **Code details**
+(see the `Expires` row below).
 
 ### Scan accounting and spike alerts
 
@@ -212,23 +224,23 @@ what the alert fires on:
   issuer and UTC day (`days=1` is today so far; scans with no issuer on the
   envelope are reported under `issuer_id: null` rather than dropped). Each row
   carries `scan_count`, the `green_count`/`orange_count`/`red_count` split and
-  `distinct_nonces`, which is the number a hosted deployment would meter or
+  `distinct_envelopes`, which is the number a hosted deployment would meter or
   cap per issuer.
-- The same response lists `spikes`: nonces whose scans in the trailing
+- The same response lists `spikes`: envelopes whose scans in the trailing
   `spike_window_seconds` clear `spike_min_scans` and `spike_threshold_ratio`
   times the code's own per-window baseline. A code with no history is a spike
-  as soon as it clears the floor, because a fresh reusable code being
-  hammered is the flood case the design is for.
+  as soon as it clears the floor, because a fresh code being hammered is the
+  flood case the design is for.
 
 A warm verdict cache answers a repeat scan of the same payload before the
-evidence write and before the per-nonce budget, so a flood against a cached
+evidence write and before the per-envelope budget, so a flood against a cached
 code leaves only a couple of evidence rows a minute. The detector therefore
 merges two sources: the evidence rows and the cache's own per-minute counters
 (`verdict_rate:<fingerprint>:<minute>` in Redis, or the in-process fallback
 when Redis is off, which then counts per API replica). Each spike record
 carries `cached_recent_count` and `cached_baseline_count`, so an operator can
 see how much of a burst never touched the database. Issuer-day rows count
-computed verdicts only: a cached hit is known by nonce, not by issuer and day,
+computed verdicts only: a cached hit is known by envelope, not by issuer and day,
 and it costs the deployment a Redis read rather than a verdict.
 
 ```bash
@@ -240,8 +252,8 @@ req = urllib.request.Request(
 )
 body = json.load(urllib.request.urlopen(req))
 for row in body["issuers"]:
-    print(row["day"], row["issuer_id"], row["scan_count"], row["distinct_nonces"])
-print("spiking:", [s["nonce_fingerprint"] for s in body["spikes"]])
+    print(row["day"], row["issuer_id"], row["scan_count"], row["distinct_envelopes"])
+print("spiking:", [s["envelope_fingerprint"] for s in body["spikes"]])
 PY
 ```
 
@@ -250,14 +262,14 @@ the API lifespan that runs the identical detector every
 `VERIFIER_SCAN_SPIKE_INTERVAL_SECONDS` and inserts a `scanner.spike.detected`
 row into `qr_trust.event_outbox`. The payload is the same shape as every
 other outbox row -- an event envelope (`type: scanner.spike.detected`,
-`root_program_id` from the nonce's evidence rows, `artifact_hash` over the
+`root_program_id` from the envelope's evidence rows, `artifact_hash` over the
 body) with the spike record above as the body -- because the NATS relay
 validates that envelope, maps the type onto a subject it knows
 (`qrtrust.<root>.scanner.spike.detected.v1` in the `QRTRUST_SCANNER_AUDIT`
 stream) and refuses anything else. A spike on unsigned payloads has no root
 program to publish under, so it is logged and shown on
 `/admin/scan-accounting` but never written to the outbox. The event
-id is bucketed per nonce per baseline window, so repeated ticks, restarts and
+id is bucketed per envelope per baseline window, so repeated ticks, restarts and
 extra API replicas collapse onto one row through the outbox's `event_id`
 uniqueness, and the alert shows up through the same `/admin/outbox` path and
 NATS relay as every other outbox event. The monitor needs
@@ -299,7 +311,10 @@ Current React workbench scope:
 
 - runtime status
 - admin key issue / key list refresh
-- scenario-based QR generation
+- scenario-based QR generation, including the two key-lifecycle scenarios:
+  `Rotated signing key` (verifies under the new key while a code sealed
+  before the rotation still verifies under the retired key) and
+  `Revoked signing key` (blocks at the issuer chain with cause `key-revoked`)
 - direct verifier pass against the current QR payload
 - live camera capture with browser decode or bundled fallback decode
 - QR image upload and decode
@@ -335,28 +350,27 @@ card renders and names `Destination binding` for the documented pairs.
 
 When the sealed QR is on screen (step 2, or the full-screen display), the
 workbench polls
-`GET /verifier/scan-activity?nonce=<nonce>&usage_policy=<policy>&issued_at=<claims.issued_at>`
-every 5 seconds and shows what the verifier recorded for **this issuance of
-that nonce**. The lab scenarios reuse fixed nonces (`lab-valid-fixed-001` and
-friends) across regenerations and across usage policies, so `issued_at` — the
-sealed claim, echoed back in the response — is what keeps a freshly generated
-code from inheriting an earlier code's scans: rows and cached verdicts recorded
-before the issuance are left out, while the scan-flood budget stays per nonce
-because a reissue must not reset it. Without `issued_at` the endpoint returns
-the whole 24-hour history of the nonce. The card shows:
+`GET /verifier/scan-activity?envelope_id=<64 hex>` every 5 seconds and shows
+what the verifier recorded for **this envelope**. The identifier is derived
+from what was signed — `sha256(canonical_claims + "." + signature)` — so a
+regenerated code is a different envelope with its own activity, and no
+`issued_at` disambiguator is needed: the sealed `issued_at` is inside the hash.
+`POST /verifier/demo-materials` returns the `envelope_id` the workbench polls
+with. Reading scan activity never records a scan; only
+`POST /scanner/decisions` does. The card shows:
 
 - the QR frame itself: nothing is drawn on the code before the first scan
   (a scan can come from a phone, a tablet, a laptop camera or the browser
-  lab, so the page does not guess). Once a scanner decision for the nonce
+  lab, so the page does not guess). Once a scanner decision for the envelope
   exists the frame glows in the verdict colour — green, amber or red — and a
   moment later shows **Scanned · verified / needs review / blocked `<time>`**
   in the same colour. If the evidence store cannot answer, a muted pill says
   so instead of implying "no scans yet";
-- `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`
-  for a `one_time` code, `in 59m 43s` for a public one, then
-  `expired 2m 10s ago`). It is computed from the signed claims on the page,
-  not from the verifier, and is shown for every usage policy because the
-  verifier rejects an expired claim whatever the policy says;
+- `Expires` — a live countdown to the sealed claims' `expires_at` (`in 4m 43s`,
+  then `expired 2m 10s ago`). It is computed from the signed claims on the
+  page, not from the verifier. The window is the whole freshness input: inside
+  it every presentation is evaluated the same way, and past `expires_at` the
+  `freshness` family blocks the scan;
 - `Scans` (total plus a verified / review / blocked breakdown), `First scan`
   (only once there is more than one scan), `Last scan`, and `Scanner`
   (`iPhone app`, `Web lab (simulated)` for the browser lab's own simulated scan,
@@ -374,16 +388,12 @@ the whole 24-hour history of the nonce. The card shows:
 - `Vouched by` — the issuer and first verified domain the demo claims were
   signed for, shown only once a scan came back green, i.e. once the verifier
   has actually vouched for it;
-- for `one_time` codes, a `One-time` row driven by the live replay guard
-  (`Unused`, `Reserved · verifying`) that becomes
-  **`Used <time> · will not verify again`** once the guard has consumed the
-  nonce — with `· replay blocked ×N` appended as later scans of the same nonce
-  are refused — plus a **Used** stamp across the code;
-- for reusable codes, a `Throttle` row read from the scan-flood state the
-  verifier reports for that code — how many scans were answered from the
-  verdict cache and how much of the per-code budget is left in the current
-  window (`3 cached · 297 of 300 scans left per minute`). It is omitted for
-  `one_time` codes, which the replay guard limits instead.
+- a `Throttle` row read from the scan-flood state the verifier reports for
+  that envelope — how many scans were answered from the verdict cache and how
+  much of the per-envelope budget is left in the current window
+  (`3 cached · 297 of 300 scans left per minute`). The budget bounds how much
+  evidence one envelope may accumulate; a repeat presentation inside the
+  validity window still verifies.
 
 Everything on the card is read back from data the verifier actually holds; a
 row whose data is missing is omitted rather than filled in (there is no
@@ -394,9 +404,10 @@ only reported when the verifier has one (`QRTRUST_NETWORK_DATABASE_URL`; the
 Compose stack configures it). Without one, or while the store is unreachable,
 the card says **Scan feedback unavailable** and explains why — it never shows
 `None yet` for scans it cannot see. Lookups are keyed by a fingerprint of the
-nonce (`scanner_decisions.nonce_fingerprint`, migration `0007`), never the raw
-nonce, and the endpoint is subject to the verifier API key and rate limit like
-every other verifier read.
+the envelope identifier (`scanner_decisions.envelope_fingerprint`, migration
+`0008`; the first 16 hex characters of `envelope_id`), never the full
+identifier, and the endpoint is subject to the verifier API key and rate limit
+like every other verifier read.
 
 Optional local HTTPS for Safari or other secure-context camera testing:
 
@@ -459,7 +470,8 @@ make up-https-admin-shared-infra
 ```
 
 This uses the existing Postgres user `publisher`, creates or reuses database
-`qr_trust_poc`, and stores replay state in Redis DB `5`.
+`qr_trust_poc`, and keeps its verdict cache, per-envelope scan budgets and
+request rate limits in Redis DB `5`.
 
 Compose applies backend Alembic migrations before the API starts, including the
 QR Trust reference tables used by `/admin/outbox`, `/admin/audit`, scanner
@@ -700,6 +712,11 @@ The `/operator` route also includes a read-only management evidence panel for
 the same outbox and audit read paths. Use it for classroom or developer review
 when you need to explain what the API and CLI are reading from Postgres.
 
+The same route renders the scanner trust store from `GET /verifier/trust-store`:
+one row per issuer with its status and verified domains, and one row per key
+with its `state` and validity window. Rotate or revoke the demo key from the
+lab's generate step and the table updates on the next refresh.
+
 To smoke-test only the runtime-safety observation report contract, run:
 
 ```bash
@@ -806,7 +823,6 @@ Deterministic cross-device rule:
 For the primary native mismatch test:
 
 - browser lab `Scenario = payload-mismatch`
-- browser lab `Nonce label = timestamped`
 - expected iPhone result = red `Destination changed`
 - expected decision-path stage = `payload_revalidation`
 
@@ -814,7 +830,7 @@ See [IPHONE_TEST_PLAN.md](./IPHONE_TEST_PLAN.md) for the full step-by-step drill
 
 ## Important Runtime Note
 
-[main.py](../../backend/app/main.py) attempts a Redis connection during startup when `REDIS_STARTUP_ENABLED=true`. If Redis is not running, startup logs an error and warning, but the narrowed PoC still works because the verifier reference flow currently uses the in-memory replay guard from [verifier.py](../../backend/app/api/endpoints/verifier.py). Set `REDIS_STARTUP_ENABLED=false` when you want deterministic no-Redis startup behavior.
+[main.py](../../backend/app/main.py) attempts a Redis connection during startup when `REDIS_STARTUP_ENABLED=true`. If Redis is not running, startup logs an error and warning, but the narrowed PoC still works because the verifier reference flow falls back to the process-local in-memory verdict cache, scan budgets and rate limits in [verifier.py](../../backend/app/api/endpoints/verifier.py); those then count per API replica instead of across the fleet. Set `REDIS_STARTUP_ENABLED=false` when you want deterministic no-Redis startup behavior.
 
 ## Containerized Stack
 
@@ -901,9 +917,10 @@ make smoke-compose-https
 The smoke target checks:
 
 - `/verifier/status`
-- API key issue, QR demo-material generation, first accepted verification, and replay rejection
+- API key issue, QR demo-material generation, and two accepted verifications of
+  the same envelope inside its validity window
 - the React root route
-- the lab comparison route at `/?scenario=payload-mismatch&nonce=fixed&autogenerate=1&compare=valid`
+- the lab comparison route at `/?scenario=payload-mismatch&autogenerate=1&compare=valid`
 
 For the React app itself, run the route-query navigation smoke while the dev
 server is active:
@@ -938,7 +955,6 @@ make capture-browser-evidence FRONTEND_DEV_PORT=5173
 The capture script stores:
 
 - `docs/public/evidence/browser/accepted.png`
-- `docs/public/evidence/browser/replay-guard.png`
 - `docs/public/evidence/browser/payload-mismatch.png`
 
 The compose flow runs Alembic migrations before starting the API. To stop the stack:
@@ -1049,7 +1065,16 @@ React workbench as a secure context for camera capture.
 2. Use either:
    - the returned `verify_request` with `POST /verifier/verify`, or
    - the returned `qr_payload` with `POST /verifier/verify-scanned`
-3. Re-send the same request to observe replay blocking
+3. Re-send the same request: it is accepted again, because every presentation
+   of one envelope inside its validity window is evaluated the same way
+4. Optional: call `POST /verifier/demo-materials` again with
+   `{"rotate_key": true}`. The new artifact verifies under the successor key
+   and the first `qr_payload` still verifies through `POST /verifier/verify-scanned`,
+   because a retired key keeps vouching for what it signed while current
+5. Optional: call it with `{"key_state": "revoked"}` and re-scan the
+   artifact it returns: `allowed = false`, `stage = "key_status"`, and the
+   `residual_vector` `issuer_chain` entry carries cause `key-revoked`.
+   `GET /verifier/trust-store` shows the same key as `revoked`
 
 ## Browser Clients
 

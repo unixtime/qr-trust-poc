@@ -251,8 +251,10 @@ Every entry links to the contract itself. Schemas, the reference SQL, and the
   signer/key scope, managed provider references, provider audit IDs,
   automation identity, and publication result counts while rejecting private
   material markers and fixture-only secret references.
-- One-time and reusable QR usage policies are different. Replay blocking should
-  apply only when policy requires one-time use.
+- Every presentation of one envelope is evaluated the same way; the verifier
+  keeps no per-presentation state. Freshness is carried by the validity window
+  (`issued_at` … `expires_at`), and the `freshness` family blocks past
+  `expires_at`.
 - Root and delegated-authority signer keys are scoped records. A verifier
   should resolve the signer to an active key, accepted algorithm, and expected
   governance scope before accepting a status artifact.

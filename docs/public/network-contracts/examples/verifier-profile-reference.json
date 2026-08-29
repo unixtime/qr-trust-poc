@@ -26,7 +26,6 @@
     ],
     "red_conditions": [
       "destination_policy_mismatch",
-      "one_time_replay",
       "verified_issuer_runtime_blocked",
       "profile_revoked"
     ]

@@ -47,7 +47,7 @@ The signed claims should distinguish:
 - `allowed_redirect_hosts`
 - `max_redirect_hops`
 - `campaign_id` or `analytics_tag` if needed
-- normal trust fields such as issuer, status window, and nonce
+- normal trust fields such as issuer and the validity window (`issued_at` … `expires_at`)
 
 ### 3. Verification flow
 

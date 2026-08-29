@@ -37,7 +37,7 @@ const batchSize = 50
 const translationContext =
   "User interface copy for a QR code security verification console. " +
   "Terms of art: issuer, verifier, envelope, destination binding, runtime " +
-  "safety, residual, verdict, nonce, revocation."
+  "safety, residual, verdict, revocation."
 
 function fail(message) {
   console.error(`translate-catalog: ${message}`)

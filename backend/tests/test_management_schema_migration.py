@@ -33,6 +33,12 @@ SCAN_ACTIVITY_MIGRATION_PATH = (
     / "versions"
     / "20260825_0007_scanner_decision_scan_activity.py"
 )
+ENVELOPE_FINGERPRINT_MIGRATION_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "migrations"
+    / "versions"
+    / "20260826_0008_envelope_fingerprint.py"
+)
 REFERENCE_SCHEMA_DOC_PATH = (
     Path(__file__).resolve().parents[2]
     / "docs"
@@ -210,14 +216,33 @@ def test_reference_schema_migration_declares_required_qr_trust_tables() -> None:
 
 def test_scan_activity_migration_adds_nonce_fingerprint_columns() -> None:
     body = SCAN_ACTIVITY_MIGRATION_PATH.read_text(encoding="utf-8")
-    reference_body = REFERENCE_SCHEMA_DOC_PATH.read_text(encoding="utf-8")
 
     assert 'down_revision: Union[str, None] = "20260525_0006"' in body
     assert "add column if not exists nonce_fingerprint text" in body
     assert "add column if not exists client_platform text" in body
     assert "scanner_decisions_nonce_created_idx" in body
     assert "(nonce_fingerprint, created_at desc)" in body
-    # The public reference DDL must describe the same columns and index.
-    assert "nonce_fingerprint text" in reference_body
+
+
+def test_envelope_fingerprint_migration_renames_column_and_index() -> None:
+    body = ENVELOPE_FINGERPRINT_MIGRATION_PATH.read_text(encoding="utf-8")
+    reference_body = REFERENCE_SCHEMA_DOC_PATH.read_text(encoding="utf-8")
+
+    assert 'revision: str = "20260826_0008"' in body
+    assert 'down_revision: Union[str, None] = "20260825_0007"' in body
+    assert "rename column nonce_fingerprint to envelope_fingerprint" in body
+    assert "rename to scanner_decisions_envelope_created_idx" in body
+    assert "rename column envelope_fingerprint to nonce_fingerprint" in body
+    # The docstring records why usage_policy is intentionally left in place.
+    assert "usage_policy" in body
+    assert "intentionally" in body
+
+    # The public reference DDL must describe the same rename: envelope_fingerprint
+    # replaces nonce_fingerprint everywhere in the scanner_decisions table.
+    assert "envelope_fingerprint text" in reference_body
+    assert "scanner_decisions_envelope_created_idx" in reference_body
     assert "client_platform text" in reference_body
-    assert "scanner_decisions_nonce_created_idx" in reference_body
+    scanner_decisions_block = reference_body.split(
+        "create table if not exists qr_trust.scanner_decisions"
+    )[1].split("create table if not exists qr_trust.event_outbox")[0]
+    assert "nonce" not in scanner_decisions_block

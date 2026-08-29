@@ -18,9 +18,26 @@ It is now derived from:
 docs/public/network-contracts/examples/scanner-fleet-evidence-reference.json
 ```
 
-That packet covers green, orange, and red scanner-visible states across reusable
-QR, one-time QR, replay, expiry, destination mismatch, resolver mismatch,
-plain URL, verifier-unavailable, stale profile, and revoked profile cases.
+That packet covers green, orange, and red scanner-visible states across
+accepted, expiry, destination mismatch, resolver mismatch, plain URL,
+verifier-unavailable, stale profile, and revoked profile cases.
+
+The scope-honesty pass collapsed the pre-pass presentation-mode fixtures into a
+single accepted fixture (`green_verified_issuer`), because the verifier keeps no
+per-presentation state and every presentation of one envelope is evaluated the
+same way. That merged fixture has not been re-captured on a physical device yet,
+and the pre-pass captures it replaces were retired rather than re-shot.
+
+Seven accessibility traces still tracked here also predate that pass:
+`accessibility-expired.txt`, `accessibility-payload-mismatch.txt`,
+`accessibility-plain-url-unrecognized.txt`, `accessibility-profile-revoked.txt`,
+`accessibility-profile-stale.txt`,
+`accessibility-resolver-final-target-mismatch.txt` and
+`accessibility-verifier-unavailable-visible-destination.txt`. Each still prints
+a `usage_policy:` line that `EvidenceExport.swift` no longer emits. Read those
+lines as an artifact of the older build, not as current app behavior. They are
+not edited or regenerated in place: they are replaced by the physical recapture
+and `make import-iphone-evidence` step described below.
 
 Before recording physical-device evidence, run:
 
@@ -140,7 +157,9 @@ Use the iPhone app only to scan the laptop QR and show the user-facing result.
 Do not use the iPhone Camera app, because it bypasses verifier logic.
 
 Do not click the browser lab's `Check scanner decision` action before the phone
-scan, because scanner-preview checks can consume one-time QR state.
+scan. That action posts to `/scanner/decisions`, so it records a lab-originated
+scanner decision against the same envelope and spends part of that envelope's
+scan budget before the device capture.
 
 Use [IPHONE_TEST_PLAN.md](../../IPHONE_TEST_PLAN.md) for the manual device
 drill.
@@ -183,7 +202,7 @@ partial imports when the selected folder is not an exported QR Trust evidence
 folder.
 
 The importer also accepts macOS/iCloud duplicate-export filenames such as
-`accepted-reusable-public 2.png` and `provider-profile-settings-active 3.png`,
+`accepted 2.png` and `provider-profile-settings-active 3.png`,
 so the exported folder does not need to be manually renamed before import. The
 combined scanner-release importer prefers the newest matching file when those
 duplicates are present in `~/Downloads`.
@@ -212,9 +231,9 @@ make import-iphone-evidence IPHONE_EVIDENCE_SOURCE_DIR=/path/to/exported-iphone-
 The source folder must contain files with the exact basenames declared by the
 scanner-fleet reference packet. Examples:
 
-- `accepted-reusable-public.png`
-- `history-accepted-reusable-public.png`
-- `accessibility-accepted-reusable-public.txt`
+- `accepted.png`
+- `history-accepted.png`
+- `accessibility-accepted.txt`
 
 Set `IPHONE_EVIDENCE_OVERWRITE=true` only when intentionally replacing existing
 local evidence files.

@@ -8,6 +8,7 @@ import pytest
 
 from backend.app.core.config import config
 from backend.app.schemas.poc import (
+    ResidualEntry,
     ScannerDecisionAction,
     ScannerDecisionContract,
     ScannerDecisionContractCacheFreshness,
@@ -139,8 +140,18 @@ def _scanner_response(
     return ScannerDecisionResponse(
         decision_state=decision_state,
         open_allowed=True,
-        usage_policy="reusable_public",
-        primary_message="Verified reusable QR.",
+        residual_vector={
+            family: ResidualEntry(tier="pass")
+            for family in (
+                "issuer_chain",
+                "destination_policy",
+                "redirect_flow",
+                "runtime_safety",
+                "freshness",
+                "artifact_integrity",
+            )
+        },
+        primary_message="Verified signed QR.",
         issuer=ScannerDecisionIssuer(
             name="ACME Demo",
             tier="verified_business",
@@ -192,7 +203,7 @@ async def test_record_scanner_evidence_writes_decision_and_runtime_observation(
 
     result = await network_evidence_recorder.record_scanner_evidence(
         _scanner_response(),
-        nonce_fingerprint="0123456789abcdef",
+        envelope_fingerprint="0123456789abcdef",
         client_platform="ios",
     )
 
@@ -211,11 +222,10 @@ async def test_record_scanner_evidence_writes_decision_and_runtime_observation(
     assert scanner_insert[2] == "verifier:test"
     assert scanner_insert[3:6] == ("green", "verified_issuer", [])
     assert scanner_insert[12] == "policy:acme-demo:web-payments:v1"
-    assert scanner_insert[13] == "reusable_public"
-    assert json.loads(scanner_insert[16])["runtime_safety"]["status"] == "clean"
-    assert isinstance(scanner_insert[17], datetime)
-    assert scanner_insert[18] == "0123456789abcdef"
-    assert scanner_insert[19] == "ios"
+    assert json.loads(scanner_insert[15])["runtime_safety"]["status"] == "clean"
+    assert isinstance(scanner_insert[16], datetime)
+    assert scanner_insert[17] == "0123456789abcdef"
+    assert scanner_insert[18] == "ios"
 
     runtime_insert = connection.execute_calls[1]
     assert "qr_trust.runtime_observations" in runtime_insert[0]
@@ -369,3 +379,12 @@ async def test_record_scanner_evidence_defaults_runtime_final_url_to_destination
     assert result.runtime_observations_inserted == 1
     runtime_insert = connection.execute_calls[1]
     assert runtime_insert[4] == "https://acme.example/pay"
+
+
+def test_insert_statement_has_no_usage_policy_and_uses_envelope_fingerprint() -> None:
+    sql = network_evidence_recorder._SCANNER_DECISION_INSERT
+
+    assert "envelope_fingerprint" in sql
+    assert "nonce_fingerprint" not in sql
+    assert "usage_policy" not in sql
+    assert "$18" in sql and "$19" not in sql

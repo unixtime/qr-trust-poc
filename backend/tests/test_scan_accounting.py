@@ -52,7 +52,7 @@ async def test_issuer_day_accounting_groups_by_issuer_and_utc_day() -> None:
                 "green_count": 40,
                 "orange_count": 1,
                 "red_count": 1,
-                "distinct_nonces": 7,
+                "distinct_envelopes": 7,
             },
             {
                 "issuer_id": None,
@@ -61,7 +61,7 @@ async def test_issuer_day_accounting_groups_by_issuer_and_utc_day() -> None:
                 "green_count": 0,
                 "orange_count": 0,
                 "red_count": 3,
-                "distinct_nonces": 1,
+                "distinct_envelopes": 1,
             },
         ]
     )
@@ -80,7 +80,7 @@ async def test_issuer_day_accounting_groups_by_issuer_and_utc_day() -> None:
     assert rows[0].day == "2026-08-25"
     assert rows[0].scan_count == 42
     assert rows[0].green_count == 40
-    assert rows[0].distinct_nonces == 7
+    assert rows[0].distinct_envelopes == 7
     assert rows[1].issuer_id is None
     assert rows[1].red_count == 3
 
@@ -94,17 +94,61 @@ def _spike_row(
     root_program_id: str | None = "root:program-a",
 ) -> dict[str, Any]:
     return {
-        "nonce_fingerprint": fingerprint,
+        "envelope_fingerprint": fingerprint,
         "issuer_id": issuer_id,
         "root_program_id": root_program_id,
-        "usage_policy": "reusable_public",
         "recent_count": recent,
         "baseline_count": baseline,
     }
 
 
+def _spike_defaults() -> dict[str, Any]:
+    """Field values for a direct ``ScanSpikeRecord(...)`` construction.
+
+    Mirrors the fields ``detect_envelope_spikes`` sets when it builds a record
+    (see ``scan_accounting.py``'s ``ScanSpikeRecord(...)`` call site), minus
+    ``envelope_fingerprint`` which the caller supplies.
+    """
+    return dict(
+        issuer_id="issuer:a",
+        root_program_id="root:program-a",
+        recent_count=60,
+        baseline_count=120,
+        cached_recent_count=0,
+        cached_baseline_count=0,
+        baseline_per_window=60 * 60 / 3540,
+        ratio=60 / (60 * 60 / 3540),
+        threshold_ratio=10.0,
+        min_scans=30,
+        window_seconds=60,
+        baseline_seconds=3600,
+        observed_at=NOW.isoformat(),
+    )
+
+
+def test_spike_queries_group_by_envelope_fingerprint() -> None:
+    from backend.app.services import scan_accounting
+
+    assert "group by envelope_fingerprint" in scan_accounting._ENVELOPE_SPIKE_QUERY
+    assert "nonce" not in scan_accounting._ENVELOPE_SPIKE_QUERY
+    assert (
+        "count(distinct envelope_fingerprint)::integer as distinct_envelopes"
+        in scan_accounting._ISSUER_DAY_QUERY
+    )
+
+
+def test_scan_spike_outbox_payload_names_the_envelope() -> None:
+    from backend.app.services.scan_accounting import ScanSpikeRecord, scan_spike_outbox_payload
+
+    spike = ScanSpikeRecord(envelope_fingerprint="a3" * 8, **_spike_defaults())
+    envelope, body = scan_spike_outbox_payload(spike, event_id="evt_scan_spike_test")
+
+    assert envelope["artifact_ref"] == "scan_spike:" + "a3" * 8
+    assert "nonce" not in json.dumps({"envelope": envelope, "body": body})
+
+
 @pytest.mark.asyncio
-async def test_detect_nonce_spikes_flags_only_bursts_above_baseline() -> None:
+async def test_detect_envelope_spikes_flags_only_bursts_above_baseline() -> None:
     connection = FakeAccountingConnection(
         spike_rows=[
             _spike_row("fp-burst", 60, 120),
@@ -113,7 +157,7 @@ async def test_detect_nonce_spikes_flags_only_bursts_above_baseline() -> None:
         ]
     )
 
-    spikes = await scan_accounting.detect_nonce_spikes(
+    spikes = await scan_accounting.detect_envelope_spikes(
         connection,
         now=NOW,
         window_seconds=60,
@@ -124,7 +168,7 @@ async def test_detect_nonce_spikes_flags_only_bursts_above_baseline() -> None:
     )
 
     query, args = connection.fetch_calls[0]
-    assert "nonce_fingerprint is not null" in query
+    assert "envelope_fingerprint is not null" in query
     assert "max(root_program_id) as root_program_id" in query
     assert args == (
         NOW - timedelta(seconds=3600),
@@ -132,7 +176,7 @@ async def test_detect_nonce_spikes_flags_only_bursts_above_baseline() -> None:
         scan_accounting.SCAN_SPIKE_CANDIDATE_LIMIT,
     )
 
-    by_fp = {spike.nonce_fingerprint: spike for spike in spikes}
+    by_fp = {spike.envelope_fingerprint: spike for spike in spikes}
     assert set(by_fp) == {"fp-burst", "fp-new"}
 
     burst = by_fp["fp-burst"]
@@ -167,7 +211,7 @@ class FakeVerdictCache:
 
 
 @pytest.mark.asyncio
-async def test_detect_nonce_spikes_adds_cached_verdict_hits() -> None:
+async def test_detect_envelope_spikes_adds_cached_verdict_hits() -> None:
     # A warm verdict cache answers most of a flood without writing evidence rows,
     # so the detector must merge the cache's own per-minute counters.
     connection = FakeAccountingConnection(
@@ -175,7 +219,7 @@ async def test_detect_nonce_spikes_adds_cached_verdict_hits() -> None:
     )
     cache = FakeVerdictCache({("fp-warm", 60): 45, ("fp-warm", 3600): 45})
 
-    spikes = await scan_accounting.detect_nonce_spikes(
+    spikes = await scan_accounting.detect_envelope_spikes(
         connection,
         now=NOW,
         window_seconds=60,
@@ -186,7 +230,7 @@ async def test_detect_nonce_spikes_adds_cached_verdict_hits() -> None:
         verdict_cache=cache,
     )
 
-    assert [spike.nonce_fingerprint for spike in spikes] == ["fp-warm"]
+    assert [spike.envelope_fingerprint for spike in spikes] == ["fp-warm"]
     warm = spikes[0]
     assert warm.recent_count == 47
     assert warm.baseline_count == 47
@@ -200,10 +244,10 @@ async def test_detect_nonce_spikes_adds_cached_verdict_hits() -> None:
 
 
 @pytest.mark.asyncio
-async def test_detect_nonce_spikes_respects_min_scan_floor() -> None:
+async def test_detect_envelope_spikes_respects_min_scan_floor() -> None:
     connection = FakeAccountingConnection(spike_rows=[_spike_row("fp-small", 12, 12)])
 
-    spikes = await scan_accounting.detect_nonce_spikes(
+    spikes = await scan_accounting.detect_envelope_spikes(
         connection,
         now=NOW,
         window_seconds=60,
@@ -219,7 +263,7 @@ async def test_detect_nonce_spikes_respects_min_scan_floor() -> None:
 @pytest.mark.asyncio
 async def test_emit_scan_spike_events_writes_deduplicated_outbox_rows() -> None:
     connection = FakeAccountingConnection(spike_rows=[_spike_row("fp-burst", 60, 120)])
-    spikes = await scan_accounting.detect_nonce_spikes(
+    spikes = await scan_accounting.detect_envelope_spikes(
         connection,
         now=NOW,
         window_seconds=60,
@@ -240,7 +284,7 @@ async def test_emit_scan_spike_events_writes_deduplicated_outbox_rows() -> None:
     bucket = int(NOW.timestamp()) // 3600
     assert args[0] == f"evt_scan_spike_fp-burst_{bucket}"
     assert args[1] == "scanner.spike.detected"
-    assert args[2] == "nonce"
+    assert args[2] == "envelope"
     assert args[3] == "fp-burst"
     assert args[4] == "scan_spike:fp-burst"
     assert args[5].startswith("sha256:") and len(args[5]) == len("sha256:") + 64
@@ -263,7 +307,7 @@ async def test_emit_scan_spike_events_writes_deduplicated_outbox_rows() -> None:
     assert "delegated_authority_id" not in envelope
     assert "destination_policy_id" not in envelope
     body = payload["body"]
-    assert body["nonce_fingerprint"] == "fp-burst"
+    assert body["envelope_fingerprint"] == "fp-burst"
     assert body["recent_count"] == 60
     assert body["cached_recent_count"] == 0
     assert body["threshold_ratio"] == 10.0
@@ -284,7 +328,7 @@ async def test_emit_scan_spike_events_skips_unattributed_spikes(
             _spike_row("fp-burst", 60, 120),
         ]
     )
-    spikes = await scan_accounting.detect_nonce_spikes(
+    spikes = await scan_accounting.detect_envelope_spikes(
         connection,
         now=NOW,
         window_seconds=60,

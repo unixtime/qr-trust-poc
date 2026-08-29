@@ -435,6 +435,11 @@ create table if not exists qr_trust.scanner_decisions (
   delegated_authority_id text,
   issuer_id text,
   destination_policy_id text,
+  -- Retained for governance-schema compatibility. The verifier no longer
+  -- issues per-presentation claims and the recorder stopped writing this
+  -- column; scan activity is keyed by the envelope identity instead. The
+  -- nullable column and its check stay in place so the governance schema
+  -- shared with destination_policies above is untouched.
   usage_policy text
     check (
       usage_policy is null
@@ -445,17 +450,17 @@ create table if not exists qr_trust.scanner_decisions (
     check (hold_to_open_duration_ms >= 0),
   decision_path jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  -- Truncated sha256 of the scanned nonce (never the raw nonce): answers
-  -- "was this QR scanned, how often, and from which scanner?".
-  nonce_fingerprint text,
+  -- 16-hex-char prefix of the envelope_id: answers "was this QR scanned, how
+  -- often, and from which scanner?".
+  envelope_fingerprint text,
   client_platform text
 );
 
 create index if not exists scanner_decisions_verifier_created_idx
   on qr_trust.scanner_decisions (verifier_id, created_at desc);
-create index if not exists scanner_decisions_nonce_created_idx
-  on qr_trust.scanner_decisions (nonce_fingerprint, created_at desc)
-  where nonce_fingerprint is not null;
+create index if not exists scanner_decisions_envelope_created_idx
+  on qr_trust.scanner_decisions (envelope_fingerprint, created_at desc)
+  where envelope_fingerprint is not null;
 
 create index if not exists scanner_decisions_destination_created_idx
   on qr_trust.scanner_decisions (destination_fingerprint, created_at desc);

@@ -23,13 +23,8 @@ const DEFAULT_MARKDOWN_OUTPUT = fileURLToPath(
 )
 const DEFAULT_LAB_BASE_URL = "https://127.0.0.1:8443/lab"
 
-type UsagePolicy = "one_time" | "reusable_public"
-type NonceMode = "fixed" | "timestamped"
-
 interface LabSetup {
   readonly scenario: string
-  readonly usage: UsagePolicy
-  readonly nonce: NonceMode
 }
 
 interface CapturePlan {
@@ -73,63 +68,23 @@ interface CaptureDrill {
 }
 
 const CAPTURE_PLANS = {
-  green_reusable_public: {
-    fixtureId: "green_reusable_public",
-    title: "Reusable public QR remains accepted",
+  green_verified_issuer: {
+    fixtureId: "green_verified_issuer",
+    title: "Signed QR from an accepted issuer is verified",
     operatorGoal:
-      "Prove a printed or shared QR can remain green when issuer legitimacy, destination binding, runtime safety, and reusable policy all pass.",
+      "Prove a signed QR reaches green only when issuer legitimacy, destination binding, runtime safety, and cache freshness all pass.",
     labSetup: {
       scenario: "valid",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     captureSteps: [
       "Open the lab URL and generate the QR.",
       "Scan the QR with the iPhone app.",
       "Capture the green result screen and matching History tab entry.",
-      "Scan the same QR again if you need to demonstrate reusable-public behavior; it should remain green.",
+      "Scan the same QR again if you want to show the decision is stable; it should remain green.",
     ],
     cautions: [
-      "Do not use one-time policy for printed or shared QR evidence.",
       "Do not click the browser lab scanner-decision action before the phone scan.",
-    ],
-  },
-  green_one_time_first_pass: {
-    fixtureId: "green_one_time_first_pass",
-    title: "One-time QR first pass is accepted",
-    operatorGoal:
-      "Capture the positive control for login, payment, or ticket-style QR where a nonce should be consumed once.",
-    labSetup: {
-      scenario: "valid",
-      usage: "one_time",
-      nonce: "fixed",
-    },
-    captureSteps: [
-      "Open the lab URL and generate the QR once.",
-      "Scan the QR with the iPhone app and capture the green first-pass result.",
-      "Keep the same browser QR visible for the replay fixture; do not regenerate it.",
-    ],
-    cautions: [
-      "This fixture must be captured immediately before red_one_time_replay.",
-      "Any browser-side scanner-decision call can consume the one-time state before the phone scan.",
-    ],
-  },
-  red_one_time_replay: {
-    fixtureId: "red_one_time_replay",
-    title: "One-time QR second scan is blocked",
-    operatorGoal:
-      "Show that a one-time QR is not safe to reuse even when the QR content still looks well formed.",
-    specialSetup: [
-      "Reuse the exact QR generated for green_one_time_first_pass.",
-      "Do not refresh, regenerate, or change nonce mode before the second scan.",
-    ],
-    captureSteps: [
-      "Scan the same QR from green_one_time_first_pass a second time.",
-      "Capture the red result screen and matching History tab entry.",
-    ],
-    cautions: [
-      "Do not create a new QR for this fixture.",
-      "Do not open the destination from a red replay result.",
+      "Green here means every residual family passed, not that the QR is permanently trusted.",
     ],
   },
   red_expired_qr: {
@@ -139,8 +94,6 @@ const CAPTURE_PLANS = {
       "Prove the scanner enforces QR validity windows instead of treating signed or recognized QR content as always current.",
     labSetup: {
       scenario: "expired",
-      usage: "reusable_public",
-      nonce: "fixed",
     },
     captureSteps: [
       "Open the lab URL and generate the expired QR.",
@@ -156,8 +109,6 @@ const CAPTURE_PLANS = {
       "Show destination binding is policy enforcement, not merely successful decoding or signature validation.",
     labSetup: {
       scenario: "payload-mismatch",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     captureSteps: [
       "Open the lab URL and generate the mismatch QR.",
@@ -175,8 +126,6 @@ const CAPTURE_PLANS = {
       "Prove short-link or resolver flows are evaluated as a destination chain, not as a single trusted-looking URL.",
     labSetup: {
       scenario: "redirect-final-mismatch",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     captureSteps: [
       "Open the lab URL and generate the resolver mismatch QR.",
@@ -212,8 +161,6 @@ const CAPTURE_PLANS = {
       "Show the scanner preserves user agency when the destination is readable but the protection service cannot be reached.",
     labSetup: {
       scenario: "valid",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     specialSetup: [
       "Generate the QR while the verifier is reachable.",
@@ -235,15 +182,13 @@ const CAPTURE_PLANS = {
       "Prove scanner-side provider-profile freshness is checked separately from issuer and destination policy.",
     labSetup: {
       scenario: "valid",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     specialSetup: [
       "Run the provider with VERIFIER_PROVIDER_PROFILE_STATE=stale, then open iOS Settings and tap Refresh provider profile.",
       "Scan a QR Trust URL-bearing fixture after the stale profile is installed in app state.",
     ],
     captureSteps: [
-      "Generate the valid reusable QR from the lab URL.",
+      "Generate the valid QR from the lab URL.",
       "Scan it with the stale provider profile installed in app state.",
       "Capture the orange profile-stale result and matching History tab entry.",
     ],
@@ -258,15 +203,13 @@ const CAPTURE_PLANS = {
       "Prove scanner-side provider-profile revocation can stop a deployed app from making stale trust claims.",
     labSetup: {
       scenario: "valid",
-      usage: "reusable_public",
-      nonce: "timestamped",
     },
     specialSetup: [
       "Run the provider with VERIFIER_PROVIDER_PROFILE_STATE=revoked, then open iOS Settings and tap Refresh provider profile.",
       "Scan a QR Trust URL-bearing fixture after the revoked profile is installed in app state.",
     ],
     captureSteps: [
-      "Generate the valid reusable QR from the lab URL.",
+      "Generate the valid QR from the lab URL.",
       "Scan it with the revoked provider profile installed in app state.",
       "Capture the red profile-revoked result and matching History tab entry.",
     ],
@@ -387,9 +330,8 @@ function makeCaptureDrill(config: CaptureDrillConfig): CaptureDrill {
     fixtures,
     global_cautions: [
       "Capture result screenshots, History tab screenshots, and accessibility traces as one set for each fixture.",
-      "Do not click the browser lab's scanner-decision action before the phone scan; one-time QR state can be consumed by the browser.",
-      "One-time replay evidence must reuse the exact first-pass QR.",
-      "Reusable-public evidence should remain green on repeat scans until issuer, destination, runtime, or provider-profile state changes.",
+      "Do not click the browser lab's scanner-decision action before the phone scan; the browser decision is a separate observation.",
+      "A green result should stay green on repeat scans until issuer, destination, runtime, or provider-profile state changes.",
       "Orange outcomes may offer an open-with-caution path, but evidence should show the destination was not opened silently.",
       "Red outcomes must not be opened.",
     ],
@@ -399,8 +341,6 @@ function makeCaptureDrill(config: CaptureDrillConfig): CaptureDrill {
 function makeLabUrl(baseUrl: string, setup: LabSetup): string {
   const url = new URL(baseUrl)
   url.searchParams.set("scenario", setup.scenario)
-  url.searchParams.set("usage", setup.usage)
-  url.searchParams.set("nonce", setup.nonce)
   url.searchParams.set("autogenerate", "1")
   return url.toString()
 }

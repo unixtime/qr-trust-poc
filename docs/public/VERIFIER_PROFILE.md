@@ -5,7 +5,6 @@ flow implemented in:
 
 - [verifier.py](../../backend/app/api/endpoints/verifier.py)
 - [narrowed_verifier_poc.py](../../backend/app/services/narrowed_verifier_poc.py)
-- [replay_guard_poc.py](../../backend/app/services/replay_guard_poc.py)
 - [payload_revalidation_poc.py](../../backend/app/services/payload_revalidation_poc.py)
 - [signed_schema_poc.py](../../backend/app/services/signed_schema_poc.py)
 - [qr_artifact_poc.py](../../backend/app/services/qr_artifact_poc.py)
@@ -21,13 +20,25 @@ failure behavior.
 Current public reference endpoints:
 
 - `GET /verifier/status`
+- `GET /verifier/trust-store`
 - `POST /verifier/demo-materials`
 - `POST /verifier/verify`
 - `POST /verifier/verify-scanned`
 - `POST /verifier/decode-image`
 
 `POST /verifier/demo-materials` intentionally does not return the signing
-private key. It returns only the material needed to exercise the verifier flow.
+private key. It returns only the material needed to exercise the verifier flow,
+plus a `trust` echo (`key_ref`, `key_state`, `issuer_status`,
+`retired_key_refs`) naming the key the artifact was sealed under.
+
+`GET /verifier/trust-store` is the read-only view of the issuers and keys the
+scanned path trusts: `issuers[]` (`issuer_id`, `issuer_name`, `root_id`,
+`status`, `issued_at`, `expires_at`, `verified_domains`, `allow_subdomains`)
+and `keys[]` (`key_ref`, `issuer_id`, `algorithm_id`, `state`, `not_before`,
+`not_after`, `revoked_at`, `revocation_reason`). It is gated like `/status`
+evidence: open when verifier API key auth is disabled, otherwise it requires a
+management credential. Nothing on this surface writes to the store; only
+`demo-materials` does.
 
 The primary interactive client is now the React frontend in
 [frontend](../../frontend), which uses
@@ -83,25 +94,39 @@ Signed claims must contain exactly these fields, in this order:
 2. `certificate_ref`
 3. `issued_at`
 4. `expires_at`
-5. `nonce`
-6. `payload`
+5. `payload`
 
 Rules:
 
 - no unknown signed-claim fields
 - no missing signed-claim fields
-- `version` must be exactly `1`
+- `version` must be exactly `2`
 - `issued_at` and `expires_at` must be ISO-8601 timestamps with timezone information
 - `expires_at` must be later than `issued_at`
 
 The canonical claim order is defined in [signed_schema_poc.py](../../backend/app/services/signed_schema_poc.py).
+
+## Envelope Identity
+
+An envelope is identified by a value derived from what was signed, not by a
+field carried inside the claims:
+
+- `envelope_id = sha256(canonical_claims + "." + signature)`, lowercase hex,
+  64 characters
+- `envelope_fingerprint` is the first 16 hex characters of `envelope_id`, used
+  where a short human-readable handle is wanted
+
+`POST /verifier/demo-materials` returns the `envelope_id` of the artifact it
+generated, and `POST /scanner/decisions` returns the `envelope_id` of the
+envelope it evaluated. Mutating any signed claim changes `envelope_id`.
+`GET /verifier/scan-activity?envelope_id=<64 hex>` reads scan activity for one
+envelope.
 
 ## Certificate And Algorithm Rules
 
 Current PoC rules:
 
 - the signed `certificate_ref` must match the authoritative certificate record
-- the signed `usage_policy` determines whether a QR is reusable or one-time
 - the certificate is the authoritative source of `algorithm_id`
 - `code_algorithm_id` is optional and treated only as a mirror hint
 - if `code_algorithm_id` is present and conflicts with the certificate, verification fails
@@ -115,17 +140,12 @@ The narrowed verifier evaluates a presented code in this order:
 2. verify signed envelope against the authoritative certificate
 3. enforce certificate status
 4. enforce time window
-5. branch on signed `usage_policy`
-6. for `one_time`, reserve the nonce atomically
-7. revalidate the payload destination against issuer-controlled state
-8. release the reservation on downstream mismatch when a one-time nonce was reserved
-9. finalize one-time consumption on success
+5. revalidate the payload destination against issuer-controlled state
 
-Supported usage policies:
-
-- `reusable_public`: public or printed QR codes that may be scanned by many users
-- `one_time`: login, payment, ticket, or other single-use QR codes
-- `time_limited`: reusable QR codes bounded by `issued_at` and `expires_at`
+Every presentation of one envelope is evaluated the same way; the verifier
+keeps no per-presentation state. Freshness is carried entirely by the validity
+window (`issued_at` … `expires_at`) in the signed claims, and the `freshness`
+residual family blocks past `expires_at`.
 
 ## Issuer State Contract
 
@@ -137,11 +157,56 @@ Current issuer state fields:
 - `certificate_revoked: bool`
 - `certificate_revocation_reason: str | None`
 
+Optional lifecycle fields (the trust-store record supplies them on the scanned
+path; `POST /verifier/verify` accepts them inline so a rehearsal can express
+the same state):
+
+- `issuer_status: "active" | "suspended" | "revoked" | None`
+- `issuer_record_issued_at: str | None`, `issuer_record_expires_at: str | None`
+- `key_state: "active" | "retired" | "revoked" | None`
+- `key_not_before: str | None`, `key_not_after: str | None`
+- `key_revocation_reason: str | None`
+
 Behavior:
 
-- if `certificate_revoked` is true, verification fails before nonce reservation
-- if `certificate_active` is false, verification fails before nonce reservation
+- `certificate_revoked = true` folds onto `issuer_status = "revoked"` and
+  `certificate_active = false` onto `issuer_status = "suspended"`; both fail at
+  the `issuer_status` stage (causes `issuer-revoked` and `issuer-inactive`)
 - payload acceptance depends on the current `verified_domains` and `allow_subdomains` policy, not just the original signed payload
+
+## Key Lifecycle Contract
+
+A signing key is `active`, `retired`, or `revoked`, and an issuer is `active`,
+`suspended`, or `revoked`. The rules run in this order, and the first one that
+fires names the stage and cause:
+
+| Condition | `stage` | `cause` |
+| --- | --- | --- |
+| issuer `revoked` | `issuer_status` | `issuer-revoked` |
+| issuer not `active` | `issuer_status` | `issuer-inactive` |
+| key `revoked` | `key_status` | `key-revoked` |
+| issuer record not yet valid | `issuer_status` | `issuer-record-not-yet-valid` |
+| issuer record expired | `issuer_status` | `issuer-record-expired` |
+| artifact `issued_at` outside the key's `[not_before, not_after]` | `key_status` | `key-window-mismatch` |
+| artifact not yet valid | `time_window` | `not-yet-valid` |
+| artifact past `expires_at` | `time_window` | `object-expired` |
+| otherwise | `accepted` | — |
+
+Two consequences follow:
+
+- **Rotation is not revocation.** A retired key still vouches for every
+  artifact whose `issued_at` falls inside its window, so codes sealed before a
+  rotation keep verifying. Only an artifact sealed after `not_after` fails, with
+  `key-window-mismatch`.
+- **Revocation is terminal.** A revoked key never returns to `active`; the
+  demo issuer mints a fresh key reference instead. Everything the revoked key
+  signed blocks with `key-revoked`, whatever its window says.
+
+The demo issuer keeps one process-stable key. `POST /verifier/demo-materials`
+accepts `rotate_key: true` (mint a successor, retire the current key) and
+`key_state: "retired" | "revoked"` (set the current key's state), and echoes the
+result under `trust`. The store is in-memory for this cycle and resets with the
+API process.
 
 ## Payload Revalidation Rules
 
@@ -166,25 +231,21 @@ Current PoC intentionally does not define:
 - query-parameter policy
 - content inspection or reputation scoring
 
-## Replay Guard Rules
+## Scan Accounting Rules
 
-Replay guard applies only when the signed `usage_policy` is `one_time`.
-Reusable public and time-limited QR codes still enforce signature, certificate,
-time-window, and destination-binding checks, but they do not consume the nonce.
+The verifier records scan evidence rather than gating on it. Only
+`POST /scanner/decisions` records a scan; reading
+`GET /verifier/scan-activity?envelope_id=<64 hex>` never does.
 
-Current one-time replay lifecycle:
+Per-envelope accounting bounds how much evidence one envelope may accumulate:
 
-1. `try_reserve(nonce, reservation_ttl_seconds)`
-2. `release(nonce, owner_token)` on downstream failure
-3. `finalize(nonce, owner_token, consumed_ttl_seconds)` on success
+- `envelope_budget_limit`, `envelope_budget_remaining` and
+  `envelope_budget_window_seconds` are reported on the scan-activity throttle
+- `envelope_rate_limit_window_seconds` and `envelope_rate_limit_max_requests`
+  are reported on `GET /verifier/status`
 
-Properties:
-
-- only one caller may own a nonce reservation at a time
-- expired reservations can be reacquired
-- consumed nonces remain blocked until the consumed TTL expires
-- wrong-owner release is rejected
-- finalize after reservation expiry fails
+Exhausting a budget bounds recording, not acceptance: a decision is still
+returned, and a repeat presentation inside the validity window still verifies.
 
 ## Result Contract
 
@@ -193,9 +254,10 @@ Current response fields from the narrowed verifier:
 - `allowed: bool`
 - `stage: str`
 - `reason: str`
+- `cause: str | None` — the structured cause behind a failing trust or
+  freshness stage (see the Key Lifecycle Contract table)
 - `canonical_claims_sha256: str | None`
 - `matched_rule: str | None`
-- `reservation_state: str | None`
 
 HTTP responses from the public verifier surface also include `X-Request-ID`
 for request tracing without exposing request bodies in logs.
@@ -211,19 +273,25 @@ for request tracing without exposing request bodies in logs.
 Current `stage` values used by the PoC:
 
 - `signed_schema`
-- `certificate_status`
+- `issuer_status`
+- `key_status`
 - `time_window`
-- `replay_guard`
 - `payload_revalidation`
 - `accepted`
 
-Current `reservation_state` values used by the PoC:
+(`certificate_status` was the pre-lifecycle name for the issuer check; it is
+now `issuer_status`, and key-level failures report as `key_status`.)
 
-- `blocked`
-- `released`
-- `release_failed`
-- `finalize_failed`
-- `consumed`
+The scanner surface adds a `residual_vector` alongside the stage: six families
+in the order `issuer_chain`, `destination_policy`, `redirect_flow`,
+`runtime_safety`, `freshness`, `artifact_integrity`, each entry `{tier, cause}`.
+A failing stage maps into that vector — `time_window` past `expires_at` becomes
+`freshness` tier `block`, cause `object-expired`; a claims version this build
+does not support becomes `issuer_chain` tier `invalid-managed-claim`, cause
+`unsupported-claims-version`; `issuer_status` and `key_status` both become
+`issuer_chain` tier `revoked-issuer` with the cause from the lifecycle table
+(`key-revoked`, `issuer-inactive`, `key-window-mismatch`, …). The response also carries `model_decision`, with
+`profile`, `primary_state`, `annotations`, `reason_codes` and `attention_level`.
 
 ## Non-Goals In This Profile
 
@@ -231,6 +299,5 @@ This profile does not currently define:
 
 - interoperability across multiple certificate formats
 - decentralized trust roots
-- blockchain-backed replay state
 - multi-algorithm or post-quantum envelopes
 - transport-specific behavior beyond the current machine-readable payload contract

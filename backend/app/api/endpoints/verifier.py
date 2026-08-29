@@ -19,19 +19,20 @@ from backend.app.core.config import config
 from backend.app.core.request_id import safe_request_id
 from backend.app.schemas.poc import (
     ScanActivityDestinationOutcome,
-    ScanActivityReplayGuardResponse,
     ScanActivityResponse,
     ScanActivityThrottleResponse,
-    UsagePolicy,
     CertificateRecordInput,
     DemoMaterialsRequest,
     DemoMaterialsResponse,
+    DemoTrustEcho,
     IssuerVerificationStateInput,
+    ModelDecisionResponse,
     NarrowedVerifierRequest,
     NarrowedVerifierResponse,
     NetworkOutboxOperatorStatusResponse,
     QRCodeImageDecodeRequest,
     QRCodeImageDecodeResponse,
+    ResidualEntry,
     ScannerDecisionAction,
     ScannerDecisionContract,
     ScannerDecisionContractCacheFreshness,
@@ -56,6 +57,9 @@ from backend.app.schemas.poc import (
     SignedClaimsInput,
     SignedEnvelopeInput,
     RuntimeSafetyObservationOperatorStatusResponse,
+    TrustStoreIssuerResponse,
+    TrustStoreKeyResponse,
+    TrustStoreResponse,
     VerifierAPIKeyIssueRequest,
     VerifierAPIKeyIssueResponse,
     VerifierAPIKeyListResponse,
@@ -76,8 +80,13 @@ from backend.app.services.qr_artifact_poc import (
     render_qr_png_base64,
 )
 from backend.app.services.narrowed_verifier_poc import (
-    IssuerVerificationState,
     NarrowedVerifierService,
+    TrustContext,
+)
+from backend.app.services.scanner_trust_store import (
+    IssuerRecord,
+    KeyEntry,
+    ScannerTrustStore,
 )
 from backend.app.services.governance_fixture_store import (
     GovernanceTrustProjection,
@@ -88,7 +97,6 @@ from backend.app.services.redirect_policy_poc import (
     RedirectPolicyVerdict,
     evaluate_redirect_policy,
 )
-from backend.app.services.replay_guard_poc import InMemoryReplayGuard
 from backend.app.services.runtime_safety_poc import (
     RuntimeSafetyVerdict,
     evaluate_runtime_safety,
@@ -112,7 +120,7 @@ from backend.app.services.runtime_observation_status import (
 from backend.app.services.scan_activity import (
     DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
     load_scan_activity,
-    nonce_fingerprint as _nonce_fingerprint,
+    envelope_fingerprint as _envelope_fingerprint,
 )
 from backend.app.services.scanner_decision_status import load_scanner_decision_operator_status
 from backend.app.services.scanner_ux_ab_fixture import build_scanner_ux_ab_fixture
@@ -120,13 +128,14 @@ from backend.app.services.verdict_cache import shared_verdict_cache
 from backend.app.services.signed_schema_poc import (
     CertificateAuthorityRecord,
     SUPPORTED_ALGORITHM_ID,
-    USAGE_POLICY_ONE_TIME,
-    USAGE_POLICY_REUSABLE_PUBLIC,
-    USAGE_POLICY_TIME_LIMITED,
+    SUPPORTED_CLAIMS_VERSION,
+    SignedQRCodeClaims,
     SignedQRCodeEnvelope,
     SignedSchemaError,
     build_demo_certificate,
+    compute_envelope_id,
     create_signed_envelope,
+    parse_claim_timestamp,
     parse_claims_mapping,
 )
 from backend.app.services.verifier_api_key_service import (
@@ -139,8 +148,7 @@ router = APIRouter()
 scanner_router = APIRouter()
 logger = logging.getLogger(__name__)
 
-_replay_guard = InMemoryReplayGuard()
-_verifier = NarrowedVerifierService(_replay_guard)
+_verifier = NarrowedVerifierService()
 _request_rate_limiter = RequestRateLimiter()
 _verdict_cache = shared_verdict_cache
 _scanner_ux_event_log: deque[ScannerUXEventLogEntry] = deque(maxlen=500)
@@ -159,13 +167,70 @@ class ScannerTrustRecord:
     governance: GovernanceTrustProjection | None = None
 
 
-_scanner_trust_records: dict[str, ScannerTrustRecord] = {}
+# The scanner's registry of who it will trust. The store is keyed by key_ref, so
+# two issuances under different keys of the same issuer coexist — the old dict was
+# keyed by certificate_ref and each demo call silently evicted the previous QR.
+_scanner_trust_store = ScannerTrustStore()
+
+
+@dataclass(frozen=True)
+class _DemoKeyMaterial:
+    key_ref: str
+    private_key_pem: str
+    public_key_pem: str
+
+
+# Append-only, oldest first. The demo issuer keeps its keys for the life of the
+# process so a QR issued five minutes ago still resolves to the key that signed
+# it — the previous code minted a fresh keypair per request under one ref.
+_demo_keys: list[_DemoKeyMaterial] = []
+
+_DEMO_ISSUER_NAME = "Acme Demo Issuer"
+_DEMO_KEY_REF_BASE = "cert:acme-demo:2026-01"
+
+
+def _mint_demo_key() -> _DemoKeyMaterial:
+    serial = len(_demo_keys)
+    key_ref = _DEMO_KEY_REF_BASE if serial == 0 else f"{_DEMO_KEY_REF_BASE}-r{serial}"
+    certificate, private_key_pem = build_demo_certificate(
+        issuer_name=_DEMO_ISSUER_NAME, certificate_ref=key_ref
+    )
+    material = _DemoKeyMaterial(
+        key_ref=key_ref,
+        private_key_pem=private_key_pem,
+        public_key_pem=certificate.public_key_pem,
+    )
+    _demo_keys.append(material)
+    return material
+
+
+def _active_demo_key(*, rotate: bool) -> _DemoKeyMaterial:
+    """The keypair the next demo issuance signs under.
+
+    Reuse is the default — that is what lets a QR issued five minutes ago still
+    resolve to the key that signed it. The exception is a current ref the store
+    has already moved off ``active``: signing under it again would re-publish it
+    as active, which un-revokes a revoked key and lets every artifact it signed
+    verify again (spec Q3 makes revocation terminal). A ref the store has never
+    heard of — a fresh process, or a test fixture that cleared the store — is
+    reused unchanged, so the demo issuer keeps its base ref.
+    """
+    if rotate or not _demo_keys:
+        return _mint_demo_key()
+    current = _demo_keys[-1]
+    stored = next(
+        (entry for entry in _scanner_trust_store.keys() if entry.key_ref == current.key_ref),
+        None,
+    )
+    if stored is not None and stored.state != "active":
+        return _mint_demo_key()
+    return current
+
 
 # Payload encoded into the rendered QR image for the payload-mismatch artifact
 # profile. It stands in for an attacker sticker pasted over a legitimate print,
 # so it must differ from any signed demo payload.
 _ARTIFACT_MISMATCH_OVERLAY_PAYLOAD = "https://evil.example/pay"
-_SUSPICIOUS_SCANNER_TLDS = frozenset({"zip", "mov", "click", "top", "xyz"})
 _COMMON_MULTI_LABEL_PUBLIC_SUFFIXES = frozenset(
     {
         "ac.uk",
@@ -522,11 +587,6 @@ def _forwarded_ip_trust_configured() -> bool:
     return bool(entries - _LOOPBACK_FORWARDED_ALLOW_IPS)
 
 
-_SCAN_FLOOD_BUDGETED_POLICIES = frozenset(
-    {USAGE_POLICY_REUSABLE_PUBLIC, USAGE_POLICY_TIME_LIMITED}
-)
-
-
 def _issuer_budget_key(certificate_ref: str) -> str:
     return sha256(certificate_ref.encode("utf-8")).hexdigest()[:16]
 
@@ -535,20 +595,21 @@ _VERDICT_SOURCE_HEADER = "X-QR-Trust-Verdict"
 
 
 def _verdict_cache_key(request: NarrowedVerifierRequest, fingerprint: str) -> str:
-    """``(nonce_fingerprint, envelope_hash)``: the hash covers the whole request
-    except the replay-guard TTLs, so a tampered signature, a different
-    certificate, or a revoked issuer state is a miss rather than a stale hit."""
-    material = request.model_dump_json(
-        exclude={"reservation_ttl_seconds", "consumed_ttl_seconds"},
-    )
+    """``(envelope_fingerprint, request_hash)``: the hash covers the whole
+    request, so a tampered signature, a different certificate, or a revoked
+    issuer state is a miss rather than a stale hit."""
+    material = request.model_dump_json()
     return f"{fingerprint}:{sha256(material.encode('utf-8')).hexdigest()[:32]}"
 
 
-def _verdict_cache_ttl_seconds(expires_at: str) -> int:
+def _verdict_cache_ttl_seconds(expires_at: str | None) -> int:
     """min(configured TTL, seconds until the claims expire); 0 means do not cache."""
     ttl = config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
     if ttl <= 0:
         return 0
+    if expires_at is None:
+        # Open-ended claims never expire, so nothing shortens the configured TTL.
+        return ttl
     try:
         expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
     except ValueError:
@@ -574,7 +635,7 @@ async def _enforce_scan_flood_budget(
     limit: int,
     detail: str,
 ) -> None:
-    """Shared per-subject budget (nonce or issuer) for reusable codes.
+    """Shared per-subject budget, keyed by envelope or by issuer.
 
     Keyed on the subject rather than the caller, so a flood spread across many
     source addresses still lands in one bucket. Uses the same limiter as the
@@ -583,7 +644,7 @@ async def _enforce_scan_flood_budget(
     decision = await _request_rate_limiter.check(
         _scan_flood_budget_key(bucket, subject),
         limit=limit,
-        window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
+        window_seconds=config.VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS,
     )
     if decision.allowed:
         return
@@ -597,38 +658,56 @@ async def _enforce_scan_flood_budget(
 def _build_demo_materials_response(
     request: DemoMaterialsRequest,
 ) -> DemoMaterialsResponse:
-    certificate, private_key_pem = build_demo_certificate()
-
     now = datetime.now(timezone.utc)
-    claims = parse_claims_mapping(
-        {
-            "version": "1",
-            "usage_policy": request.usage_policy,
-            "certificate_ref": certificate.certificate_ref,
-            "issued_at": (now + timedelta(minutes=request.issued_offset_minutes)).isoformat(),
-            "expires_at": (now + timedelta(minutes=request.expires_offset_minutes)).isoformat(),
-            "nonce": request.nonce,
-            "payload": request.payload,
-        }
+    material = _active_demo_key(rotate=request.rotate_key)
+    certificate_input = CertificateRecordInput(
+        issuer_name=_DEMO_ISSUER_NAME,
+        certificate_ref=material.key_ref,
+        algorithm_id=SUPPORTED_ALGORITHM_ID,
+        public_key_pem=material.public_key_pem,
+    )
+    issued_at = now + timedelta(minutes=request.issued_offset_minutes)
+    expires_at = (
+        None
+        if request.expires_offset_minutes is None
+        else (now + timedelta(minutes=request.expires_offset_minutes)).isoformat()
+    )
+    claims = SignedQRCodeClaims(
+        version=SUPPORTED_CLAIMS_VERSION,
+        certificate_ref=certificate_input.certificate_ref,
+        issued_at=issued_at.isoformat(),
+        expires_at=expires_at,
+        payload=request.payload,
     )
     envelope = create_signed_envelope(
         claims,
-        private_key_pem,
+        material.private_key_pem,
         code_algorithm_id=SUPPORTED_ALGORITHM_ID,
     )
 
-    certificate_input = CertificateRecordInput(
-        certificate_ref=certificate.certificate_ref,
-        issuer_name=certificate.issuer_name,
-        algorithm_id=certificate.algorithm_id,
-        public_key_pem=certificate.public_key_pem,
+    issuer_record_expires_at = (
+        None
+        if request.issuer_record_expires_offset_minutes is None
+        else (
+            now + timedelta(minutes=request.issuer_record_expires_offset_minutes)
+        ).isoformat()
     )
+    # On this surface a revoked certificate means a revoked KEY: the workbench's
+    # "revoked" chip is about the code in the user's hand, not about tearing down
+    # the issuer. /verifier/verify maps the same legacy flag to issuer status,
+    # because there the caller is describing an issuer's state directly.
+    key_state = request.key_state or ("revoked" if request.certificate_revoked else "active")
+    issuer_status = "active" if request.certificate_active else "suspended"
     issuer_state_input = IssuerVerificationStateInput(
         verified_domains=request.verified_domains,
         allow_subdomains=request.allow_subdomains,
         certificate_active=request.certificate_active,
         certificate_revoked=request.certificate_revoked,
         certificate_revocation_reason=request.certificate_revocation_reason,
+        issuer_status=issuer_status,
+        issuer_record_expires_at=issuer_record_expires_at,
+        key_state=key_state,
+        key_revocation_reason=request.certificate_revocation_reason,
     )
 
     verify_request = NarrowedVerifierRequest(
@@ -643,7 +722,7 @@ def _build_demo_materials_response(
     qr_payload = encode_envelope_as_qr_payload(envelope)
 
     governance = load_governance_projection(
-        certificate.certificate_ref,
+        certificate_input.certificate_ref,
         cache_profile=request.governance_cache_profile,
     )
     # The rendered PNG normally matches the signed payload with a full quiet
@@ -658,28 +737,45 @@ def _build_demo_materials_response(
     else:
         qr_png_base64 = render_qr_png_base64(qr_payload)
 
-    response = DemoMaterialsResponse(
+    # Demo materials normally enroll the certificate in the scanner trust
+    # store; skipping enrollment yields a signed envelope whose issuer the
+    # scanner does not recognize (the signed_unknown_issuer path).
+    if request.register_scanner_trust:
+        _register_scanner_trust(
+            certificate_input,
+            issuer_state_input,
+            governance=governance,
+        )
+        if request.rotate_key:
+            _scanner_trust_store.retire_keys_for(
+                _DEMO_ISSUER_NAME, now=now, except_key_ref=material.key_ref
+            )
+    else:
+        # The demo certificate_ref is shared across generations, so an earlier
+        # demo may have enrolled it; drop it so the ref is genuinely unknown.
+        _unregister_scanner_trust(certificate_input.certificate_ref)
+
+    retired_key_refs = [
+        entry.key_ref
+        for entry in _scanner_trust_store.keys()
+        if entry.issuer_id == _DEMO_ISSUER_NAME and entry.state == "retired"
+    ]
+
+    return DemoMaterialsResponse(
         certificate=certificate_input,
         issuer_state=issuer_state_input,
         governance=_scanner_governance_response(governance),
         verify_request=verify_request,
         qr_payload=qr_payload,
         qr_png_base64=qr_png_base64,
+        envelope_id=compute_envelope_id(claims, envelope.signature),
+        trust=DemoTrustEcho(
+            key_ref=material.key_ref,
+            key_state=key_state,
+            issuer_status=issuer_status,
+            retired_key_refs=retired_key_refs,
+        ),
     )
-    # Demo materials normally enroll the certificate in the scanner trust
-    # store; skipping enrollment yields a signed envelope whose issuer the
-    # scanner does not recognize (the signed_unknown_issuer path).
-    if request.register_scanner_trust:
-        _register_scanner_trust(
-            response.certificate,
-            response.issuer_state,
-            governance=governance,
-        )
-    else:
-        # The demo certificate_ref is shared across generations, so an earlier
-        # demo may have enrolled it; drop it so the ref is genuinely unknown.
-        _scanner_trust_records.pop(response.certificate.certificate_ref, None)
-    return response
 
 
 def _register_scanner_trust(
@@ -687,16 +783,102 @@ def _register_scanner_trust(
     issuer_state: IssuerVerificationStateInput,
     *,
     governance: GovernanceTrustProjection | None = None,
+    key_state: str = "active",
+    key_not_before: datetime | None = None,
+    key_not_after: datetime | None = None,
 ) -> None:
-    _scanner_trust_records[certificate.certificate_ref] = ScannerTrustRecord(
-        certificate=certificate,
-        issuer_state=issuer_state,
-        governance=(
-            governance
-            if governance is not None
-            else load_governance_projection(certificate.certificate_ref)
-        ),
+    """Publish an issuer and one of its signing keys to the scanner's trust store.
+
+    The governance projection is looked up by certificate_ref (that is how the
+    fixture file is keyed) but stored under issuer_id (that is the scope it
+    actually describes). Keeping both halves explicit is the point: an issuer
+    with two keys must not carry two governance rows.
+    """
+    resolved_governance = (
+        governance
+        if governance is not None
+        else load_governance_projection(certificate.certificate_ref)
     )
+    issuer_id = certificate.issuer_name
+    _scanner_trust_store.put_issuer(
+        IssuerRecord(
+            issuer_id=issuer_id,
+            issuer_name=certificate.issuer_name,
+            root_id="root:qrtrust-demo",
+            status=_legacy_issuer_status(issuer_state),
+            issued_at=_bounded_trust_timestamp(
+                "issuer_record_issued_at",
+                issuer_state.issuer_record_issued_at,
+                default=_UNBOUNDED_PAST,
+            ),
+            expires_at=_optional_trust_timestamp(
+                "issuer_record_expires_at", issuer_state.issuer_record_expires_at
+            ),
+            verified_domains=tuple(issuer_state.verified_domains),
+            allow_subdomains=issuer_state.allow_subdomains,
+        )
+    )
+    _scanner_trust_store.put_key(
+        KeyEntry(
+            key_ref=certificate.certificate_ref,
+            issuer_id=issuer_id,
+            algorithm_id=certificate.algorithm_id,
+            public_key_pem=certificate.public_key_pem,
+            state=issuer_state.key_state or key_state,
+            not_before=key_not_before or _UNBOUNDED_PAST,
+            not_after=key_not_after,
+            revocation_reason=issuer_state.key_revocation_reason
+            or issuer_state.certificate_revocation_reason,
+        )
+    )
+    if resolved_governance is not None:
+        _scanner_trust_store.set_governance(issuer_id, resolved_governance)
+
+
+def _scanner_record_for(key_ref: str) -> ScannerTrustRecord | None:
+    """Rebuild the record shape the scanner consumers already read.
+
+    The store is the storage; this is a view over it. Round-tripping through
+    IssuerVerificationStateInput means _run_scanned_verifier's TrustContext is
+    re-derived by the same adapter /verifier/verify uses, so both surfaces judge
+    an artifact identically.
+    """
+    resolved = _scanner_trust_store.resolve(key_ref)
+    if resolved is None:
+        return None
+
+    key, issuer = resolved
+    return ScannerTrustRecord(
+        certificate=CertificateRecordInput(
+            issuer_name=issuer.issuer_name,
+            certificate_ref=key.key_ref,
+            algorithm_id=key.algorithm_id,
+            public_key_pem=key.public_key_pem,
+        ),
+        issuer_state=IssuerVerificationStateInput(
+            verified_domains=list(issuer.verified_domains),
+            allow_subdomains=issuer.allow_subdomains,
+            certificate_active=issuer.status == "active",
+            certificate_revoked=issuer.status == "revoked",
+            certificate_revocation_reason=key.revocation_reason,
+            issuer_status=issuer.status,
+            issuer_record_issued_at=issuer.issued_at.isoformat(),
+            issuer_record_expires_at=(
+                issuer.expires_at.isoformat() if issuer.expires_at is not None else None
+            ),
+            key_state=key.state,
+            key_not_before=key.not_before.isoformat(),
+            key_not_after=(
+                key.not_after.isoformat() if key.not_after is not None else None
+            ),
+            key_revocation_reason=key.revocation_reason,
+        ),
+        governance=_scanner_trust_store.governance_for(issuer.issuer_id),
+    )
+
+
+def _unregister_scanner_trust(key_ref: str) -> None:
+    _scanner_trust_store.remove_key(key_ref)
 
 
 def _parsed_http_url(value: str) -> ParseResult | None:
@@ -811,14 +993,6 @@ def _has_embedded_credentials(value: str) -> bool:
     if parsed is None:
         return False
     return parsed.username is not None or parsed.password is not None
-
-
-def _has_suspicious_tld(host: str | None) -> bool:
-    if not host:
-        return False
-
-    labels = [label for label in host.strip().strip(".").lower().split(".") if label]
-    return bool(labels and labels[-1] in _SUSPICIOUS_SCANNER_TLDS)
 
 
 def _normalized_host(value: str | None) -> str | None:
@@ -1072,8 +1246,6 @@ def _scanner_ux_for_response(
     match response.verifier_stage:
         case "payload_revalidation":
             reason_codes.append("destination_mismatch")
-        case "replay_guard":
-            reason_codes.append("one_time_used")
         case "redirect_policy":
             reason_codes.append("redirect_policy_block")
         case "runtime_safety":
@@ -1100,12 +1272,6 @@ def _scanner_ux_for_response(
     if any(_has_embedded_credentials(url) for url in risk_urls):
         score += 15
         reason_codes.append("embedded_credentials")
-
-    if _has_suspicious_tld(response.destination.host) or any(
-        _has_suspicious_tld(_url_host(url)) for url in risk_urls
-    ):
-        score += 15
-        reason_codes.append("suspicious_tld")
 
     risk_hosts = _scanner_risk_hosts(response)
     destination_identities: set[str] = set()
@@ -1214,6 +1380,8 @@ def _unverified_scanner_decision(
     *,
     reason: str,
     request_id: str | None,
+    cause: str = "no-signed-envelope",
+    extra_reason_codes: tuple[str, ...] = (),
 ) -> ScannerDecisionResponse:
     trimmed_payload = payload.strip()
     has_url_destination = _looks_like_url(trimmed_payload)
@@ -1232,10 +1400,14 @@ def _unverified_scanner_decision(
         if has_url_destination
         else reason
     )
+    vector = _unverified_residual_vector(cause)
+    _, decision = _apply_trust_residual_gate("unverified", vector)
+    entries, model = _residual_payload(vector, decision, extra_reason_codes=extra_reason_codes)
     return ScannerDecisionResponse(
         decision_state="unverified",
         open_allowed=has_url_destination,
-        usage_policy=None,
+        residual_vector=entries,
+        model_decision=model,
         primary_message=primary,
         issuer=ScannerDecisionIssuer(status="none"),
         destination=_scanner_destination(
@@ -1261,10 +1433,17 @@ def _signed_unknown_issuer_decision(
     request_id: str | None,
 ) -> ScannerDecisionResponse:
     destination = envelope.claims.payload
+    # The envelope parsed, but this verifier holds no issuer state for its
+    # certificate reference, so only R_I carries evidence. No cause from the
+    # closed vocabulary describes an unenrolled issuer; the tier is the claim.
+    vector = _unverified_residual_vector(cause=None)
+    _, decision = _apply_trust_residual_gate("signed_unknown_issuer", vector)
+    entries, model = _residual_payload(vector, decision)
     return ScannerDecisionResponse(
         decision_state="signed_unknown_issuer",
         open_allowed=_looks_like_url(destination),
-        usage_policy=envelope.claims.usage_policy,
+        residual_vector=entries,
+        model_decision=model,
         primary_message=(
             "The QR uses the signed-envelope format, but this verifier has no registered issuer state "
             "for its certificate reference."
@@ -1289,67 +1468,36 @@ def _signed_unknown_issuer_decision(
         verifier_stage="issuer_lookup",
         verifier_reason="Signed envelope issuer is not enrolled in this verifier instance",
         request_id=request_id,
+        envelope_id=compute_envelope_id(envelope.claims, envelope.signature),
     )
 
 
-def _scanned_issuance(qr_payload: str) -> tuple[str | None, datetime | None]:
-    """``(nonce fingerprint, issued_at)`` of the signed envelope, or Nones for
-    URL/unreadable payloads."""
+def _scanned_envelope_fingerprint(qr_payload: str) -> str | None:
+    """The scanned envelope's fingerprint, or None for URL/unreadable payloads.
+
+    Scan activity is keyed by envelope identity, so this is the same value the
+    verify path derives from the parsed claims and signature."""
     trimmed_payload = qr_payload.strip()
     if not trimmed_payload or _looks_like_url(trimmed_payload):
-        return None, None
+        return None
     try:
         envelope = decode_envelope_from_qr_payload(trimmed_payload)
     except QRArtifactError:
-        return None, None
-    nonce = envelope.claims.nonce
-    fingerprint = _nonce_fingerprint(nonce) if nonce else None
-    return fingerprint, _parse_issued_at(envelope.claims.issued_at)
-
-
-def _parse_issued_at(value: str | None) -> datetime | None:
-    """Envelope ``issued_at`` as an aware UTC datetime; None when unreadable."""
-    if not value:
         return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return _as_utc(parsed)
+    return _envelope_fingerprint(compute_envelope_id(envelope.claims, envelope.signature))
 
 
-def _as_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
-
-
-def _issuance_hit_key(fingerprint: str, issued_at: datetime | None) -> str:
-    """Verdict-cache hit key for one issuance of a nonce.
-
-    Cached hits carry no timestamps, so a time gate could not split them across
-    issuances; keying per issuance is what lets the lab card count only the
-    scans of the code it is showing. Without ``issued_at`` the plain
-    fingerprint key holds every issuance's hits.
-    """
-    if issued_at is None:
-        return fingerprint
-    return "%s:%d" % (fingerprint, int(issued_at.timestamp()))
-
-
-def _scanner_claimed_destination_from_payload(
-    qr_payload: str,
-) -> tuple[str, str | None]:
+def _scanner_claimed_destination_from_payload(qr_payload: str) -> str:
     trimmed_payload = qr_payload.strip()
     if _looks_like_url(trimmed_payload):
-        return trimmed_payload, None
+        return trimmed_payload
 
     try:
         envelope = decode_envelope_from_qr_payload(trimmed_payload)
     except QRArtifactError:
-        return trimmed_payload or "unreadable QR payload", None
+        return trimmed_payload or "unreadable QR payload"
 
-    return envelope.claims.payload, envelope.claims.usage_policy
+    return envelope.claims.payload
 
 
 def _verifier_profile_state_decision(
@@ -1369,9 +1517,7 @@ def _verifier_profile_state_decision(
     if profile_state == "active":
         return None
 
-    destination, usage_policy = _scanner_claimed_destination_from_payload(
-        request.qr_payload,
-    )
+    destination = _scanner_claimed_destination_from_payload(request.qr_payload)
     has_url_destination = _looks_like_url(destination)
     is_revoked = profile_state == "revoked"
     decision_state = "profile_revoked" if is_revoked else "profile_stale"
@@ -1393,10 +1539,24 @@ def _verifier_profile_state_decision(
         if is_revoked
         else "Verifier profile is stale"
     )
+    # A stale or revoked verifier profile means no evidence about this QR was
+    # gathered at all: every family reports that it was not checked rather than
+    # claiming an absence of findings.
+    profile_vector: ResidualVector = {
+        "issuer_chain": _entry("not-checked"),
+        "destination_policy": _entry("not-checked"),
+        "redirect_flow": _entry("not-applicable"),
+        "runtime_safety": _entry("not-checked"),
+        "freshness": _entry("not-checked"),
+        "artifact_integrity": _entry("pass"),
+    }
+    _, profile_decision = _apply_trust_residual_gate(decision_state, profile_vector)
+    profile_entries, profile_model = _residual_payload(profile_vector, profile_decision)
     return ScannerDecisionResponse(
         decision_state=decision_state,
         open_allowed=open_allowed,
-        usage_policy=usage_policy,
+        residual_vector=profile_entries,
+        model_decision=profile_model,
         primary_message=primary_message,
         issuer=ScannerDecisionIssuer(
             name=None,
@@ -1524,8 +1684,8 @@ async def _build_verifier_status_response(
         rate_limit_window_seconds=config.VERIFIER_RATE_LIMIT_WINDOW_SECONDS,
         rate_limit_max_requests=config.VERIFIER_RATE_LIMIT_MAX_REQUESTS,
         decode_rate_limit_max_requests=config.VERIFIER_DECODE_RATE_LIMIT_MAX_REQUESTS,
-        nonce_rate_limit_window_seconds=config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS,
-        nonce_rate_limit_max_requests=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
+        envelope_rate_limit_window_seconds=config.VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS,
+        envelope_rate_limit_max_requests=config.VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS,
         issuer_rate_limit_max_requests=config.VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS,
         verdict_cache_enabled=config.VERIFIER_VERDICT_CACHE_TTL_SECONDS > 0,
         verdict_cache_ttl_seconds=max(0, config.VERIFIER_VERDICT_CACHE_TTL_SECONDS),
@@ -1590,20 +1750,16 @@ def _scanner_primary_message(
                 "Verified issuer and destination, but the QR artifact has visual "
                 "or structural warnings. Review before opening."
             )
-        if result.usage_policy == USAGE_POLICY_ONE_TIME:
-            return "Verified one-time QR. This destination can be opened."
-        if result.usage_policy == USAGE_POLICY_TIME_LIMITED:
-            return "Verified time-limited QR. This destination remains approved right now."
-        return "Verified reusable QR. This destination is still approved by the issuer."
+        return "Verified signed QR. This destination is still approved by the issuer."
     match result.stage:
         case "payload_revalidation":
             return "Destination mismatch. The signed QR no longer points to an issuer-approved destination."
-        case "replay_guard":
-            return "One-time QR blocked. This QR has already been used or is currently reserved."
         case "time_window":
             return "Expired or not-yet-valid QR. The scanner stopped before destination evaluation."
-        case "certificate_status":
+        case "issuer_status":
             return "Issuer credential is inactive or revoked in the verifier state."
+        case "key_status":
+            return "The signing key behind this code is revoked or was not in force when the code was signed."
         case "signed_schema":
             return "Signature verification failed for the canonical signed claims."
         case _:
@@ -1658,10 +1814,25 @@ def _governance_cache_blocking_decision(
         if is_expired
         else "Required governance cache state is stale"
     )
+    # Stale or expired required trust state is stale freshness evidence: R_F
+    # blocks when the cache expired and cautions while it is merely stale. No
+    # cause in the closed vocabulary names a cache lifetime, so the tier stands
+    # alone and the governance block on the response carries the detail.
+    governance_vector: ResidualVector = {
+        "issuer_chain": _entry("not-checked"),
+        "destination_policy": _entry("not-checked"),
+        "redirect_flow": _entry("not-applicable"),
+        "runtime_safety": _entry("not-checked"),
+        "freshness": _entry("block" if is_expired else "warn"),
+        "artifact_integrity": _entry("pass"),
+    }
+    _, governance_decision = _apply_trust_residual_gate(decision_state, governance_vector)
+    governance_entries, governance_model = _residual_payload(governance_vector, governance_decision)
     return ScannerDecisionResponse(
         decision_state=decision_state,
         open_allowed=open_allowed,
-        usage_policy=envelope.claims.usage_policy,
+        residual_vector=governance_entries,
+        model_decision=governance_model,
         primary_message=primary_message,
         issuer=ScannerDecisionIssuer(
             name=record.certificate.issuer_name,
@@ -1707,6 +1878,7 @@ def _governance_cache_blocking_decision(
         verifier_stage="governance_cache",
         verifier_reason=verifier_reason,
         request_id=request_id,
+        envelope_id=compute_envelope_id(envelope.claims, envelope.signature),
     )
 
 
@@ -1772,13 +1944,24 @@ def _artifact_payload_mismatch_decision(
     *,
     request_id: str | None,
 ) -> ScannerDecisionResponse:
-    destination, usage_policy = _scanner_claimed_destination_from_payload(
-        artifact_analysis.payload,
-    )
+    destination = _scanner_claimed_destination_from_payload(artifact_analysis.payload)
+    # The submitted payload contradicts the artifact it claims to come from:
+    # blocking artifact-layer evidence, with nothing downstream evaluated.
+    mismatch_vector: ResidualVector = {
+        "issuer_chain": _entry("not-checked"),
+        "destination_policy": _entry("not-checked"),
+        "redirect_flow": _entry("not-applicable"),
+        "runtime_safety": _entry("not-checked"),
+        "freshness": _entry("not-checked"),
+        "artifact_integrity": _entry("block"),
+    }
+    _, mismatch_decision = _apply_trust_residual_gate("blocked", mismatch_vector)
+    mismatch_entries, mismatch_model = _residual_payload(mismatch_vector, mismatch_decision)
     return ScannerDecisionResponse(
         decision_state="blocked",
         open_allowed=False,
-        usage_policy=usage_policy,
+        residual_vector=mismatch_entries,
+        model_decision=mismatch_model,
         primary_message=(
             "The submitted scanner payload does not match the QR image artifact. "
             "Do not open this destination."
@@ -1864,15 +2047,7 @@ def _scanner_signals_for_result(
                     state=runtime_verdict.decision_state,
                 ),
             ], artifact_analysis)
-        runtime_message = "Replay and validity checks passed."
-        if result.usage_policy == USAGE_POLICY_REUSABLE_PUBLIC:
-            runtime_message = (
-                "Reusable public QR does not consume a nonce; validity and destination checks passed."
-            )
-        elif result.usage_policy == USAGE_POLICY_TIME_LIMITED:
-            runtime_message = (
-                "Time-limited QR is inside its validity window; no per-user replay consumption."
-            )
+        runtime_message = "Signature and validity checks passed."
         return _with_artifact_signal([
             ScannerDecisionSignal(
                 layer="issuer_legitimacy",
@@ -1898,18 +2073,7 @@ def _scanner_signals_for_result(
             ScannerDecisionSignal(layer="runtime_safety", state="not_opened", message="The destination is blocked before opening."),
             ScannerDecisionSignal(layer="scanner_decision", state="blocked"),
         ], artifact_analysis)
-    if result.stage == "replay_guard":
-        return _with_artifact_signal([
-            ScannerDecisionSignal(
-                layer="issuer_legitimacy",
-                state="recognized",
-                message=_scanner_issuer_legitimacy_message(record),
-            ),
-            ScannerDecisionSignal(layer="destination_binding", state="not_evaluated", message="One-time use check stopped the decision path."),
-            ScannerDecisionSignal(layer="runtime_safety", state="replay_blocked", message=result.reason),
-            ScannerDecisionSignal(layer="scanner_decision", state="blocked"),
-        ], artifact_analysis)
-    if result.stage == "certificate_status":
+    if result.stage in _TRUST_FAILURE_STAGES:
         return _with_artifact_signal([
             ScannerDecisionSignal(layer="issuer_legitimacy", state="revoked", message=result.reason),
             ScannerDecisionSignal(layer="destination_binding", state="not_evaluated"),
@@ -1939,6 +2103,11 @@ def _scanner_signals_for_result(
 # pipeline may exceed (block more) but never undercut.
 _RUNTIME_DECISION_PROFILE = "bounded-online"
 
+# Reason code carried when a scan decodes as an artifact but declares a claims
+# version this build does not support.
+UNSUPPORTED_CLAIMS_VERSION_REASON = "unsupported_claims_version"
+_UNSUPPORTED_VERSION_PREFIX = "Field 'version' must be exactly"
+
 _RUNTIME_SAFETY_RESIDUAL_TIERS = {
     "clean": "pass",
     "risky": "warn",
@@ -1949,14 +2118,46 @@ _RUNTIME_SAFETY_RESIDUAL_TIERS = {
     "unavailable": "unavailable",
 }
 
+# Stages where the trust store found the issuer record or signing key not in force.
+# Both land on R_I: a human does not care which half of the credential failed, but
+# the cause slug still distinguishes them.
+_TRUST_FAILURE_STAGES = frozenset({"issuer_status", "key_status"})
+
 # Failing verifier stages, keyed to the residual family that owns the evidence.
-_FAILED_STAGE_RESIDUALS = {
+_FAILED_STAGE_RESIDUALS: dict[str, tuple[str, str]] = {
     "signed_schema": ("issuer_chain", "invalid-managed-claim"),
-    "certificate_status": ("issuer_chain", "revoked-issuer"),
+    "issuer_status": ("issuer_chain", "revoked-issuer"),
+    "key_status": ("issuer_chain", "revoked-issuer"),
     "payload_revalidation": ("destination_policy", "fail"),
     "time_window": ("freshness", "block"),
-    "replay_guard": ("freshness", "block"),
 }
+
+# A residual family maps to its tier plus the cause that produced it. The tier
+# is what Delta reasons over; the cause is what the scanner surfaces to a human.
+ResidualVector = dict[str, dict[str, str | None]]
+
+
+def _entry(tier: str, cause: str | None = None) -> dict[str, str | None]:
+    return {"tier": tier, "cause": cause}
+
+
+def _stage_cause(result: NarrowedVerifierResponse) -> str:
+    """The displayable cause behind a failing verifier stage.
+
+    Every trust and freshness failure now arrives with a structured cause from
+    evaluate_trust_window, so this prefers it. The two stages that never carry one —
+    schema verification and destination revalidation happen outside the rule
+    function — keep deriving theirs from the reason string.
+    """
+    if result.cause is not None:
+        return result.cause
+    if result.stage == "signed_schema":
+        if result.reason.startswith(_UNSUPPORTED_VERSION_PREFIX):
+            return "unsupported-claims-version"
+        return "signature-invalid"
+    if result.stage == "payload_revalidation":
+        return "destination-mismatch"
+    return result.stage
 
 
 def _residual_vector_for_result(
@@ -1965,35 +2166,52 @@ def _residual_vector_for_result(
     redirect_verdict: RedirectPolicyVerdict | None,
     runtime_verdict: RuntimeSafetyVerdict | None,
     artifact_analysis: QRArtifactAnalysis | None,
-) -> dict[str, str]:
-    residuals = {
-        "issuer_chain": "pass",
-        "destination_policy": "pass" if result.allowed else "not-applicable",
-        "redirect_flow": "not-applicable",
-        "runtime_safety": "not-checked",
-        "freshness": "pass" if result.allowed else "not-applicable",
+) -> ResidualVector:
+    residuals: ResidualVector = {
+        "issuer_chain": _entry("pass"),
+        "destination_policy": _entry("pass" if result.allowed else "not-applicable"),
+        "redirect_flow": _entry("not-applicable"),
+        "runtime_safety": _entry("not-checked"),
+        "freshness": _entry("pass" if result.allowed else "not-applicable"),
         # A payload-only scan presents no artifact container, so there is no
         # artifact-layer evidence to hold against it.
-        "artifact_integrity": "pass",
+        "artifact_integrity": _entry("pass"),
     }
     if not result.allowed and result.stage in _FAILED_STAGE_RESIDUALS:
         family, tier = _FAILED_STAGE_RESIDUALS[result.stage]
-        residuals[family] = tier
+        residuals[family] = _entry(tier, _stage_cause(result))
     if redirect_verdict is not None and redirect_verdict.is_redirect_flow:
-        residuals["redirect_flow"] = "fail" if redirect_verdict.is_blocked else "pass"
-    if runtime_verdict is not None:
-        residuals["runtime_safety"] = _RUNTIME_SAFETY_RESIDUAL_TIERS.get(
-            runtime_verdict.state,
-            runtime_verdict.state,
+        residuals["redirect_flow"] = (
+            _entry("fail", "redirect-policy-blocked") if redirect_verdict.is_blocked else _entry("pass")
         )
+    if runtime_verdict is not None:
+        tier = _RUNTIME_SAFETY_RESIDUAL_TIERS.get(runtime_verdict.state, runtime_verdict.state)
+        # A clean verdict is evidence of safety, not a cause to display.
+        residuals["runtime_safety"] = _entry(tier, None if tier == "pass" else f"runtime-{runtime_verdict.state}")
     if artifact_analysis is not None:
-        residuals["artifact_integrity"] = artifact_analysis.artifact_integrity
+        residuals["artifact_integrity"] = _entry(artifact_analysis.artifact_integrity)
     return residuals
+
+
+def _unverified_residual_vector(cause: str | None) -> ResidualVector:
+    """The vector for a scan that never produced a signed envelope to evaluate.
+
+    Nothing downstream of the issuer chain was checked, so only R_I carries
+    evidence; the rest stay honest about not having been evaluated.
+    """
+    return {
+        "issuer_chain": _entry("unaccepted-issuer", cause),
+        "destination_policy": _entry("not-applicable"),
+        "redirect_flow": _entry("not-applicable"),
+        "runtime_safety": _entry("not-checked"),
+        "freshness": _entry("not-applicable"),
+        "artifact_integrity": _entry("pass"),
+    }
 
 
 def _apply_trust_residual_gate(
     decision_state: str,
-    residual_vector: dict[str, str],
+    residual_vector: ResidualVector,
 ) -> tuple[str, Decision]:
     """D15 totality on the live path: the positive terminal requires Δ agreement.
 
@@ -2002,14 +2220,41 @@ def _apply_trust_residual_gate(
     unmodeled — fails closed to a caution instead of implicit trust. The gate is
     one-way: it never upgrades a state the pipeline already decided to withhold.
     """
+    tiers = {family: str(entry["tier"]) for family, entry in residual_vector.items()}
     model_decision = decide_trust_residuals(
-        residual_vector,
+        tiers,
         profile=_RUNTIME_DECISION_PROFILE,
         qr_decodable=True,
     )
     if decision_state == "verified_issuer" and model_decision.primary_state != "verified-issuer":
         return "unverified", model_decision
     return decision_state, model_decision
+
+
+def _residual_payload(
+    vector: ResidualVector,
+    decision: Decision | None,
+    *,
+    extra_reason_codes: tuple[str, ...] = (),
+) -> tuple[dict[str, ResidualEntry], ModelDecisionResponse | None]:
+    """The wire form of a residual vector and the model decision it produced."""
+    entries = {
+        family: ResidualEntry(tier=str(entry["tier"]), cause=entry["cause"]) for family, entry in vector.items()
+    }
+    if decision is None:
+        return entries, None
+    data = decision.as_dict()
+    reason_codes = list(data["reason_codes"])
+    for code in extra_reason_codes:
+        if code not in reason_codes:
+            reason_codes.append(code)
+    return entries, ModelDecisionResponse(
+        profile=_RUNTIME_DECISION_PROFILE,
+        primary_state=data["primary_state"],
+        annotations=list(data["annotations"]),
+        reason_codes=reason_codes,
+        attention_level=data["attention_level"],
+    )
 
 
 def _scanner_decision_from_result(
@@ -2019,6 +2264,7 @@ def _scanner_decision_from_result(
     *,
     request_id: str | None,
     artifact_analysis: QRArtifactAnalysis | None = None,
+    envelope_id: str | None = None,
 ) -> ScannerDecisionResponse:
     redirect_verdict = evaluate_redirect_policy(envelope.claims.payload) if result.allowed else None
     effective_destination = (
@@ -2074,15 +2320,18 @@ def _scanner_decision_from_result(
             "Verification evidence is incomplete for this QR code. "
             "Proceed only with caution."
         )
+    entries, model = _residual_payload(residual_vector, model_decision)
     return ScannerDecisionResponse(
         decision_state=decision_state,
         open_allowed=open_allowed,
-        usage_policy=result.usage_policy,
+        envelope_id=envelope_id,
+        residual_vector=entries,
+        model_decision=model,
         primary_message=primary_message,
         issuer=ScannerDecisionIssuer(
             name=record.certificate.issuer_name,
             tier=record.governance.assurance_tier if record.governance else "demo",
-            status="recognized" if result.stage != "certificate_status" else "revoked",
+            status="recognized" if result.stage not in _TRUST_FAILURE_STAGES else "revoked",
         ),
         destination=_scanner_destination(
             effective_destination,
@@ -2134,14 +2383,28 @@ async def _run_scanner_decision(
 
     try:
         envelope = decode_envelope_from_qr_payload(qr_payload)
-    except QRArtifactError as exc:
+    except ValueError as exc:
+        # A payload that does not decode still gets a verdict, never an error:
+        # the scanner route answers every scan. The cause distinguishes a plain
+        # URL from an envelope this build cannot read, and an envelope whose
+        # claims version this build does not support from a malformed one.
+        reason = str(exc)
+        cause = "no-signed-envelope"
+        extra_reason_codes: tuple[str, ...] = ()
+        if reason.startswith(_UNSUPPORTED_VERSION_PREFIX):
+            cause = "unsupported-claims-version"
+            extra_reason_codes = (UNSUPPORTED_CLAIMS_VERSION_REASON,)
+        elif not _looks_like_url(qr_payload):
+            cause = "unsupported-envelope"
         return _unverified_scanner_decision(
             qr_payload,
-            reason=str(exc),
+            reason=reason,
             request_id=request_id,
+            cause=cause,
+            extra_reason_codes=extra_reason_codes,
         )
 
-    record = _scanner_trust_records.get(envelope.claims.certificate_ref)
+    record = _scanner_record_for(envelope.claims.certificate_ref)
     if record is None:
         return _signed_unknown_issuer_decision(envelope, request_id=request_id)
 
@@ -2158,7 +2421,10 @@ async def _run_scanner_decision(
             qr_payload=qr_payload,
             certificate=record.certificate,
             issuer_state=record.issuer_state,
-        )
+        ),
+        # The decision endpoint records the cached hit itself, with the colour
+        # the user actually saw.
+        count_cache_hit=False,
     )
     return _scanner_decision_from_result(
         envelope,
@@ -2166,11 +2432,100 @@ async def _run_scanner_decision(
         record,
         request_id=request_id,
         artifact_analysis=artifact_analysis,
+        envelope_id=compute_envelope_id(envelope.claims, envelope.signature),
     )
+
+
+# Absent window bounds mean "unbounded", not "now". A legacy request carries no
+# issuer record or key window, and must verify exactly as it did before the store.
+_UNBOUNDED_PAST = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _optional_trust_timestamp(label: str, value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        return parse_claim_timestamp(label, value)
+    except SignedSchemaError as exc:
+        # A malformed trust input is the caller's error, not the artifact's. Raising
+        # 422 here keeps it out of the evidence log and off the blocked path.
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+def _bounded_trust_timestamp(label: str, value: str | None, *, default: datetime) -> datetime:
+    parsed = _optional_trust_timestamp(label, value)
+    return default if parsed is None else parsed
+
+
+def _legacy_issuer_status(state: IssuerVerificationStateInput) -> str:
+    """Fold the legacy certificate flags onto an issuer-record status.
+
+    Revoked outranks inactive so the cause slug stays `issuer-revoked` for a request
+    that sets both, matching the pre-store behaviour exactly.
+    """
+    if state.issuer_status is not None:
+        return state.issuer_status
+    if state.certificate_revoked:
+        return "revoked"
+    if not state.certificate_active:
+        return "suspended"
+    return "active"
+
+
+def _trust_context_from_state(
+    certificate: CertificateAuthorityRecord,
+    state: IssuerVerificationStateInput,
+) -> TrustContext:
+    issuer_issued_at = _bounded_trust_timestamp(
+        "issuer_record_issued_at", state.issuer_record_issued_at, default=_UNBOUNDED_PAST
+    )
+    issuer_expires_at = _optional_trust_timestamp(
+        "issuer_record_expires_at", state.issuer_record_expires_at
+    )
+    if issuer_expires_at is not None and issuer_expires_at <= issuer_issued_at:
+        raise HTTPException(
+            status_code=422,
+            detail="Field 'issuer_record_expires_at' must be after 'issuer_record_issued_at'",
+        )
+    key_not_before = _bounded_trust_timestamp(
+        "key_not_before", state.key_not_before, default=_UNBOUNDED_PAST
+    )
+    key_not_after = _optional_trust_timestamp("key_not_after", state.key_not_after)
+    if key_not_after is not None and key_not_after <= key_not_before:
+        raise HTTPException(
+            status_code=422, detail="Field 'key_not_after' must be after 'key_not_before'"
+        )
+    issuer = IssuerRecord(
+        issuer_id=certificate.issuer_name,
+        issuer_name=certificate.issuer_name,
+        # This endpoint is a stateless rehearsal surface: the caller supplies the whole
+        # issuer state on every request, so there is no published root to scope it to.
+        # Nothing in evaluate_trust_window keys off root_id or issuer_id; the
+        # display name is carried so the scanner surface can render it (Task 5).
+        root_id="root:request-supplied",
+        status=_legacy_issuer_status(state),
+        issued_at=issuer_issued_at,
+        expires_at=issuer_expires_at,
+        verified_domains=tuple(state.verified_domains),
+        allow_subdomains=state.allow_subdomains,
+    )
+    key = KeyEntry(
+        key_ref=certificate.certificate_ref,
+        issuer_id=issuer.issuer_id,
+        algorithm_id=certificate.algorithm_id,
+        public_key_pem=certificate.public_key_pem,
+        state=state.key_state or "active",
+        not_before=key_not_before,
+        not_after=key_not_after,
+        revocation_reason=state.key_revocation_reason or state.certificate_revocation_reason,
+    )
+    return TrustContext(key=key, issuer=issuer, skew_seconds=config.VERIFIER_CLOCK_SKEW_SECONDS)
 
 
 async def _run_narrowed_verifier(
     request: NarrowedVerifierRequest,
+    *,
+    count_cache_hit: bool = True,
 ) -> NarrowedVerifierResponse:
     try:
         claims = parse_claims_mapping(request.envelope.claims.model_dump())
@@ -2188,46 +2543,47 @@ async def _run_narrowed_verifier(
         algorithm_id=request.certificate.algorithm_id,
         public_key_pem=request.certificate.public_key_pem,
     )
-    issuer_state = IssuerVerificationState(
-        verified_domains=request.issuer_state.verified_domains,
-        allow_subdomains=request.issuer_state.allow_subdomains,
-        certificate_active=request.issuer_state.certificate_active,
-        certificate_revoked=request.issuer_state.certificate_revoked,
-        certificate_revocation_reason=request.issuer_state.certificate_revocation_reason,
-    )
+    trust = _trust_context_from_state(certificate, request.issuer_state)
 
-    budgeted_policy = claims.usage_policy in _SCAN_FLOOD_BUDGETED_POLICIES
+    # Every presented code is budgeted, and the subject is the envelope
+    # itself: a tampered signature is a different envelope with its own
+    # budget, so a forged flood cannot exhaust a genuine code's allowance.
+    fingerprint = _envelope_fingerprint(
+        compute_envelope_id(claims, request.envelope.signature)
+    )
     cache_key: str | None = None
-    cache_ttl = 0
-    if budgeted_policy and claims.nonce:
-        fingerprint = _nonce_fingerprint(claims.nonce)
-        cache_ttl = _verdict_cache_ttl_seconds(claims.expires_at)
-        if cache_ttl > 0:
-            # Cache first: a crowd scanning one poster gets the verdict computed
-            # moments ago without a signature check, a budget spend, or a row.
-            cache_key = _verdict_cache_key(request, fingerprint)
-            cached = await _verdict_cache.get(cache_key)
-            if cached is not None:
-                return NarrowedVerifierResponse.model_validate(
-                    {**cached, "verdict_source": "cached"}
+    cache_ttl = _verdict_cache_ttl_seconds(claims.expires_at)
+    if cache_ttl > 0:
+        # Cache first: a crowd scanning one poster gets the verdict computed
+        # moments ago without a signature check, a budget spend, or a row.
+        cache_key = _verdict_cache_key(request, fingerprint)
+        cached = await _verdict_cache.get(cache_key)
+        if cached is not None:
+            cached_response = NarrowedVerifierResponse.model_validate(
+                {**cached, "verdict_source": "cached"}
+            )
+            if count_cache_hit:
+                # A cached verdict writes no evidence row, so count it here or
+                # the scan-activity card under-reports the crowd. Callers that
+                # own richer bookkeeping (the scanner decision endpoint records
+                # its own decision colour) opt out instead of double-counting.
+                await _verdict_cache.record_hit(
+                    fingerprint,
+                    "green" if cached_response.allowed else "red",
+                    window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
                 )
-        # Before the signature check: a forged flood must be cheap to refuse.
-        await _enforce_scan_flood_budget(
-            bucket="nonce",
-            subject=fingerprint,
-            limit=config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS,
-            detail="Rate limit exceeded for this QR code",
-        )
-
-    result = await _verifier.verify_presented_code(
-        envelope,
-        certificate,
-        issuer_state,
-        reservation_ttl_seconds=request.reservation_ttl_seconds,
-        consumed_ttl_seconds=request.consumed_ttl_seconds,
+            return cached_response
+    # Before the signature check: a forged flood must be cheap to refuse.
+    await _enforce_scan_flood_budget(
+        bucket="envelope",
+        subject=fingerprint,
+        limit=config.VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS,
+        detail="Rate limit exceeded for this QR code",
     )
 
-    if budgeted_policy and result.stage != "signed_schema":
+    result = await _verifier.verify_presented_code(envelope, certificate, trust)
+
+    if result.stage != "signed_schema":
         # After the signature check: only genuinely signed codes spend the
         # issuer's budget, so an attacker cannot exhaust it with forgeries.
         await _enforce_scan_flood_budget(
@@ -2241,10 +2597,9 @@ async def _run_narrowed_verifier(
         allowed=result.allowed,
         stage=result.stage,
         reason=result.reason,
-        usage_policy=result.usage_policy,
         canonical_claims_sha256=result.canonical_claims_sha256,
         matched_rule=result.matched_rule,
-        reservation_state=result.reservation_state,
+        cause=result.cause,
     )
     if cache_key is not None and result.stage != "signed_schema":
         # Never cache a forgery verdict: the next forged envelope hashes
@@ -2255,6 +2610,8 @@ async def _run_narrowed_verifier(
 
 async def _run_scanned_verifier(
     request: ScannedVerifierRequest,
+    *,
+    count_cache_hit: bool = True,
 ) -> NarrowedVerifierResponse:
     try:
         envelope = decode_envelope_from_qr_payload(request.qr_payload)
@@ -2269,10 +2626,8 @@ async def _run_scanned_verifier(
         ),
         certificate=request.certificate,
         issuer_state=request.issuer_state,
-        reservation_ttl_seconds=request.reservation_ttl_seconds,
-        consumed_ttl_seconds=request.consumed_ttl_seconds,
     )
-    return await _run_narrowed_verifier(translated_request)
+    return await _run_narrowed_verifier(translated_request, count_cache_hit=count_cache_hit)
 
 
 @router.post("/demo-materials", response_model=DemoMaterialsResponse)
@@ -2302,57 +2657,99 @@ async def get_verifier_status(request_context: Request) -> VerifierStatusRespons
     )
 
 
+def _isoformat_or_none(value: datetime | None) -> str | None:
+    return None if value is None else value.isoformat()
+
+
+@router.get("/trust-store", response_model=TrustStoreResponse)
+async def get_trust_store(request_context: Request) -> TrustStoreResponse:
+    """
+    Operator-only, read-only listing of the scanner's trust store: every issuer
+    record and every signing key with its state and validity window. Cycle 2 has
+    no mutation surface — the store is written by ``demo-materials`` only.
+
+    The listing is the same class of operator evidence ``/verifier/status``
+    redacts, so it is gated the same way: ``_request_can_read_operator_status``
+    returns True whenever verifier auth is disabled (the demo default, which the
+    lab and the cross-surface smokes rely on), and otherwise demands a valid
+    management credential on the admin header. A caller without one gets a 403
+    rather than a silently empty listing, so a missing credential cannot be
+    mistaken for an empty store.
+    """
+    await _enforce_verifier_rate_limit(request_context, bucket="status")
+    if not await _request_can_read_operator_status(request_context):
+        raise HTTPException(
+            status_code=403,
+            detail="Trust store listing requires an operator credential",
+        )
+    return TrustStoreResponse(
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        issuers=[
+            TrustStoreIssuerResponse(
+                issuer_id=record.issuer_id,
+                issuer_name=record.issuer_name,
+                root_id=record.root_id,
+                status=record.status,
+                issued_at=record.issued_at.isoformat(),
+                expires_at=_isoformat_or_none(record.expires_at),
+                verified_domains=list(record.verified_domains),
+                allow_subdomains=record.allow_subdomains,
+            )
+            for record in _scanner_trust_store.issuers()
+        ],
+        keys=[
+            TrustStoreKeyResponse(
+                key_ref=entry.key_ref,
+                issuer_id=entry.issuer_id,
+                algorithm_id=entry.algorithm_id,
+                state=entry.state,
+                not_before=entry.not_before.isoformat(),
+                not_after=_isoformat_or_none(entry.not_after),
+                revoked_at=_isoformat_or_none(entry.revoked_at),
+                revocation_reason=entry.revocation_reason,
+            )
+            for entry in _scanner_trust_store.keys()
+        ],
+    )
+
+
 @router.get("/scan-activity", response_model=ScanActivityResponse)
 async def get_scan_activity(
     request_context: Request,
-    nonce: str = Query(min_length=1, max_length=512),
-    usage_policy: UsagePolicy | None = Query(default=None),
-    issued_at: datetime | None = Query(
-        default=None,
-        description=(
-            "The envelope's issued_at claim. When given, counts, latest decision "
-            "and cached-verdict hits are scoped to this issuance of the nonce."
-        ),
+    envelope_id: str = Query(
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+        description="The envelope identifier the signed claims and signature hash to.",
     ),
 ) -> ScanActivityResponse:
     """
-    Report whether the QR carrying ``nonce`` has been scanned, by whom, and how
-    the scanner decided. Counts come from the scanner-decision evidence store;
-    the one-time replay-guard state comes from this process's live guard.
+    Report whether the QR carrying ``envelope_id`` has been scanned, by whom,
+    and how the scanner decided. Counts come from the scanner-decision evidence
+    store, plus the cached verdicts this process served.
     """
     await _enforce_verifier_api_key(request_context)
     await _enforce_verifier_rate_limit(request_context, bucket="scan_activity")
-    fingerprint = _nonce_fingerprint(nonce)
-    issuance = _as_utc(issued_at) if issued_at is not None else None
-    activity = await load_scan_activity(fingerprint, issued_at=issuance)
-    # The caller knows its own policy even when the evidence store is
-    # unconfigured; the recorded policy is the fallback.
-    effective_policy = usage_policy or (activity.latest.usage_policy if activity.latest else None)
-    replay_guard = await _scan_activity_replay_guard(nonce, effective_policy)
+    fingerprint = _envelope_fingerprint(envelope_id)
+    activity = await load_scan_activity(fingerprint)
     update: dict[str, Any] = {
-        "replay_guard": replay_guard,
         "destination_outcome": _scan_activity_destination_outcome(activity.latest),
     }
-    if effective_policy in _SCAN_FLOOD_BUDGETED_POLICIES:
-        update.update(await _scan_activity_throttle_update(activity, fingerprint, issuance))
+    update.update(await _scan_activity_throttle_update(activity, fingerprint))
     return activity.model_copy(update=update)
 
 
 async def _scan_activity_throttle_update(
     activity: ScanActivityResponse,
     fingerprint: str,
-    issued_at: datetime | None,
 ) -> dict[str, Any]:
-    """The ``throttle`` block for a budgeted code, plus the cached scans folded
-    into the counts when there is a real evidence store to fold them into.
-
-    Cached hits follow the issuance; the nonce budget deliberately does not,
-    since it is the flood control and must survive a reissue."""
-    hits = await _verdict_cache.hit_summary(_issuance_hit_key(fingerprint, issued_at))
-    limit = config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS
-    window_seconds = config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS
+    """The ``throttle`` block for this envelope, plus the cached scans folded
+    into the counts when there is a real evidence store to fold them into."""
+    hits = await _verdict_cache.hit_summary(fingerprint)
+    limit = config.VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS
+    window_seconds = config.VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS
     remaining = await _request_rate_limiter.remaining(
-        _scan_flood_budget_key("nonce", fingerprint),
+        _scan_flood_budget_key("envelope", fingerprint),
         limit=limit,
         window_seconds=window_seconds,
     )
@@ -2361,9 +2758,9 @@ async def _scan_activity_throttle_update(
             cached_verdicts=hits.total,
             last_cached_at=hits.last_hit_at,
             verdict_cache_ttl_seconds=max(0, config.VERIFIER_VERDICT_CACHE_TTL_SECONDS),
-            nonce_budget_limit=limit,
-            nonce_budget_remaining=remaining,
-            nonce_budget_window_seconds=window_seconds,
+            envelope_budget_limit=limit,
+            envelope_budget_remaining=remaining,
+            envelope_budget_window_seconds=window_seconds,
         )
     }
     if hits.total and activity.persistence_state == "observable":
@@ -2418,22 +2815,6 @@ def _scan_activity_destination_outcome(
         if candidate and _DESTINATION_OUTCOME_RANK[candidate] > _DESTINATION_OUTCOME_RANK[outcome]:
             outcome = candidate
     return outcome
-
-
-async def _scan_activity_replay_guard(
-    nonce: str,
-    usage_policy: UsagePolicy | None,
-) -> ScanActivityReplayGuardResponse:
-    if usage_policy != "one_time":
-        return ScanActivityReplayGuardResponse(applies=False, state="not_applicable")
-    record = await _replay_guard.get_record(nonce)
-    if record is None:
-        return ScanActivityReplayGuardResponse(applies=True, state="unused")
-    return ScanActivityReplayGuardResponse(
-        applies=True,
-        state=record.state,
-        expires_at=record.expires_at.isoformat().replace("+00:00", "Z"),
-    )
 
 
 @router.post("/verify", response_model=NarrowedVerifierResponse)
@@ -2517,21 +2898,17 @@ async def decide_scanned_qr(
     )
     decorated_response = _with_scanner_ux(response, request=request)
     _set_verdict_source_header(http_response, decorated_response.verdict_source)
-    fingerprint, issued_at = _scanned_issuance(request.qr_payload)
+    fingerprint = _scanned_envelope_fingerprint(request.qr_payload)
     if decorated_response.verdict_source == "cached":
         # A cached verdict writes no evidence row; count it so the lab card's
-        # scan count stays honest without paying for a row per scan. The hit
-        # is recorded for every issuance and for this one, so both scoped and
-        # unscoped readers see it.
+        # scan count stays honest without paying for a row per scan.
         contract = decorated_response.contract
         if fingerprint is not None and contract is not None:
-            hit_keys = {fingerprint, _issuance_hit_key(fingerprint, issued_at)}
-            for hit_key in hit_keys:
-                await _verdict_cache.record_hit(
-                    hit_key,
-                    contract.decision_color,
-                    window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
-                )
+            await _verdict_cache.record_hit(
+                fingerprint,
+                contract.decision_color,
+                window_seconds=DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
+            )
             # The spike detector reads this minute bucket; without it a warm
             # cache would hide the flood (no evidence row, no budget spend).
             await _verdict_cache.record_cached_scan(
@@ -2541,7 +2918,7 @@ async def decide_scanned_qr(
         return decorated_response
     recording_result = await record_scanner_evidence(
         decorated_response,
-        nonce_fingerprint=fingerprint,
+        envelope_fingerprint=fingerprint,
         client_platform=request.client.platform if request.client else None,
     )
     if recording_result is not None and recording_result.error:

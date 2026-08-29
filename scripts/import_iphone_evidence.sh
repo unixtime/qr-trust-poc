@@ -28,14 +28,14 @@ The source directory must contain the exact artifact basenames referenced by:
   docs/public/network-contracts/examples/scanner-fleet-evidence-reference.json
 
 Examples:
-  accepted-reusable-public.png
-  history-accepted-reusable-public.png
-  accessibility-accepted-reusable-public.txt
+  accepted.png
+  history-accepted.png
+  accessibility-accepted.txt
 
 Set IPHONE_EVIDENCE_OVERWRITE=true to replace existing destination artifacts.
 Set IPHONE_EVIDENCE_ALLOW_PARTIAL=true to import only artifacts present in the source.
 Set IPHONE_EVIDENCE_SKIP_EXISTING=true to leave existing destination artifacts unchanged.
-macOS duplicate-export names such as accepted-reusable-public 2.png are accepted.
+macOS duplicate-export names such as accepted 2.png are accepted.
 Set QRTRUST_EVIDENCE_IMPORT_PREFER_NEWEST=true to choose the newest matching
 artifact when exact and duplicate export names are both present.
 EOF

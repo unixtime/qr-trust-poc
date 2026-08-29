@@ -19,7 +19,6 @@ export type CrossSurfaceQrEvidenceSurface =
 export interface CrossSurfaceQrArtifactReference {
   readonly artifact_ref: string
   readonly payload_hash: string
-  readonly usage_policy: "one_time" | "reusable_public"
   readonly destination_fingerprint: string
 }
 
@@ -148,12 +147,6 @@ const assertQrArtifact = (
     "qr_artifact.destination_fingerprint",
     scenarioId,
   )
-  const usagePolicy = artifact.usage_policy
-  if (usagePolicy !== "one_time" && usagePolicy !== "reusable_public") {
-    throw new Error(
-      `Cross-surface QR evidence has invalid qr_artifact.usage_policy for ${scenarioId}: ${String(usagePolicy)}`,
-    )
-  }
 }
 
 const assertSurfaceEvidence = (

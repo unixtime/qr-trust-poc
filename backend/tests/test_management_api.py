@@ -3115,15 +3115,14 @@ class FakeScanAccountingConnection:
                     "green_count": 40,
                     "orange_count": 1,
                     "red_count": 1,
-                    "distinct_nonces": 7,
+                    "distinct_envelopes": 7,
                 }
             ]
         return [
             {
-                "nonce_fingerprint": "fp-burst",
+                "envelope_fingerprint": "fp-burst",
                 "issuer_id": "issuer-a",
                 "root_program_id": "root:program-a",
-                "usage_policy": "reusable_public",
                 "recent_count": 60,
                 "baseline_count": 120,
             }
@@ -3169,11 +3168,11 @@ def test_scan_accounting_accepts_local_admin_token(
             "green_count": 40,
             "orange_count": 1,
             "red_count": 1,
-            "distinct_nonces": 7,
+            "distinct_envelopes": 7,
         }
     ]
     assert len(payload["spikes"]) == 1
-    assert payload["spikes"][0]["nonce_fingerprint"] == "fp-burst"
+    assert payload["spikes"][0]["envelope_fingerprint"] == "fp-burst"
     assert payload["spikes"][0]["recent_count"] == 60
     assert payload["spikes"][0]["cached_recent_count"] == 0
     assert payload["spike_alerts_enabled"] is True

@@ -312,7 +312,7 @@ struct ContentView: View {
                 scannerRiskSummary(scannerUX, tone: result.tone)
             }
 
-            usagePolicyCard(for: result)
+            residualVectorCard(for: result)
 
             if result.destination != nil {
                 destinationCard(for: result)
@@ -349,44 +349,65 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func usagePolicyCard(for result: ScanResult) -> some View {
-        if let usagePolicy = result.usagePolicy {
-            let copy = usagePolicyCopy(for: usagePolicy, tone: result.tone)
+    private func residualVectorCard(for result: ScanResult) -> some View {
+        if result.residualVector != nil {
+            let vector = result.residualVector ?? [:]
 
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: copy.symbol)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(copy.color)
-                    .frame(width: 36, height: 36)
-                    .background(copy.color.opacity(0.14), in: Circle())
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(copy.title)
-                            .font(.headline.weight(.bold))
-                            .foregroundStyle(AppTheme.ink)
-                        Spacer(minLength: 0)
-                        Text(copy.badge)
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(copy.color)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 5)
-                            .background(copy.color.opacity(0.12), in: Capsule())
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Residual vector")
+                        .font(.headline)
+                        .foregroundStyle(AppTheme.ink)
+                    Spacer()
+                    if let model = result.modelDecision {
+                        Text(model.primaryState)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppTheme.muted)
                     }
+                }
 
-                    Text(copy.body)
-                        .font(.footnote)
+                ForEach(ResidualFamilies.order, id: \.self) { family in
+                    let entry = vector[family] ?? ResidualEntry(tier: "unknown", cause: nil)
+                    HStack(spacing: 8) {
+                        Image(systemName: ResidualFamilies.symbol(entry.tier))
+                            .foregroundStyle(tone(for: entry.tier))
+                            .accessibilityHidden(true)
+                        Text(ResidualFamilies.label(family))
+                            .font(.footnote)
+                            .foregroundStyle(AppTheme.ink)
+                        Spacer()
+                        Text(entry.tier)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(AppTheme.muted)
+                        if let cause = entry.cause {
+                            Text(cause)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(ResidualFamilies.label(family)): \(entry.tier)\(entry.cause.map { ", \($0)" } ?? "")")
+                }
+
+                if let envelopeId = result.envelopeId {
+                    Text("Envelope \(envelopeId)")
+                        .font(.caption2.monospaced())
                         .foregroundStyle(AppTheme.muted)
-                        .lineSpacing(1)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(copy.color.opacity(0.08), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(copy.title). \(copy.badge). \(copy.body)")
+            .background(AppTheme.surfaceAlt, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    private func tone(for tier: String) -> Color {
+        switch ResidualFamilies.rank(tier) {
+        case 0: return tier == "not-applicable" ? AppTheme.muted : AppTheme.green
+        case 1, 2, 3: return AppTheme.orange
+        default: return AppTheme.red
         }
     }
 
@@ -778,14 +799,14 @@ struct ContentView: View {
                 Button {
                     presentQRUseGuide()
                 } label: {
-                    Label("Review reusable and one-time QR types", systemImage: "qrcode")
+                    Label("Review how validity windows work", systemImage: "qrcode")
                 }
                 .foregroundStyle(AppTheme.trust)
 
                 learnInfoRow(
                     symbol: "qrcode",
-                    title: "Printed QR codes can be reusable",
-                    body: "Reusable public QR codes should not fail because another person scanned them first. One-time QR codes are different and should ask for a fresh QR after use."
+                    title: "Printed QR codes stay valid inside their window",
+                    body: "A signed QR is accepted while its validity window is open and the issuer stays trusted. Scanning it again does not change the answer — an expired window does."
                 )
                 learnInfoRow(
                     symbol: "wifi.exclamationmark",
@@ -857,7 +878,7 @@ struct ContentView: View {
             Label("Printed and shared QR codes", systemImage: "qrcode")
                 .font(.headline)
                 .foregroundStyle(AppTheme.ink)
-            Text("Reusable public QR codes should not fail just because another person scanned them first. One-time QR codes are different: they are designed for a single use, such as login or payment approval.")
+            Text("A signed QR is accepted while its validity window is open and the issuer stays trusted. Scanning it again does not change the answer — an expired window does.")
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2021,11 +2042,11 @@ private struct QRUseGuideSheet: View {
                             .frame(width: 52, height: 52)
                             .background(AppTheme.trust, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        Text("QR use types matter")
+                        Text("Validity windows matter")
                             .font(.title2.weight(.bold))
                             .foregroundStyle(AppTheme.ink)
 
-                        Text("A QR is not safe or unsafe just because it scans. The intended use controls whether repeat scans are normal or suspicious.")
+                        Text("A QR is not safe or unsafe just because it scans. The issuer's signed validity window and trust state decide whether it is still accepted.")
                             .font(.body)
                             .foregroundStyle(AppTheme.muted)
                             .lineSpacing(2)
@@ -2037,25 +2058,17 @@ private struct QRUseGuideSheet: View {
 
                     QRUseGuideRow(
                         symbol: "qrcode",
-                        title: "Shared public QR",
-                        badge: "Reusable",
-                        detail: "Menus, posters, signs, and public web links can be scanned by many people. They should stay green only while the issuer still approves the destination.",
+                        title: "Signed QR",
+                        badge: "In window",
+                        detail: "Menus, posters, tickets, and approvals stay green while their validity window is open and the issuer is still trusted.",
                         tint: AppTheme.securityBlue
                     )
 
                     QRUseGuideRow(
-                        symbol: "1.circle",
-                        title: "One-time QR",
-                        badge: "Single use",
-                        detail: "Login, payment, and approval QRs can be valid once and then turn red. A second user should ask for a fresh QR.",
-                        tint: AppTheme.orange
-                    )
-
-                    QRUseGuideRow(
                         symbol: "timer",
-                        title: "Time-limited QR",
-                        badge: "Expires",
-                        detail: "Tickets, short sessions, and temporary access can be reusable only inside their validity window.",
+                        title: "Expired QR",
+                        badge: "Out of window",
+                        detail: "Once the signed validity window closes the verifier reports a freshness block. Ask for a fresh QR.",
                         tint: AppTheme.orange
                     )
 
@@ -2063,7 +2076,7 @@ private struct QRUseGuideSheet: View {
                         Label("The four checks still apply", systemImage: "shield.lefthalf.filled")
                             .font(.headline.weight(.bold))
                             .foregroundStyle(AppTheme.ink)
-                        Text("Use type does not replace issuer legitimacy, destination binding, runtime safety, or the final scanner decision. It only tells the verifier how repeat scans should be interpreted.")
+                        Text("A validity window does not replace issuer legitimacy, destination binding, runtime safety, or the final scanner decision. Freshness is one residual family among six, and the scanner decision reports all of them.")
                             .font(.footnote)
                             .foregroundStyle(AppTheme.muted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2837,48 +2850,6 @@ private func detailState(for tone: TrustTone) -> String {
     }
 }
 
-private func usagePolicyCopy(
-    for usagePolicy: String,
-    tone: TrustTone
-) -> (title: String, badge: String, body: String, symbol: String, color: Color) {
-    switch usagePolicy {
-    case "reusable_public":
-        return (
-            title: "Shared QR",
-            badge: "Reusable",
-            body: "Meant for posters, menus, and public links. Many people can scan it while the issuer still approves this destination.",
-            symbol: "qrcode",
-            color: AppTheme.securityBlue
-        )
-    case "one_time":
-        return (
-            title: "One-time QR",
-            badge: tone == .blocked ? "Used once" : "Single use",
-            body: tone == .blocked
-                ? "Designed for one person or session. If it was already used, ask for a fresh QR instead of reusing it."
-                : "Designed for one person or session. A later scan of the same code should be blocked for safety.",
-            symbol: "1.circle",
-            color: tone == .blocked ? AppTheme.red : AppTheme.orange
-        )
-    case "time_limited":
-        return (
-            title: "Time-limited QR",
-            badge: "Expires",
-            body: "Reusable only inside its validity window. Ask for a fresh QR after the time window closes.",
-            symbol: "timer",
-            color: tone == .blocked ? AppTheme.red : AppTheme.orange
-        )
-    default:
-        return (
-            title: "QR use type",
-            badge: usagePolicy.replacingOccurrences(of: "_", with: " ").capitalized,
-            body: "The issuer attached a use policy to this QR. Review the result before opening.",
-            symbol: "info.circle",
-            color: detailColor(for: tone)
-        )
-    }
-}
-
 private func scannerRiskColor(_ scannerUX: ScannerDecisionUX, fallbackTone: TrustTone) -> Color {
     switch scannerUX.riskStripe {
     case "green":
@@ -2915,8 +2886,6 @@ private func reasonCodeLabel(_ code: String) -> String {
         return "New destination"
     case "embedded_credentials":
         return "Hidden login text"
-    case "suspicious_tld":
-        return "Unusual domain"
     case "redirect_chain":
         return "Redirect chain"
     case "https_absent":
@@ -2935,8 +2904,6 @@ private func reasonCodeLabel(_ code: String) -> String {
         return "Issuer unknown"
     case "destination_mismatch":
         return "Destination changed"
-    case "one_time_used":
-        return "One-time used"
     case "redirect_policy_block":
         return "Redirect blocked"
     case "runtime_blocked":
@@ -2962,14 +2929,12 @@ private func reasonCodeSymbol(_ code: String) -> String {
         return "wifi.exclamationmark"
     case "embedded_credentials":
         return "key"
-    case "suspicious_tld", "known_bad", "runtime_risky", "runtime_blocked":
+    case "known_bad", "runtime_risky", "runtime_blocked":
         return "exclamationmark.triangle"
     case "redirect_chain", "redirect_policy_block":
         return "arrow.triangle.branch"
     case "https_absent":
         return "lock.slash"
-    case "one_time_used":
-        return "clock"
     case "signature_invalid":
         return "pencil.and.outline"
     default:

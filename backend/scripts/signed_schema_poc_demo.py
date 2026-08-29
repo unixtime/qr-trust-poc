@@ -35,22 +35,18 @@ def main() -> None:
     certificate, private_key_pem = build_demo_certificate()
 
     claims_mapping_a = {
-        "version": "1",
-        "usage_policy": "one_time",
+        "version": "2",
         "certificate_ref": certificate.certificate_ref,
         "issued_at": "2026-04-11T09:00:00+00:00",
         "expires_at": "2026-04-11T09:05:00+00:00",
-        "nonce": "demo-nonce-001",
         "payload": "https://acme.example/pay",
     }
     claims_mapping_b = {
         "payload": "https://acme.example/pay",
-        "nonce": "demo-nonce-001",
         "expires_at": "2026-04-11T09:05:00+00:00",
         "issued_at": "2026-04-11T09:00:00+00:00",
         "certificate_ref": certificate.certificate_ref,
-        "usage_policy": "one_time",
-        "version": "1",
+        "version": "2",
     }
 
     claims_a = parse_claims_mapping(claims_mapping_a)
@@ -102,12 +98,10 @@ def main() -> None:
     try:
         parse_claims_mapping(
             {
-                "version": "1",
-                "usage_policy": "one_time",
+                "version": "2",
                 "certificate_ref": certificate.certificate_ref,
                 "issued_at": "2026-04-11T09:00:00+00:00",
                 "expires_at": "2026-04-11T09:05:00+00:00",
-                "payload": "https://acme.example/pay",
             }
         )
     except SignedSchemaError as exc:
@@ -119,12 +113,10 @@ def main() -> None:
     try:
         parse_claims_mapping(
             {
-                "version": "1",
-                "usage_policy": "one_time",
+                "version": "2",
                 "certificate_ref": certificate.certificate_ref,
                 "issued_at": "2026-04-11T09:00:00+00:00",
                 "expires_at": "2026-04-11T09:05:00+00:00",
-                "nonce": "demo-nonce-001",
                 "payload": "https://acme.example/pay",
                 "algorithm_id": "rsa-pss-sha512-v1",
             }

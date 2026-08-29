@@ -133,7 +133,6 @@ const makeReferencePacket = (
     qrArtifact: {
       artifact_ref: ARTIFACT_REF,
       payload_hash: PAYLOAD_HASH,
-      usage_policy: "reusable_public",
       destination_fingerprint:
         overrides.destinationFingerprint ?? "qr....ple.example",
     },

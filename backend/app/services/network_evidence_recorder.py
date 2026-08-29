@@ -27,14 +27,13 @@ insert into qr_trust.scanner_decisions (
   delegated_authority_id,
   issuer_id,
   destination_policy_id,
-  usage_policy,
   hold_to_open_required,
   hold_to_open_duration_ms,
   decision_path,
   created_at,
-  nonce_fingerprint,
+  envelope_fingerprint,
   client_platform
-) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb, $17::timestamptz, $18, $19)
+) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16::timestamptz, $17, $18)
 on conflict (decision_id) do nothing
 """.strip()
 
@@ -98,15 +97,17 @@ class EvidenceRecordingResult:
 async def record_scanner_evidence(
     response: ScannerDecisionResponse,
     *,
-    nonce_fingerprint: str | None = None,
+    envelope_fingerprint: str | None = None,
     client_platform: str | None = None,
 ) -> EvidenceRecordingResult:
     """Persist one scanner decision plus its runtime observation and outbox event.
 
-    ``nonce_fingerprint`` is a truncated digest of the scanned QR's nonce; it lets
-    the workbench answer "was *this* QR scanned?" without storing the raw nonce.
-    ``client_platform`` records which scanner produced the decision (``ios``,
-    ``web`` ...). Both are optional so unsigned or unreadable payloads still record.
+    ``envelope_fingerprint`` is the 16-hex-char prefix of the envelope_id; it is
+    the only per-artifact key stored, never the signed payload itself. It lets
+    the workbench answer "was *this* envelope scanned?" without storing the
+    signed payload. ``client_platform`` records which scanner produced the
+    decision (``ios``, ``web`` ...). Both are optional so unsigned or unreadable
+    payloads still record.
     """
     dsn = config.QRTRUST_NETWORK_DATABASE_URL
     if not dsn or response.contract is None:
@@ -137,12 +138,11 @@ async def record_scanner_evidence(
                 _governance_value(response, "delegated_authority_id"),
                 _governance_value(response, "issuer_id"),
                 _governance_value(response, "destination_policy_id"),
-                response.usage_policy,
                 response.contract.hold_to_open.required,
                 response.contract.hold_to_open.duration_ms,
                 json.dumps(response.contract.trust_path.model_dump(mode="json")),
                 _timestamp(response.contract.decided_at),
-                nonce_fingerprint,
+                envelope_fingerprint,
                 client_platform,
             )
             scanner_decisions_inserted = _inserted_count(scanner_status)

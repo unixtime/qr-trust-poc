@@ -1,12 +1,12 @@
-"""Scan accounting and the per-nonce scan-spike alert.
+"""Scan accounting and the per-envelope scan-spike alert.
 
 Both readers work over the scanner evidence store (``qr_trust.scanner_decisions``)
 and take an open asyncpg connection, so the management endpoint and the
 background monitor share one query each:
 
 * ``load_issuer_day_accounting`` -- scans per issuer per UTC day (cost accounting).
-* ``detect_nonce_spikes`` -- nonces whose scans in the trailing window exceed
-  their own per-window baseline; the monitor turns those into
+* ``detect_envelope_spikes`` -- envelopes whose scans in the trailing window
+  exceed their own per-window baseline; the monitor turns those into
   ``scanner.spike.detected`` outbox events, the endpoint just shows them.
 
 The evidence store is the single source of truth here: no extra counters, no
@@ -43,7 +43,7 @@ select
   count(*) filter (where decision_color = 'green')::integer as green_count,
   count(*) filter (where decision_color = 'orange')::integer as orange_count,
   count(*) filter (where decision_color = 'red')::integer as red_count,
-  count(distinct nonce_fingerprint)::integer as distinct_nonces
+  count(distinct envelope_fingerprint)::integer as distinct_envelopes
 from qr_trust.scanner_decisions
 where created_at >= $1 and created_at < $2
 group by issuer_id, date_trunc('day', created_at at time zone 'UTC')
@@ -51,27 +51,26 @@ order by day desc, scan_count desc, issuer_id nulls last
 limit $3
 """
 
-# One row per nonce seen in the baseline window; recent_count is the slice of
-# those rows that also fall inside the trailing alert window.
-_NONCE_SPIKE_QUERY = """
+# One row per envelope seen in the baseline window; recent_count is the slice
+# of those rows that also fall inside the trailing alert window.
+_ENVELOPE_SPIKE_QUERY = """
 select
-  nonce_fingerprint,
+  envelope_fingerprint,
   max(issuer_id) as issuer_id,
   max(root_program_id) as root_program_id,
-  max(usage_policy) as usage_policy,
   count(*) filter (where created_at >= $2)::integer as recent_count,
   count(*)::integer as baseline_count
 from qr_trust.scanner_decisions
-where nonce_fingerprint is not null and created_at >= $1
-group by nonce_fingerprint
+where envelope_fingerprint is not null and created_at >= $1
+group by envelope_fingerprint
 order by recent_count desc
 limit $3
 """
 
-# Candidate nonces fetched per tick before the cache counters are merged in. A
-# warm-cache flood leaves only ~2 evidence rows a minute (one per verdict TTL),
-# so the candidate set must be wider than the alert limit or busier-but-honest
-# nonces would crowd the flooded one out of the fetch.
+# Candidate envelopes fetched per tick before the cache counters are merged in.
+# A warm-cache flood leaves only ~2 evidence rows a minute (one per verdict
+# TTL), so the candidate set must be wider than the alert limit or
+# busier-but-honest envelopes would crowd the flooded one out of the fetch.
 SCAN_SPIKE_CANDIDATE_LIMIT = 500
 
 _SCAN_SPIKE_OUTBOX_INSERT = """
@@ -126,13 +125,13 @@ async def load_issuer_day_accounting(
             green_count=_int_value(row["green_count"]),
             orange_count=_int_value(row["orange_count"]),
             red_count=_int_value(row["red_count"]),
-            distinct_nonces=_int_value(row["distinct_nonces"]),
+            distinct_envelopes=_int_value(row["distinct_envelopes"]),
         )
         for row in rows
     ]
 
 
-async def detect_nonce_spikes(
+async def detect_envelope_spikes(
     connection: Any,
     *,
     now: datetime,
@@ -143,30 +142,30 @@ async def detect_nonce_spikes(
     limit: int,
     verdict_cache: Any | None = None,
 ) -> list[ScanSpikeRecord]:
-    """Return nonces whose trailing-window burst clears the floor and the ratio.
+    """Return envelopes whose trailing-window burst clears the floor and ratio.
 
-    The baseline is the nonce's own history: scans in the baseline window that
-    fall *outside* the alert window, scaled to one window's worth. A nonce with
-    no history at all has a zero baseline and is a spike as soon as it clears
-    ``min_scans`` -- a brand-new reusable code being hammered is exactly the
-    flood case.
+    The baseline is the envelope's own history: scans in the baseline window
+    that fall *outside* the alert window, scaled to one window's worth. An
+    envelope with no history at all has a zero baseline and is a spike as soon
+    as it clears ``min_scans`` -- a brand-new reusable code being hammered is
+    exactly the flood case.
 
     Counts merge two sources. Evidence rows cover computed verdicts; the verdict
     cache's minute buckets cover the scans it answered without touching the
-    database or the nonce budget. Without the second source a warm cache hides
-    almost the whole flood from this detector. Every cached hit implies a
-    computed verdict inside the cache TTL, so each flooded nonce has at least
-    one recent evidence row and appears in the candidate fetch.
+    database or the envelope budget. Without the second source a warm cache
+    hides almost the whole flood from this detector. Every cached hit implies a
+    computed verdict inside the cache TTL, so each flooded envelope has at
+    least one recent evidence row and appears in the candidate fetch.
     """
     baseline_start = now - timedelta(seconds=baseline_seconds)
     window_start = now - timedelta(seconds=window_seconds)
     rows = await connection.fetch(
-        _NONCE_SPIKE_QUERY, baseline_start, window_start, max(limit, SCAN_SPIKE_CANDIDATE_LIMIT)
+        _ENVELOPE_SPIKE_QUERY, baseline_start, window_start, max(limit, SCAN_SPIKE_CANDIDATE_LIMIT)
     )
     remaining_seconds = baseline_seconds - window_seconds
     spikes: list[ScanSpikeRecord] = []
     for row in rows:
-        fingerprint = str(row["nonce_fingerprint"])
+        fingerprint = str(row["envelope_fingerprint"])
         cached_recent = 0
         cached_baseline = 0
         if verdict_cache is not None:
@@ -190,10 +189,9 @@ async def detect_nonce_spikes(
             continue
         spikes.append(
             ScanSpikeRecord(
-                nonce_fingerprint=fingerprint,
+                envelope_fingerprint=fingerprint,
                 issuer_id=_optional_str(row["issuer_id"]),
                 root_program_id=_optional_str(row["root_program_id"]),
-                usage_policy=_optional_str(row["usage_policy"]),
                 recent_count=recent,
                 baseline_count=baseline,
                 cached_recent_count=cached_recent,
@@ -212,14 +210,14 @@ async def detect_nonce_spikes(
 
 
 def scan_spike_event_id(spike: ScanSpikeRecord, *, baseline_seconds: int) -> str:
-    """One alert per nonce per baseline-length bucket.
+    """One alert per envelope per baseline-length bucket.
 
     Ticks inside the same bucket (and other API replicas) collide on this id
     and the outbox insert's ``on conflict do nothing`` drops the duplicate.
     """
     observed = datetime.fromisoformat(spike.observed_at)
     bucket = int(observed.timestamp()) // max(1, baseline_seconds)
-    return f"evt_scan_spike_{spike.nonce_fingerprint}_{bucket}"
+    return f"evt_scan_spike_{spike.envelope_fingerprint}_{bucket}"
 
 
 async def emit_scan_spike_events(
@@ -235,9 +233,9 @@ async def emit_scan_spike_events(
             # the relay refuses trust-state subjects under the control-plane
             # root, so the spike stays on /admin/scan-accounting only.
             logger.warning(
-                "scan-spike monitor: nonce %s spiked (%d scans in window) but "
+                "scan-spike monitor: envelope %s spiked (%d scans in window) but "
                 "carries no root program; not written to the outbox",
-                spike.nonce_fingerprint,
+                spike.envelope_fingerprint,
                 spike.recent_count,
             )
             continue
@@ -247,8 +245,8 @@ async def emit_scan_spike_events(
             _SCAN_SPIKE_OUTBOX_INSERT,
             event_id,
             SCAN_SPIKE_EVENT_TYPE,
-            "nonce",
-            spike.nonce_fingerprint,
+            "envelope",
+            spike.envelope_fingerprint,
             envelope["artifact_ref"],
             envelope["artifact_hash"],
             envelope["root_program_id"],
@@ -281,7 +279,7 @@ def scan_spike_outbox_payload(
         "root_program_id": spike.root_program_id,
         "artifact_id": event_id,
         "artifact_hash": "sha256:" + hashlib.sha256(body_json.encode("utf-8")).hexdigest(),
-        "artifact_ref": f"scan_spike:{spike.nonce_fingerprint}",
+        "artifact_ref": f"scan_spike:{spike.envelope_fingerprint}",
         "version": 1,
         "reason": "scan_spike",
     }
@@ -315,7 +313,7 @@ async def run_scan_spike_monitor_tick(*, now: datetime | None = None) -> int:
         connection = await asyncpg.connect(
             asyncpg_dsn(database_url), timeout=1.5, command_timeout=5.0
         )
-        spikes = await detect_nonce_spikes(
+        spikes = await detect_envelope_spikes(
             connection,
             now=observed_at,
             window_seconds=max(1, config.VERIFIER_SCAN_SPIKE_WINDOW_SECONDS),
@@ -332,7 +330,7 @@ async def run_scan_spike_monitor_tick(*, now: datetime | None = None) -> int:
             logger.warning(
                 "scan spike: %s new alert(s) written to the outbox for %s",
                 inserted,
-                ", ".join(spike.nonce_fingerprint for spike in spikes),
+                ", ".join(spike.envelope_fingerprint for spike in spikes),
             )
         return inserted
     except Exception as exc:  # the monitor must outlive a flaky database

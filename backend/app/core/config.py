@@ -99,17 +99,22 @@ class Settings(BaseSettings):
     VERIFIER_RATE_LIMIT_WINDOW_SECONDS: int = 60
     VERIFIER_RATE_LIMIT_MAX_REQUESTS: int = 60
     VERIFIER_DECODE_RATE_LIMIT_MAX_REQUESTS: int = 120
-    # Scan-flood budgets for reusable_public / time_limited codes (one_time is
-    # exempt: the replay guard already limits it to a single accepted scan).
-    VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS: int = 60
-    VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS: int = 300
+    # Per-envelope scan budget: one issued artifact may be presented at most this
+    # many times per window before the verifier answers 429.
+    VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS: int = 60
+    VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS: int = 300
+    # Per-issuer scan budget across all of that issuer's envelopes.
     VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS: int = 3000
-    # Verdict cache for the same policies: an identical envelope scanned again
-    # within this many seconds (clamped to the claims' expires_at) is answered
-    # from cache without a signature check or evidence row. 0 disables it.
+    # Verdict cache: a computed verdict for one envelope is reused for up to this
+    # many seconds (never past the envelope's own expires_at).
     VERIFIER_VERDICT_CACHE_TTL_SECONDS: int = 30
-    # Per-nonce scan-spike alert (reusable QR flood detection). Every
-    # INTERVAL seconds the API compares each nonce's scans in the trailing
+    # Tolerance applied to artifact issued_at/expires_at comparisons so a phone
+    # whose clock drifts by a few minutes does not read a valid code as future-
+    # dated. Issuer-record and key windows are authority state, not device
+    # state, so they are compared without skew.
+    VERIFIER_CLOCK_SKEW_SECONDS: int = 300
+    # Per-envelope scan-spike alert (scan flood detection). Every
+    # INTERVAL seconds the API compares each envelope's scans in the trailing
     # WINDOW against its per-window average over the trailing BASELINE and
     # writes a scanner.spike.detected outbox event when the burst is at least
     # RATIO times the baseline and at least MIN_SCANS scans. INTERVAL 0

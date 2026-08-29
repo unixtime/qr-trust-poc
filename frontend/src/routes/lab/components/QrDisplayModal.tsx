@@ -64,7 +64,6 @@ function QrDisplayModal({
               className="p-3"
               activity={scanActivity}
               error={scanActivityError}
-              usagePolicy={demo.verify_request.envelope.claims.usage_policy}
             >
               <img
                 src={qrImageDataUrl(demo.qr_png_base64)}
@@ -87,9 +86,9 @@ function QrDisplayModal({
                   </div>
                 </div>
                 <div>
-                  <Eyebrow as="div">{t("lab.qrModal.meta.nonce")}</Eyebrow>
-                  <div className="mt-2 break-all text-sm font-medium text-foreground">
-                    {demo.verify_request.envelope.claims.nonce}
+                  <Eyebrow as="div">{t("lab.qrModal.meta.envelope")}</Eyebrow>
+                  <div className="mt-2 font-mono break-all text-sm font-medium text-foreground">
+                    {demo.envelope_id.slice(0, 16)}
                   </div>
                 </div>
                 <div>

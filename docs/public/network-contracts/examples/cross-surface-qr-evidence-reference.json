@@ -6,7 +6,6 @@
   "qr_artifact": {
     "artifact_ref": "qr-artifact:qrtrust-demo:redirect-final-mismatch:001",
     "payload_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
-    "usage_policy": "reusable_public",
     "destination_fingerprint": "qr....ple.example"
   },
   "final_decision": {

@@ -21,15 +21,15 @@ def make_result(
     allowed: bool = True,
     stage: str = "accepted",
     reason: str = "test",
+    cause: str | None = None,
 ) -> NarrowedVerifierResponse:
     return NarrowedVerifierResponse(
         allowed=allowed,
         stage=stage,
         reason=reason,
-        usage_policy="reusable_public",
         canonical_claims_sha256=None,
         matched_rule=None,
-        reservation_state=None,
+        cause=cause,
     )
 
 
@@ -39,7 +39,7 @@ def vector_for(
     runtime_verdict=None,
     redirect_verdict=None,
     artifact_analysis=None,
-) -> dict[str, str]:
+) -> dict[str, dict[str, str | None]]:
     return verifier_endpoint._residual_vector_for_result(
         result,
         redirect_verdict=redirect_verdict,
@@ -48,17 +48,22 @@ def vector_for(
     )
 
 
+def tiers_of(vector: dict[str, dict[str, str | None]]) -> dict[str, str]:
+    """The tier-only view Delta consumes; the vector also carries the cause."""
+    return {family: str(entry["tier"]) for family, entry in vector.items()}
+
+
 def test_clean_scan_vector_is_positive_eligible_and_gate_is_a_no_op() -> None:
     verdict = evaluate_runtime_safety("https://acme.example/pay")
     vector = vector_for(make_result(), runtime_verdict=verdict)
 
     assert vector == {
-        "issuer_chain": "pass",
-        "destination_policy": "pass",
-        "redirect_flow": "not-applicable",
-        "runtime_safety": "pass",
-        "freshness": "pass",
-        "artifact_integrity": "pass",
+        "issuer_chain": {"tier": "pass", "cause": None},
+        "destination_policy": {"tier": "pass", "cause": None},
+        "redirect_flow": {"tier": "not-applicable", "cause": None},
+        "runtime_safety": {"tier": "pass", "cause": None},
+        "freshness": {"tier": "pass", "cause": None},
+        "artifact_integrity": {"tier": "pass", "cause": None},
     }
 
     state, model = verifier_endpoint._apply_trust_residual_gate("verified_issuer", vector)
@@ -79,28 +84,37 @@ def test_runtime_verdict_states_map_to_owned_residual_tiers() -> None:
     for marker, tier in expected_tiers.items():
         verdict = evaluate_runtime_safety(f"https://acme.example/pay?runtime={marker}")
         vector = vector_for(make_result(), runtime_verdict=verdict)
-        assert vector["runtime_safety"] == tier, marker
+        assert vector["runtime_safety"] == {
+            "tier": tier,
+            # A clean verdict is evidence of safety, not a cause to display.
+            "cause": None if tier == "pass" else f"runtime-{verdict.state}",
+        }, marker
 
 
 def test_missing_runtime_verdict_maps_to_not_checked() -> None:
     vector = vector_for(make_result(allowed=False, stage="payload_revalidation"))
-    assert vector["runtime_safety"] == "not-checked"
+    assert vector["runtime_safety"] == {"tier": "not-checked", "cause": None}
 
 
 def test_failed_verifier_stages_map_to_owning_families_and_delta_blocks() -> None:
     expected = {
-        "signed_schema": ("issuer_chain", "invalid-managed-claim"),
-        "certificate_status": ("issuer_chain", "revoked-issuer"),
-        "payload_revalidation": ("destination_policy", "fail"),
-        "time_window": ("freshness", "block"),
-        "replay_guard": ("freshness", "block"),
+        "signed_schema": ("issuer_chain", "invalid-managed-claim", "signature-invalid"),
+        "issuer_status": ("issuer_chain", "revoked-issuer", "issuer-revoked"),
+        "key_status": ("issuer_chain", "revoked-issuer", "key-revoked"),
+        "payload_revalidation": ("destination_policy", "fail", "destination-mismatch"),
+        "time_window": ("freshness", "block", "object-expired"),
     }
-    for stage, (family, tier) in expected.items():
-        vector = vector_for(make_result(allowed=False, stage=stage))
-        assert vector[family] == tier, stage
+    for stage, (family, tier, cause) in expected.items():
+        # signed_schema and payload_revalidation still derive their cause; the trust
+        # and freshness stages carry one from the rule function, so feed it in.
+        derived = stage in {"signed_schema", "payload_revalidation"}
+        vector = vector_for(
+            make_result(allowed=False, stage=stage, cause=None if derived else cause)
+        )
+        assert vector[family] == {"tier": tier, "cause": cause}, stage
 
         model = decide(
-            vector,
+            tiers_of(vector),
             profile=verifier_endpoint._RUNTIME_DECISION_PROFILE,
             qr_decodable=True,
         )
@@ -111,7 +125,7 @@ def test_unmodeled_runtime_state_fails_closed_at_the_positive_terminal() -> None
     vector = vector_for(make_result())
     # Simulate a future provider verdict state that the mapping passes through
     # unmodeled: D15 must refuse the positive terminal rather than trust it.
-    vector["runtime_safety"] = "quarantined"
+    vector["runtime_safety"] = {"tier": "quarantined", "cause": None}
 
     state, model = verifier_endpoint._apply_trust_residual_gate("verified_issuer", vector)
     assert state == "unverified"
@@ -141,7 +155,7 @@ def test_runtime_pipeline_never_undercuts_the_bounded_reference() -> None:
         verdict = evaluate_runtime_safety(f"https://acme.example/pay?runtime={marker}")
         vector = vector_for(make_result(), runtime_verdict=verdict)
         model = decide(
-            vector,
+            tiers_of(vector),
             profile=verifier_endpoint._RUNTIME_DECISION_PROFILE,
             qr_decodable=True,
         )

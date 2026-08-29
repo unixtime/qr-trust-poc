@@ -115,6 +115,15 @@ scanner-visible state.
 
 ## Reference Implementation
 
+The FastAPI verifier carries an in-memory scanner trust store that applies the
+lifecycle to demo artifacts: `GET /verifier/trust-store` lists issuers and keys
+with their `state` (`active`, `retired`, `revoked`) and validity window, and
+`POST /verifier/demo-materials` rotates (`rotate_key: true`) or revokes
+(`key_state: "revoked"`) the demo key. A retired key keeps verifying what it
+signed inside its window; a revoked key blocks everything with cause
+`key-revoked`. The rule table is in `VERIFIER_PROFILE.md` under Key Lifecycle
+Contract.
+
 The TypeScript reference package exposes:
 
 - `assessTrustKeyRotation`

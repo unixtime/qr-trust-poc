@@ -4,13 +4,12 @@ import type {
   DemoMaterialsResponse,
   ScanActivity,
   ScannerDecisionResponse,
-  UsagePolicy,
+  TrustKeyState,
   VerifierDecision,
 } from "@/lib/verifier-client"
-import type { NonceMode, ScenarioKey } from "@/domain/scenarios"
+import type { ScenarioKey } from "@/domain/scenarios"
 
-export type { NonceMode, ScenarioKey }
-export type { UsagePolicy }
+export type { ScenarioKey }
 export type Tone = "neutral" | "success" | "blocked"
 
 export type MessageState = {
@@ -53,6 +52,10 @@ export type ScenarioMeta = {
   expiresOffsetMinutes: number
   governanceCacheProfile?: "fresh" | "stale" | "expired"
   registerScannerTrust?: boolean
+  /** Cycle 2: sent as `key_state`. Absent means "let the backend derive it". */
+  keyState?: TrustKeyState
+  /** Cycle 2: sent as `rotate_key`; mints a new demo key. The previous key is retired only when `register_scanner_trust` is on. */
+  rotateKey?: boolean
   artifactProfile?: "low-quiet-zone" | "payload-mismatch"
   /**
    * Documentation of what each scenario is supposed to demonstrate. Nothing

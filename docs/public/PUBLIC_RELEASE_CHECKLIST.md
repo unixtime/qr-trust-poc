@@ -84,7 +84,7 @@ Current scan note:
 Preferred framing:
 - reference implementation
 - verifier profile
-- replay-safe verification flow
+- stateless per-presentation verification flow
 - issuer-state revalidation
 - canonical signed-schema handling
 

@@ -16,8 +16,9 @@ Implementation references:
 
 Unless a vector says otherwise:
 
-- signed claims are canonical and valid
-- `usage_policy = "one_time"` for replay vectors
+- signed claims are canonical and valid, in the order `version`,
+  `certificate_ref`, `issued_at`, `expires_at`, `payload`
+- `version = "2"`; a `version = "1"` envelope is rejected
 - `certificate_ref` matches the certificate
 - `code_algorithm_id` matches the certificate algorithm
 - certificate algorithm is `rsa-pss-sha256-v1`
@@ -30,57 +31,50 @@ Unless a vector says otherwise:
 
 ## Narrowed Verifier Vectors
 
-### NV-001 Valid first scan
+### NV-001 Valid scan
 
 - claims:
-  - `version = "1"`
-  - `usage_policy = "one_time"`
-  - `nonce = "demo-nonce-101"`
-  - `payload = "https://acme.example/pay"`
+  - `version = "2"`
+  - `certificate_ref = "cert:acme-demo:2026-01"`
   - `issued_at = now - 1 minute`
   - `expires_at = now + 5 minutes`
+  - `payload = "https://acme.example/pay"`
 - expected:
   - `allowed = true`
   - `stage = "accepted"`
-  - `reservation_state = "consumed"`
   - `matched_rule = "acme.example"`
 
-### NV-001A Reusable public scan
+### NV-001A Repeat scan inside the validity window
 
-- claims:
-  - `version = "1"`
-  - `usage_policy = "reusable_public"`
-  - `nonce = "demo-nonce-public-101"`
-  - `payload = "https://acme.example/pay"`
-  - `issued_at = now - 1 minute`
-  - `expires_at = now + 5 minutes`
-- execute twice with the same signed envelope
+- the same signed envelope as `NV-001`
+- execute twice
 - expected for both requests:
   - `allowed = true`
   - `stage = "accepted"`
-  - `reservation_state = "not_required"`
   - `matched_rule = "acme.example"`
 
-### NV-002 Replay of same code
+Every presentation of one envelope is evaluated the same way; the verifier
+keeps no per-presentation state.
 
-- same one-time input as `NV-001`
-- execute immediately after `NV-001`
-- expected:
-  - `allowed = false`
-  - `stage = "replay_guard"`
-  - `reservation_state = "blocked"`
-
-### NV-003 Payload mismatch releases reservation
+### NV-002 Unsupported claims version
 
 - claims:
-  - `nonce = "demo-nonce-202"`
-  - `payload = "https://acme.example/pay"`
+  - `version = "1"`, otherwise identical to `NV-001`
+- expected:
+  - `allowed = false`
+  - `stage = "signed_schema"`
+- the same envelope sent to `POST /scanner/decisions` never reaches the
+  verifier: it fails to decode, and the route answers `unverified` with cause
+  `unsupported-claims-version` and reason code `unsupported_claims_version`
+
+### NV-003 Payload mismatch
+
+- claims: as `NV-001`
 - issuer state:
   - `verified_domains = []`
 - expected:
   - `allowed = false`
   - `stage = "payload_revalidation"`
-  - `reservation_state = "released"`
 
 ### NV-004 Retry after issuer-state restoration
 
@@ -90,60 +84,60 @@ Unless a vector says otherwise:
 - expected:
   - `allowed = true`
   - `stage = "accepted"`
-  - `reservation_state = "consumed"`
 
 ### NV-005 Expired credential
 
 - claims:
-  - `nonce = "demo-nonce-expired"`
   - `issued_at = now - 10 minutes`
   - `expires_at = now - 1 minute`
 - expected:
   - `allowed = false`
   - `stage = "time_window"`
-  - `reservation_state = null`
+  - on the scanner decision: `freshness` tier `block`, cause `object-expired`
 
-### NV-006 Revoked certificate
+### NV-006 Not yet valid
 
 - claims:
-  - `nonce = "demo-nonce-revoked"`
+  - `issued_at = now + 5 minutes`
+  - `expires_at = now + 10 minutes`
+- expected:
+  - `allowed = false`
+  - `stage = "time_window"`
+  - on the scanner decision: cause `not-yet-valid`
+
+### NV-007 Revoked certificate
+
 - issuer state:
   - `certificate_revoked = true`
   - `certificate_revocation_reason = "Issuer revoked credential after merchant offboarding"`
 - expected:
   - `allowed = false`
-  - `stage = "certificate_status"`
-  - `reservation_state = null`
+  - `stage = "issuer_status"`
+  - `cause = "issuer-revoked"`
 
-### NV-007 Release failure surface
+### NV-008 Inactive certificate
 
-- same mismatch shape as `NV-003`
-- replay guard behavior:
-  - force `release()` to return false
+- issuer state:
+  - `certificate_active = false`
 - expected:
   - `allowed = false`
-  - `stage = "payload_revalidation"`
-  - `reservation_state = "release_failed"`
+  - `stage = "issuer_status"`
+  - `cause = "issuer-inactive"`
 
-### NV-008 Finalize failure surface
+## Envelope Identity Vectors
 
-- valid payload and issuer state
-- replay guard behavior:
-  - force `finalize()` to return false
+### EI-001 Envelope identity is derived, not carried
+
+- `envelope_id = sha256(canonical_claims + "." + signature)` as lowercase hex
+  (64 characters), where `canonical_claims` is the claims serialized in the
+  canonical order
+- `envelope_fingerprint` is the first 16 hex characters of `envelope_id`
 - expected:
-  - `allowed = false`
-  - `stage = "replay_guard"`
-  - `reservation_state = "finalize_failed"`
-
-### NV-009 Concurrent first scans
-
-- same valid envelope sent by multiple workers
-- expected aggregate behavior:
-  - exactly one result with `allowed = true`
-  - all other losing results:
-    - `allowed = false`
-    - `stage = "replay_guard"`
-    - `reservation_state = "blocked"`
+  - the same claims and signature always produce the same `envelope_id`
+  - `POST /verifier/demo-materials` returns the `envelope_id` for the artifact
+    it generated
+  - the scanner decision response carries the same `envelope_id`
+  - mutating any signed claim changes `envelope_id`
 
 ## QR Artifact Vectors
 
@@ -170,7 +164,8 @@ Unless a vector says otherwise:
   - `POST /verifier/verify-scanned`
 - expected:
   - first request: `allowed = true`, `stage = "accepted"`
-  - second request with the same QR payload: `allowed = false`, `stage = "replay_guard"`
+  - second request with the same QR payload: `allowed = true`,
+    `stage = "accepted"` — the envelope is still inside its validity window
 
 ### QA-003 Invalid QR PNG bytes
 
@@ -267,14 +262,13 @@ Unless a vector says otherwise:
   - `certificate_ref`
   - `issued_at`
   - `expires_at`
-  - `nonce`
   - `payload`
 - expected:
   - parse failure or signed-schema rejection
 
 ### SS-002 Missing signed field rejected
 
-- omit `nonce` or any other required claim
+- omit any required claim
 - expected:
   - parse failure or signed-schema rejection
 
@@ -298,6 +292,13 @@ Unless a vector says otherwise:
 - expected:
   - `allowed = false`
   - `stage = "signed_schema"`
+
+### SS-006 Unsupported claims version rejected
+
+- `version = "1"` with an otherwise valid envelope
+- expected:
+  - parse failure with the unsupported-version diagnosis, ahead of any
+    unknown-field diagnosis
 
 ## Execution Note
 

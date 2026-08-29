@@ -95,7 +95,6 @@ status="$(git status --short)"
 scanner_evidence="$(
   git ls-files \
     'docs/public/evidence/iphone/accepted.*' \
-    'docs/public/evidence/iphone/replay-guard.*' \
     'docs/public/evidence/iphone/payload-mismatch.*' \
     | grep -E '\.(png|mov|mp4)$' \
     || true
@@ -114,7 +113,7 @@ fi
 
 if [ -z "$scanner_evidence" ]; then
   blocked=1
-  printf -- "- Native iPhone scanner evidence artifacts are not tracked yet: accepted, replay-guard, and payload-mismatch.\n" >> "$blockers_file"
+  printf -- "- Native iPhone scanner evidence artifacts are not tracked yet: accepted and payload-mismatch.\n" >> "$blockers_file"
 fi
 
 if [ -z "$provider_profile_evidence" ]; then
@@ -230,7 +229,7 @@ cat >> "$OUTPUT_FILE" <<'EOF'
   boundary. `BLOCKED_FOR_PRODUCTION` means public release may still be possible,
   but production readiness is not claimable.
 - If strict audit fails only because native scanner evidence is missing, capture
-  and import `accepted`, `replay-guard`, and `payload-mismatch` with the native
+  and import `accepted` and `payload-mismatch` with the native
   iPhone app, then regenerate this report.
 - If strict audit fails only because provider-profile evidence is missing,
   capture and import the signed, stale, revoked, rejected, and local-reviewer

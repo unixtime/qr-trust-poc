@@ -15,8 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { usagePolicyLabelKeys } from "@/domain/scenarios"
-import { useT } from "@/i18n"
+import { useT, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 import {
   qrImageDataUrl,
@@ -28,6 +27,13 @@ import {
 } from "@/routes/lab/components/ComparisonCard"
 import { HistorySection } from "@/routes/lab/components/HistorySection"
 import type { LabState } from "@/routes/lab/deriveFlowStep"
+import {
+  decidingFamily,
+  residualFamilyOrder,
+  residualTierRank,
+  residualTone,
+  tierRank,
+} from "@/routes/lab/residuals"
 import {
   decisionStateTone,
   trustStatusTone,
@@ -128,6 +134,60 @@ const toneStyles: Record<
   },
 }
 
+// Residual pills borrow the verdict tones rather than inventing colours;
+// `muted` is the one tone the verdict hero has no use for — a family the
+// decision model scored as not-applicable is neutral, not amber.
+const residualToneStyles: Record<
+  ReturnType<typeof residualTone>,
+  { surface: string; text: string; dot: string }
+> = {
+  green: {
+    surface: toneStyles.green.surface,
+    text: toneStyles.green.text,
+    dot: toneStyles.green.dot,
+  },
+  amber: {
+    surface: toneStyles.amber.surface,
+    text: toneStyles.amber.text,
+    dot: toneStyles.amber.dot,
+  },
+  red: {
+    surface: toneStyles.red.surface,
+    text: toneStyles.red.text,
+    dot: toneStyles.red.dot,
+  },
+  muted: {
+    surface: "border-white/12 bg-white/4",
+    text: "text-muted-foreground",
+    dot: "bg-white/30",
+  },
+}
+
+// The cause vocabulary this catalogue actually carries. The backend does not
+// validate `cause` against it, so anything outside the set renders raw rather
+// than as a missing-key string.
+const knownCauses = new Set([
+  "signature-invalid",
+  "issuer-inactive",
+  "issuer-revoked",
+  "issuer-record-expired",
+  "issuer-record-not-yet-valid",
+  "key-revoked",
+  "key-window-mismatch",
+  "destination-mismatch",
+  "not-yet-valid",
+  "object-expired",
+  "redirect-policy-blocked",
+  "runtime-risky",
+  "runtime-blocked",
+  "runtime-expired",
+  "runtime-stale",
+  "runtime-unavailable",
+  "no-signed-envelope",
+  "unsupported-envelope",
+  "unsupported-claims-version",
+])
+
 // The gates ring is drawn on a 232-unit viewBox so the stroke geometry can be
 // stated in the same units at any rendered size.
 const RING_RADIUS = 98
@@ -211,6 +271,10 @@ export function VerdictStep({
   const showOpenCta =
     decision !== null && decision.open_allowed && decisionTone === "green" && openUrl !== null
   const chain = decision ? hostChain(decision) : []
+  // The residual vector and the family that decided it, computed once: the
+  // strip names the family, the card marks its row.
+  const residualVector = decision?.residual_vector ?? null
+  const deciding = residualVector ? decidingFamily(residualVector) : null
 
   return (
     <div className="flex flex-col gap-6" data-testid="verdict-step">
@@ -420,6 +484,141 @@ export function VerdictStep({
             ) : null}
           </section>
 
+          {/* ── The decision model's own output, unedited ────────────────── */}
+          {decision.model_decision ? (
+            <div
+              data-testid="verdict-model-decision"
+              data-attention={decision.model_decision.attention_level}
+              className="flex flex-col gap-2 rounded-xl border border-(--glass-border) bg-white/3 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
+                  {t("lab.verdict.model.primaryState")}
+                </span>
+                <strong className="font-mono text-sm font-semibold tracking-[0.08em] text-foreground">
+                  {decision.model_decision.primary_state}
+                </strong>
+              </div>
+              <span className="font-mono text-[11px] leading-relaxed text-muted-foreground">
+                {t("lab.verdict.model.profile")}:{" "}
+                <code>{decision.model_decision.profile}</code>
+                {" · "}
+                {t("lab.verdict.model.attention")}:{" "}
+                {decision.model_decision.attention_level}
+                {" · "}
+                {t("lab.verdict.model.deciding")}:{" "}
+                {deciding
+                  ? t(`lab.residual.family.${deciding}` as MessageKey)
+                  : t("lab.verdict.residuals.none")}
+              </span>
+              {decision.model_decision.annotations.length > 0 ? (
+                <ul className="flex flex-wrap gap-1.5">
+                  {decision.model_decision.annotations.map((annotation) => (
+                    <li key={annotation}>
+                      <code className="rounded-full border border-white/8 bg-white/3 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {annotation}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* ── The six residual families, expanded, in lattice order ────── */}
+          <Card
+            data-testid="verdict-residuals"
+            role="region"
+            aria-label={t("lab.verdict.residuals.title")}
+          >
+            <CardHeader>
+              <CardTick />
+              <CardTitle className="font-mono text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                {t("lab.verdict.residuals.title")}
+              </CardTitle>
+              <CardDescription>
+                {t("lab.verdict.residuals.description")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="flex flex-col gap-1">
+                {residualFamilyOrder.map((family) => {
+                  const entry = residualVector?.[family] ?? {
+                    tier: "unknown",
+                    cause: null,
+                  }
+                  const tone = residualTone(entry.tier)
+                  const pill = residualToneStyles[tone]
+                  const isDeciding = family === deciding
+                  const tierKnown = entry.tier in residualTierRank
+                  return (
+                    <li
+                      key={family}
+                      data-testid={`residual-${family}`}
+                      data-tone={tone}
+                      data-rank={tierRank(entry.tier)}
+                      aria-current={isDeciding ? "true" : undefined}
+                      className={cn(
+                        "flex flex-wrap items-start gap-x-3 gap-y-1.5 rounded-lg border px-2.5 py-2.5",
+                        isDeciding
+                          ? "border-white/12 bg-white/4"
+                          : "border-transparent",
+                      )}
+                    >
+                      <div className="flex min-w-0 flex-1 basis-52 flex-col gap-0.5">
+                        <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                          {t(`lab.residual.family.${family}` as MessageKey)}
+                          {isDeciding ? (
+                            <span className="font-mono text-[10px] font-semibold tracking-[0.14em] text-primary uppercase">
+                              {t("lab.verdict.residuals.deciding")}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="text-[12px] leading-snug text-muted-foreground">
+                          {t(`lab.residual.question.${family}` as MessageKey)}
+                        </span>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-start gap-1 sm:items-end">
+                        <span
+                          data-testid={`residual-${family}-tier`}
+                          data-tone={tone}
+                          title={tierKnown ? undefined : entry.tier}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                            pill.surface,
+                            pill.text,
+                          )}
+                        >
+                          <span
+                            aria-hidden
+                            className={cn("size-1.5 rounded-full", pill.dot)}
+                          />
+                          {t(
+                            tierKnown
+                              ? (`lab.residual.tier.${entry.tier}` as MessageKey)
+                              : "lab.residual.tier.unknown",
+                          )}
+                        </span>
+                        <span
+                          data-testid={`residual-${family}-cause`}
+                          className="text-[12px] leading-snug text-muted-foreground sm:text-right"
+                        >
+                          {entry.cause === null ? (
+                            "—"
+                          ) : knownCauses.has(entry.cause) ? (
+                            t(`lab.residual.cause.${entry.cause}` as MessageKey)
+                          ) : (
+                            <code>{entry.cause}</code>
+                          )}
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ol>
+            </CardContent>
+          </Card>
+
           {/* ── Row 1: trust path + sealed artifact ──────────────────────── */}
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
             <Card id="verdict-gates" className="scroll-mt-24 lg:flex-[1.55]">
@@ -556,18 +755,6 @@ export function VerdictStep({
                     />
                   </div>
                   <dl className="flex flex-col gap-1.5 font-mono text-[11px]">
-                    <MonoRow
-                      label={t("lab.generate.sealed.nonce")}
-                      value={demo.verify_request.envelope.claims.nonce}
-                    />
-                    <MonoRow
-                      label={t("lab.generate.sealed.policy")}
-                      value={t(
-                        usagePolicyLabelKeys[
-                          demo.verify_request.envelope.claims.usage_policy
-                        ],
-                      )}
-                    />
                     <MonoRow
                       label={t("lab.generate.sealed.issued")}
                       value={demo.verify_request.envelope.claims.issued_at
@@ -752,16 +939,8 @@ function EnvelopeCard({
           </span>
         </div>
         <p>{result.reason}</p>
-        {result.usage_policy ? (
-          <p className="text-muted-foreground">
-            {t("lab.verdict.usagePolicy", {
-              policy: t(usagePolicyLabelKeys[result.usage_policy]),
-            })}
-          </p>
-        ) : null}
         {result.canonical_claims_sha256 !== null ||
-        result.matched_rule !== null ||
-        result.reservation_state !== null ? (
+        result.matched_rule !== null ? (
           <dl className="mt-1 flex flex-col gap-1.5 border-t border-white/6 pt-3 font-mono text-[11px]">
             {result.canonical_claims_sha256 !== null ? (
               <MonoRow
@@ -773,12 +952,6 @@ function EnvelopeCard({
               <MonoRow
                 label={t("lab.verdict.crypto.matchedRule")}
                 value={result.matched_rule}
-              />
-            ) : null}
-            {result.reservation_state !== null ? (
-              <MonoRow
-                label={t("lab.verdict.crypto.reservationState")}
-                value={result.reservation_state}
               />
             ) : null}
           </dl>

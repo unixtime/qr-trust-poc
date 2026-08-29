@@ -44,6 +44,8 @@ export const comparisonValueKeys = {
     active: "lab.compare.value.issuer.active",
     revoked: "lab.compare.value.issuer.revoked",
     unenrolled: "lab.compare.value.issuer.unenrolled",
+    keyRevoked: "lab.compare.value.issuer.keyRevoked",
+    rotated: "lab.compare.value.issuer.rotated",
   },
   destination: {
     exact: "lab.compare.value.destination.exact",
@@ -118,7 +120,9 @@ function parsePayload(payload: string): URL | null {
 
 function issuerFor(meta: ScenarioMeta): ScenarioSummary["issuer"] {
   if (meta.certificateRevoked) return "revoked"
+  if (meta.keyState === "revoked") return "keyRevoked"
   if (meta.registerScannerTrust === false) return "unenrolled"
+  if (meta.rotateKey) return "rotated"
   return "active"
 }
 

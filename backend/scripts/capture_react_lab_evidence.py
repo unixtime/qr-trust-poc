@@ -17,16 +17,9 @@ def _open_step(page: Page, step: int) -> None:
     page.get_by_test_id(f"flow-step-{step}").click()
 
 
-def _goto_flow(
-    page: Page,
-    base_url: str,
-    scenario: str,
-    nonce: str,
-    *,
-    usage: str = "reusable_public",
-) -> None:
+def _goto_flow(page: Page, base_url: str, scenario: str) -> None:
     page.goto(
-        f"{base_url}/?scenario={scenario}&nonce={nonce}&usage={usage}&autogenerate=0",
+        f"{base_url}/?scenario={scenario}&autogenerate=0",
         wait_until="networkidle",
     )
     page.get_by_test_id("flow-stepper").wait_for(timeout=10_000)
@@ -89,24 +82,20 @@ def main() -> None:
             context = browser.new_context(viewport={"width": 1440, "height": 1100})
             page = context.new_page()
 
-            _goto_flow(page, base_url, "valid", "timestamped", usage="one_time")
+            _goto_flow(page, base_url, "valid")
             _ensure_local_lab_key(page)
             _generate_qr(page)
             _verify_current_qr(page)
             page.get_by_text("direct verify accepted").first.wait_for(timeout=10_000)
             _capture(page, output_dir / "accepted.png")
 
-            _verify_current_qr(page)
-            page.get_by_text("replay_guard").first.wait_for(timeout=10_000)
-            _capture(page, output_dir / "replay-guard.png")
-
-            _goto_flow(page, base_url, "payload-mismatch", "timestamped")
+            _goto_flow(page, base_url, "payload-mismatch")
             _generate_qr(page)
             _verify_current_qr(page)
             page.get_by_text("payload_revalidation").first.wait_for(timeout=10_000)
             _capture(page, output_dir / "payload-mismatch.png")
 
-            _goto_flow(page, base_url, "runtime-risky", "timestamped")
+            _goto_flow(page, base_url, "runtime-risky")
             _generate_qr(page)
             _open_step(page, 3)
             _check_scanner_decision(page)
@@ -114,7 +103,7 @@ def main() -> None:
             page.get_by_text("verified issuer destination risky").first.wait_for(timeout=10_000)
             _capture(page, output_dir / "runtime-risky.png")
 
-            _goto_flow(page, base_url, "stale-cache", "timestamped")
+            _goto_flow(page, base_url, "stale-cache")
             _generate_qr(page)
             _open_step(page, 3)
             _check_scanner_decision(page)

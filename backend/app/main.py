@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
             "and per-process without Redis; budgets do not add up across API replicas"
         )
 
-    # Per-nonce scan-spike monitor: reads the evidence store on a timer and
+    # Per-envelope scan-spike monitor: reads the evidence store on a timer and
     # writes scanner.spike.detected outbox events. Needs the network database.
     from backend.app.services import scan_accounting
 

@@ -1,10 +1,11 @@
 import type { MessageKey } from "@/i18n/catalog/en"
-import type { UsagePolicy } from "@/lib/verifier-client"
 
 export type ScenarioKey =
   | "valid"
   | "expired"
   | "revoked"
+  | "key-rotated"
+  | "key-revoked"
   | "subdomain-allowed"
   | "subdomain-blocked"
   | "payload-mismatch"
@@ -18,8 +19,6 @@ export type ScenarioKey =
   | "unknown-issuer"
   | "artifact-quiet-zone"
   | "artifact-mismatch"
-
-export type NonceMode = "fixed" | "timestamped"
 
 // Group names were the display strings themselves ("Policy-blocked"), which
 // made the union untranslatable: the type, the object keys, and the rendered
@@ -37,6 +36,8 @@ export const scenarioLabelKeys: Record<ScenarioKey, MessageKey> = {
   valid: "lab.scenario.valid.label",
   expired: "lab.scenario.expired.label",
   revoked: "lab.scenario.revoked.label",
+  "key-rotated": "lab.scenario.keyRotated.label",
+  "key-revoked": "lab.scenario.keyRevoked.label",
   "subdomain-allowed": "lab.scenario.subdomainAllowed.label",
   "subdomain-blocked": "lab.scenario.subdomainBlocked.label",
   "payload-mismatch": "lab.scenario.payloadMismatch.label",
@@ -56,6 +57,8 @@ export const scenarioNoteKeys: Record<ScenarioKey, MessageKey> = {
   valid: "lab.scenario.valid.note",
   expired: "lab.scenario.expired.note",
   revoked: "lab.scenario.revoked.note",
+  "key-rotated": "lab.scenario.keyRotated.note",
+  "key-revoked": "lab.scenario.keyRevoked.note",
   "subdomain-allowed": "lab.scenario.subdomainAllowed.note",
   "subdomain-blocked": "lab.scenario.subdomainBlocked.note",
   "payload-mismatch": "lab.scenario.payloadMismatch.note",
@@ -79,7 +82,7 @@ export const scenarioGroupLabelKeys: Record<ScenarioGroup, MessageKey> = {
 }
 
 export const scenarioGroups: Record<ScenarioGroup, ScenarioKey[]> = {
-  valid: ["valid", "subdomain-allowed", "redirect-approved"],
+  valid: ["valid", "subdomain-allowed", "redirect-approved", "key-rotated"],
   tampered: [
     "payload-mismatch",
     "redirect-final-mismatch",
@@ -89,22 +92,13 @@ export const scenarioGroups: Record<ScenarioGroup, ScenarioKey[]> = {
   policyBlocked: [
     "expired",
     "revoked",
+    "key-revoked",
     "subdomain-blocked",
     "redirect-too-many-hops",
     "redirect-nested-shortener",
     "unknown-issuer",
   ],
   runtimeDegraded: ["runtime-risky", "runtime-blocked", "stale-cache"],
-}
-
-// Usage policy is not a scenario, but it is the same kind of thing: a wire
-// value that also has to be readable. Previously the UI derived its display
-// text with `replaceAll("_", " ")`, which is a translation of the identifier
-// rather than of the meaning.
-export const usagePolicyLabelKeys: Record<UsagePolicy, MessageKey> = {
-  reusable_public: "lab.usagePolicy.reusablePublic",
-  one_time: "lab.usagePolicy.oneTime",
-  time_limited: "lab.usagePolicy.timeLimited",
 }
 
 export const scenarioKeys = Object.keys(scenarioLabelKeys) as ScenarioKey[]

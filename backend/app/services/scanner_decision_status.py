@@ -42,7 +42,6 @@ recent as (
     reason_codes,
     risk_score,
     destination_fingerprint,
-    usage_policy,
     hold_to_open_required,
     hold_to_open_duration_ms,
     created_at
@@ -70,7 +69,6 @@ select
           'reason_codes', recent.reason_codes,
           'risk_score', recent.risk_score,
           'destination_fingerprint', recent.destination_fingerprint,
-          'usage_policy', recent.usage_policy,
           'hold_to_open_required', recent.hold_to_open_required,
           'hold_to_open_duration_ms', recent.hold_to_open_duration_ms,
           'created_at', recent.created_at
@@ -173,7 +171,6 @@ def _decode_recent_decisions(value: Any) -> list[ScannerDecisionRecentResponse]:
             reason_codes=_string_list(row.get("reason_codes")),
             risk_score=_optional_int_field(row.get("risk_score")),
             destination_fingerprint=row.get("destination_fingerprint"),
-            usage_policy=row.get("usage_policy"),
             hold_to_open_required=bool(row["hold_to_open_required"]),
             hold_to_open_duration_ms=_int_field(row["hold_to_open_duration_ms"]),
             created_at=_iso_timestamp(row["created_at"]),

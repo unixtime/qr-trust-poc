@@ -7,19 +7,9 @@ import {
 
 export const SCANNER_FLEET_REQUIRED_FIXTURES = [
   {
-    fixture_id: "green_reusable_public",
+    fixture_id: "green_verified_issuer",
     expected_color: "green",
     expected_state: "verified_issuer",
-  },
-  {
-    fixture_id: "green_one_time_first_pass",
-    expected_color: "green",
-    expected_state: "verified_issuer",
-  },
-  {
-    fixture_id: "red_one_time_replay",
-    expected_color: "red",
-    expected_state: "one_time_replay",
   },
   {
     fixture_id: "red_expired_qr",
@@ -322,18 +312,18 @@ const assertFingerprint = (value: string, label: string): void => {
 
 // Decision states whose path returns before destination binding is ever
 // evaluated, so an evidence row in one of these states cannot attest to it:
-//   one_time_replay  - narrowed verifier returns at the replay_guard stage
-//                      before match_payload_to_verified_domains runs
-//   expired          - the time_window stage returns before any payload match
-//   profile_revoked  - the certificate_status stage returns first
+//   expired            - the time_window stage returns before any payload match
+//   stale_trust_state  - the governance cache stage returns first
+//   profile_revoked    - the certificate_status stage returns first
 //   plain_url_unrecognized / verifier_unavailable_visible_destination
-//                    - no verified issuer profile to bind a destination against
+//                      - no verified issuer profile to bind a destination against
 // The verifier reports destination_binding as "not_evaluated" for each of
-// them. profile_stale is deliberately absent: a stale cache still binds the
-// destination against the cached profile and does emit destination_bound.
+// them. profile_stale is deliberately absent: there the verifier reports the
+// binding as "unverified" — a destination was read but not checked against
+// current issuer policy — which is not the same as never reaching the check.
 const DESTINATION_BINDING_NOT_EVALUATED_STATES: ReadonlySet<string> = new Set([
-  "one_time_replay",
   "expired",
+  "stale_trust_state",
   "profile_revoked",
   "plain_url_unrecognized",
   "verifier_unavailable_visible_destination",

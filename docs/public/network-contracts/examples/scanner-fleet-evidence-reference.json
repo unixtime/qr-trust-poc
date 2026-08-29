@@ -16,19 +16,9 @@
   "scanner_decision_endpoint_fingerprint": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
   "fixture_matrix": [
     {
-      "fixture_id": "green_reusable_public",
+      "fixture_id": "green_verified_issuer",
       "expected_color": "green",
       "expected_state": "verified_issuer"
-    },
-    {
-      "fixture_id": "green_one_time_first_pass",
-      "expected_color": "green",
-      "expected_state": "verified_issuer"
-    },
-    {
-      "fixture_id": "red_one_time_replay",
-      "expected_color": "red",
-      "expected_state": "one_time_replay"
     },
     {
       "fixture_id": "red_expired_qr",
@@ -68,8 +58,8 @@
   ],
   "evidence_rows": [
     {
-      "fixture_id": "green_reusable_public",
-      "decision_id": "decision_green_reusable_public_001",
+      "fixture_id": "green_verified_issuer",
+      "decision_id": "decision_green_verified_issuer_001",
       "scanner_client_id": "scanner-ios-reference-001",
       "scanner_build": "ios-reference-0.1.0",
       "profile_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
@@ -86,53 +76,9 @@
       "hold_required": false,
       "hold_completed": false,
       "observed_at": "2026-05-20T00:01:00Z",
-      "screenshot_ref": "docs/public/evidence/iphone/accepted-reusable-public.png",
-      "history_entry_ref": "docs/public/evidence/iphone/history-accepted-reusable-public.png",
-      "accessibility_ref": "docs/public/evidence/iphone/accessibility-accepted-reusable-public.txt"
-    },
-    {
-      "fixture_id": "green_one_time_first_pass",
-      "decision_id": "decision_green_one_time_first_pass_001",
-      "scanner_client_id": "scanner-ios-reference-001",
-      "scanner_build": "ios-reference-0.1.0",
-      "profile_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "decision_color": "green",
-      "decision_state": "verified_issuer",
-      "reason_codes": [
-        "issuer_recognized",
-        "destination_bound",
-        "nonce_fresh",
-        "runtime_clear"
-      ],
-      "domain_fingerprint": "acm...ple.example",
-      "opened_by_user": true,
-      "hold_required": false,
-      "hold_completed": false,
-      "observed_at": "2026-05-20T00:02:00Z",
-      "screenshot_ref": "docs/public/evidence/iphone/accepted-one-time-first-pass.png",
-      "history_entry_ref": "docs/public/evidence/iphone/history-accepted-one-time-first-pass.png",
-      "accessibility_ref": "docs/public/evidence/iphone/accessibility-accepted-one-time-first-pass.txt"
-    },
-    {
-      "fixture_id": "red_one_time_replay",
-      "decision_id": "decision_red_one_time_replay_001",
-      "scanner_client_id": "scanner-ios-reference-001",
-      "scanner_build": "ios-reference-0.1.0",
-      "profile_fingerprint": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-      "decision_color": "red",
-      "decision_state": "one_time_replay",
-      "reason_codes": [
-        "issuer_recognized",
-        "nonce_replayed"
-      ],
-      "domain_fingerprint": "acm...ple.example",
-      "opened_by_user": false,
-      "hold_required": true,
-      "hold_completed": false,
-      "observed_at": "2026-05-20T00:03:00Z",
-      "screenshot_ref": "docs/public/evidence/iphone/replay-guard.png",
-      "history_entry_ref": "docs/public/evidence/iphone/history-replay-guard.png",
-      "accessibility_ref": "docs/public/evidence/iphone/accessibility-replay-guard.txt"
+      "screenshot_ref": "docs/public/evidence/iphone/accepted.png",
+      "history_entry_ref": "docs/public/evidence/iphone/history-accepted.png",
+      "accessibility_ref": "docs/public/evidence/iphone/accessibility-accepted.txt"
     },
     {
       "fixture_id": "red_expired_qr",

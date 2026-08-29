@@ -90,7 +90,7 @@ check_artifact() {
   check_png_dimensions "$artifact"
 
   case "$slug:$stage" in
-    accepted:accepted|replay-guard:replay_guard|payload-mismatch:payload_revalidation)
+    accepted:accepted|payload-mismatch:payload_revalidation)
       pass "${slug} documents expected verifier stage ${stage}"
       ;;
     runtime-risky:runtime_safety|stale-cache:governance_cache)
@@ -105,7 +105,6 @@ check_artifact() {
 printf "Checking browser evidence in %s\n" "$EVIDENCE_DIR"
 
 check_artifact "accepted" "accepted"
-check_artifact "replay-guard" "replay_guard"
 check_artifact "payload-mismatch" "payload_revalidation"
 check_artifact "runtime-risky" "runtime_safety"
 check_artifact "stale-cache" "governance_cache"

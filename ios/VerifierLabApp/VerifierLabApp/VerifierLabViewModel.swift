@@ -818,7 +818,9 @@ final class VerifierLabViewModel: ObservableObject {
             tone: tone,
             title: title(for: tone, decision: decision),
             message: message(for: tone, decision: decision),
-            usagePolicy: decision.usagePolicy,
+            envelopeId: decision.envelopeId,
+            residualVector: decision.residualVector,
+            modelDecision: decision.modelDecision,
             destination: decision.destination.displayURL,
             host: decision.destination.host,
             checkedAt: Date(),
@@ -904,7 +906,7 @@ final class VerifierLabViewModel: ObservableObject {
                 title: String(localized: "Runtime safety"),
                 state: runtimeState,
                 message: signal(in: decision, layer: "runtime_safety")?.message
-                    ?? signalMessage(in: decision, matching: ["runtime", "replay", "time", "signature"])
+                    ?? signalMessage(in: decision, matching: ["runtime", "time", "signature"])
                     ?? runtimeLayerMessage(for: decision),
                 tone: runtimeTone
             ),
@@ -921,7 +923,7 @@ final class VerifierLabViewModel: ObservableObject {
 
     /// The only per-layer states the verifier emits for a layer it actually reached
     /// and passed. Everything else — `not_evaluated`, `not_opened`, `revoked`,
-    /// `mismatch`, `replay_blocked`, `risky`, `stale`, `unavailable` — means the
+    /// `mismatch`, `risky`, `stale`, `unavailable` — means the
     /// layer was skipped or failed, and must never be presented as trusted.
     private static let passingLayerStates: Set<String> = ["recognized", "bound", "clean"]
 
@@ -940,7 +942,6 @@ final class VerifierLabViewModel: ObservableObject {
     private static let blockingLayerStates: Set<String> = [
         "revoked",
         "blocked",
-        "replay_blocked",
         "mismatch",
         "redirect_mismatch",
         "not_opened",
@@ -1241,8 +1242,6 @@ final class VerifierLabViewModel: ObservableObject {
         switch decision.verifierStage {
         case "governance_cache":
             return decision.decisionState == "blocked" ? String(localized: "Expired") : String(localized: "Stale")
-        case "replay_guard":
-            return String(localized: "Already used")
         case "time_window":
             return String(localized: "Expired")
         case "signed_schema":
@@ -1267,7 +1266,7 @@ final class VerifierLabViewModel: ObservableObject {
             return decision.decisionState == "blocked" ? .blocked : .caution
         case "governance_cache":
             return overallTone
-        case "replay_guard", "time_window", "signed_schema", "payload_revalidation", "redirect_policy", "certificate_status":
+        case "time_window", "signed_schema", "payload_revalidation", "redirect_policy", "certificate_status":
             return .blocked
         default:
             return clamped(
@@ -1283,8 +1282,6 @@ final class VerifierLabViewModel: ObservableObject {
             return decision.primaryMessage.isEmpty
                 ? String(localized: "Required trust state is not fresh enough to produce a positive scanner decision.")
                 : decision.primaryMessage
-        case "replay_guard":
-            return String(localized: "The verifier detected a one-time QR replay condition.")
         case "time_window":
             return String(localized: "The QR is outside its valid time window.")
         case "signed_schema":
@@ -1374,8 +1371,6 @@ final class VerifierLabViewModel: ObservableObject {
             switch decision.verifierStage {
             case "governance_cache":
                 return String(localized: "Trust state expired")
-            case "replay_guard":
-                return String(localized: "One-time QR used")
             case "payload_revalidation":
                 return String(localized: "Destination changed")
             case "redirect_policy":
@@ -1397,16 +1392,7 @@ final class VerifierLabViewModel: ObservableObject {
     private func message(for tone: TrustTone, decision: ScannerDecisionResponse) -> String {
         switch tone {
         case .trusted:
-            switch decision.usagePolicy {
-            case "reusable_public":
-                return String(localized: "This shared QR is still approved by the issuer and can be opened.")
-            case "time_limited":
-                return String(localized: "This QR is still within its valid time window and matches the approved destination.")
-            case "one_time":
-                return String(localized: "This one-time QR matched a recognized issuer and approved destination.")
-            default:
-                return String(localized: "This QR matched a recognized issuer and approved destination.")
-            }
+            return String(localized: "This QR matched a recognized issuer and approved destination.")
         case .caution:
             if decision.decisionState == "profile_stale" {
                 return String(localized: "The app's verifier profile needs refresh. A destination was found, but current issuer and destination trust were not confirmed.")
@@ -1428,8 +1414,6 @@ final class VerifierLabViewModel: ObservableObject {
             switch decision.verifierStage {
             case "governance_cache":
                 return String(localized: "Required trust state has expired. Ask for a fresh or trusted QR before continuing.")
-            case "replay_guard":
-                return String(localized: "This one-time QR may already have been used. Ask for a fresh QR before continuing.")
             case "payload_revalidation":
                 return String(localized: "The destination no longer matches what the issuer approved. Opening anyway may not be safe.")
             case "redirect_policy":

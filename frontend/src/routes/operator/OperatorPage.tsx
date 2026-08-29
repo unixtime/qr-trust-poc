@@ -14,6 +14,7 @@ import AccessControlSection from "@/routes/operator/components/AccessControlSect
 import ManagementWorkflowSection from "@/routes/operator/components/ManagementWorkflowSection"
 import RuntimeMetric from "@/routes/operator/components/RuntimeMetric"
 import RuntimePostureSection from "@/routes/operator/components/RuntimePostureSection"
+import TrustStoreSection from "@/routes/operator/components/TrustStoreSection"
 import { useOperatorController } from "@/routes/operator/useOperatorController"
 
 type OperatorPageProps = {
@@ -162,6 +163,12 @@ function OperatorPage({ onNavigate }: OperatorPageProps) {
               apiKeyHeader={controller.apiKeyHeader}
               adminHeader={controller.adminHeader}
               onRefresh={() => void controller.loadRuntimeStatus()}
+            />
+            <TrustStoreSection
+              trustStore={controller.trustStore}
+              message={controller.trustStoreMessage}
+              isLoading={controller.isLoadingTrustStore}
+              onRefresh={() => void controller.loadTrustStore()}
             />
           </section>
         ) : activeTab === "access" ? (

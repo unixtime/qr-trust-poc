@@ -77,13 +77,14 @@ def main() -> None:
 
         demo_response = client.post(
             "/verifier/demo-materials",
-            json={"nonce": "smoke-live-http-001", "usage_policy": "one_time"},
+            json={"payload": "https://acme.example/pay"},
             headers={api_key_header: api_key},
         )
         if demo_response.status_code != 200:
             _fail(f"demo-materials request failed: {demo_response.status_code} {demo_response.text}")
 
         demo_payload = demo_response.json()
+        envelope_id = demo_payload["envelope_id"]
         verify_body = {
             "qr_payload": demo_payload["qr_payload"],
             "certificate": demo_payload["certificate"],
@@ -109,13 +110,35 @@ def main() -> None:
         first_payload = first_verify.json()
         second_payload = second_verify.json()
 
+        # Verification is a fresh judgement of the same envelope every time, so
+        # the second scan of one poster reaches the same verdict as the first.
         if first_payload["stage"] != "accepted":
             _fail(f"expected first verify to be accepted, got {first_payload}")
-        if second_payload["stage"] != "replay_guard":
-            _fail(f"expected second verify to be replay_guard, got {second_payload}")
+        if second_payload["stage"] != "accepted":
+            _fail(f"expected second verify to be accepted, got {second_payload}")
+
+        activity_response = client.get(
+            "/verifier/scan-activity",
+            params={"envelope_id": envelope_id},
+            headers={api_key_header: api_key},
+        )
+        if activity_response.status_code != 200:
+            _fail(
+                "scan-activity request failed: "
+                f"{activity_response.status_code} {activity_response.text}"
+            )
+        activity_payload = activity_response.json()
+        # The card keys off the fingerprint the envelope id opens with, so a
+        # mismatch here means the scan history is being read for another code.
+        if not envelope_id.startswith(activity_payload["envelope_fingerprint"]):
+            _fail(
+                "scan-activity answered for another envelope: "
+                f"{activity_payload}"
+            )
 
         print("first_verify", first_payload)
         print("second_verify", second_payload)
+        print("scan_activity", activity_payload)
         print("live HTTP smoke passed")
 
 

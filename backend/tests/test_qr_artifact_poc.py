@@ -138,12 +138,10 @@ def test_qr_artifact_roundtrip_through_png_decode() -> None:
     now = datetime.now(timezone.utc)
     claims = parse_claims_mapping(
         {
-            "version": "1",
-            "usage_policy": "reusable_public",
+            "version": "2",
             "certificate_ref": certificate.certificate_ref,
             "issued_at": (now - timedelta(minutes=1)).isoformat(),
             "expires_at": (now + timedelta(minutes=5)).isoformat(),
-            "nonce": "qr-artifact-roundtrip-001",
             "payload": "https://acme.example/pay",
         }
     )
@@ -167,12 +165,10 @@ def test_analyze_qr_artifact_reports_clean_signed_envelope() -> None:
     now = datetime.now(timezone.utc)
     claims = parse_claims_mapping(
         {
-            "version": "1",
-            "usage_policy": "reusable_public",
+            "version": "2",
             "certificate_ref": certificate.certificate_ref,
             "issued_at": (now - timedelta(minutes=1)).isoformat(),
             "expires_at": (now + timedelta(minutes=5)).isoformat(),
-            "nonce": "qr-artifact-analysis-001",
             "payload": "https://acme.example/pay",
         }
     )

@@ -9,7 +9,6 @@ Security reports are in scope when they affect tracked public code or documented
 reference behavior, including:
 
 - verifier decision logic
-- replay-guard behavior
 - payload revalidation
 - signed-schema handling
 - API key administration

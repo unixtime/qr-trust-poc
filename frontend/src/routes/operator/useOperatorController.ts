@@ -25,6 +25,7 @@ import {
   type RuntimeProviderUpsertResponse,
   storeVerifierApiKey,
   type TrustKeyMutationResponse,
+  type TrustStoreResponse,
   VerifierApiError,
   type VerifierStatus,
 } from "@/lib/verifier-client"
@@ -91,6 +92,9 @@ export function useOperatorController() {
     ManagementRuntimeProviderRecord[]
   >([])
   const [isLoadingStatus, setIsLoadingStatus] = useState(false)
+  const [trustStore, setTrustStore] = useState<TrustStoreResponse | null>(null)
+  const [trustStoreMessage, setTrustStoreMessage] = useState<MessageState | null>(null)
+  const [isLoadingTrustStore, setIsLoadingTrustStore] = useState(false)
   const [isRefreshingKeys, setIsRefreshingKeys] = useState(false)
   const [isRefreshingManagementKeys, setIsRefreshingManagementKeys] = useState(false)
   const [isIssuingKey, setIsIssuingKey] = useState(false)
@@ -150,6 +154,33 @@ export function useOperatorController() {
     }
   }
 
+  async function loadTrustStore() {
+    setIsLoadingTrustStore(true)
+    try {
+      // Operator-only listing, gated like /verifier/status: send the same
+      // credential the status fetch sends, or an auth-enabled deployment
+      // answers 403 and the panel reports a failure it could have avoided.
+      const listing = await requestJson<TrustStoreResponse>("/verifier/trust-store", {
+        adminToken: adminToken.trim() || undefined,
+        adminHeader,
+      })
+      setTrustStore(listing)
+      setTrustStoreMessage(null)
+    } catch (error) {
+      setTrustStoreMessage({
+        title: t("operator.trustStore.failed.title"),
+        body: summariseError(error),
+        tone: "blocked",
+      })
+    } finally {
+      setIsLoadingTrustStore(false)
+    }
+  }
+
+  // Same Effect Event pattern as the status poller: the mount effect below keeps
+  // its empty dependency list and still calls the current function.
+  const fetchTrustStore = useEffectEvent(loadTrustStore)
+
   const pollRuntimeStatus = useEffectEvent(loadRuntimeStatus)
 
   // Mount-only on purpose. `pollRuntimeStatus` is an Effect Event, so it already
@@ -160,6 +191,7 @@ export function useOperatorController() {
   useEffect(() => {
     const initialPollTimer = window.setTimeout(() => {
       void pollRuntimeStatus()
+      void fetchTrustStore()
     }, 0)
     const timer = window.setInterval(() => {
       void pollRuntimeStatus({ reportErrors: false })
@@ -766,12 +798,15 @@ export function useOperatorController() {
     latestIssuedManagementKey,
     sharedLabKey,
     statusMessage,
+    trustStore,
+    trustStoreMessage,
     accessMessage,
     managementMessage,
     managementOutbox,
     managementAudit,
     runtimeProviders,
     isLoadingStatus,
+    isLoadingTrustStore,
     isRefreshingKeys,
     isRefreshingManagementKeys,
     isIssuingKey,
@@ -792,6 +827,7 @@ export function useOperatorController() {
     setManagementKeyLabel,
     setManagementKeyScopes,
     loadRuntimeStatus,
+    loadTrustStore,
     refreshKeys,
     refreshManagementKeys,
     loadManagementEvidence,

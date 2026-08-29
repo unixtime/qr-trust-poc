@@ -93,7 +93,8 @@ Suggested UX:
 Meaning:
 - revoked issuer
 - malformed signed state
-- replay/policy failure in a controlled environment
+- unsupported claims version
+- expired envelope (the `freshness` family blocks past `expires_at`)
 - known malicious destination
 
 Suggested UX:
@@ -128,13 +129,35 @@ across artifacts, and the differences are presentation only.
 | 1 Unverified | `unverified` | |
 | 2 Signed, unaccepted issuer | `signed_unknown_issuer` | legacy label, retained for compatibility |
 | 3 Verified issuer | `verified_issuer` | |
-| 4 Destination changed | *(none assigned)* | see Status above |
 | 5 Destination risky | `verified_issuer_destination_risky` | |
 | 6 Blocked | `blocked` | several distinct causes collapse here |
+| Stale trust state | `stale_trust_state` | amber; rendered "Stale trust state" — signed by a recognized issuer, but the verifier's governance cache is stale |
+| Verifier profile stale | `profile_stale` | amber; this scanner's verifier profile is past its refresh window |
+| Verifier profile revoked | `profile_revoked` | red; this scanner's verifier profile has been revoked |
+
+State 4 has no wire label yet and therefore no row; see its Status above.
 
 State 6 is the one place where collapsing is correct: the causes differ, but
 the required user action — do not proceed — does not. Every other state earns
 its own wording.
+
+## Residual Vector
+
+Every scanner decision carries a `residual_vector`: six families, always in
+this order.
+
+`issuer_chain, destination_policy, redirect_flow, runtime_safety, freshness,
+artifact_integrity`
+
+Each entry is `{tier, cause}`. The UI marks the family with the
+highest-ranked tier as the deciding one; ties go to the first family in that
+order. Tiers are ranked on the evidence lattice
+`pass < unknown < stale < warn < fail < block` (see
+[Trust-residual decision semantics](TRUST_RESIDUALS_DECISION_SEMANTICS.md),
+*The residual vector*), so the deciding family is the one whose tier sits
+furthest to the right. Alongside it the response carries `model_decision`,
+which the UI reads for `primary_state`, `attention_level` and its
+annotations.
 
 ## UX Principle
 

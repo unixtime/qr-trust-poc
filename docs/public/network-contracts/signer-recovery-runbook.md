@@ -137,9 +137,10 @@ Verifier behavior:
 2. Publish an issuer-scoped status event.
 3. Identify whether the compromise affects all QR artifacts, one destination
    policy, or one generator client.
-4. Revoke one-time QR artifacts when replay or credential theft is plausible.
-5. Keep reusable public QR codes valid only if destination policy and runtime
-   safety remain acceptable.
+4. Revoke signed QR artifacts, or close their validity window, when credential
+   theft is plausible.
+5. Keep remaining signed QR artifacts valid only if destination policy and
+   runtime safety remain acceptable.
 6. Require issuer revalidation before restoring green for affected destinations.
 
 Verifier behavior:

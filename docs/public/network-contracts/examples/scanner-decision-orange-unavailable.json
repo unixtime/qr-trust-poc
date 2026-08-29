@@ -44,5 +44,43 @@
   },
   "cache_freshness": {
     "status": "unavailable"
+  },
+  "envelope_id": "e8a4b91b0056869a9b95888009b5ebbc2f280fe426d62d9ddd64a846f20ec3ff",
+  "residual_vector": {
+    "issuer_chain": {
+      "tier": "not-checked",
+      "cause": null
+    },
+    "destination_policy": {
+      "tier": "not-checked",
+      "cause": null
+    },
+    "redirect_flow": {
+      "tier": "not-applicable",
+      "cause": null
+    },
+    "runtime_safety": {
+      "tier": "unavailable",
+      "cause": "runtime-unavailable"
+    },
+    "freshness": {
+      "tier": "unavailable",
+      "cause": null
+    },
+    "artifact_integrity": {
+      "tier": "pass",
+      "cause": null
+    }
+  },
+  "model_decision": {
+    "profile": "bounded-online",
+    "primary_state": "unverified",
+    "annotations": [
+      "incomplete-verification-warning"
+    ],
+    "reason_codes": [
+      "unmodeled-residual-combination"
+    ],
+    "attention_level": "warning"
   }
 }

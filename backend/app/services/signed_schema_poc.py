@@ -21,27 +21,15 @@ from typing import Any, Mapping
 from backend.app.core.security import generate_key_pair, sign_payload, verify_signature
 
 
-CANONICAL_CLAIM_ORDER = (
+CANONICAL_CLAIM_ORDER: tuple[str, ...] = (
     "version",
-    "usage_policy",
     "certificate_ref",
     "issued_at",
     "expires_at",
-    "nonce",
     "payload",
 )
-
 SUPPORTED_ALGORITHM_ID = "rsa-pss-sha256-v1"
-USAGE_POLICY_REUSABLE_PUBLIC = "reusable_public"
-USAGE_POLICY_ONE_TIME = "one_time"
-USAGE_POLICY_TIME_LIMITED = "time_limited"
-SUPPORTED_USAGE_POLICIES = frozenset(
-    {
-        USAGE_POLICY_REUSABLE_PUBLIC,
-        USAGE_POLICY_ONE_TIME,
-        USAGE_POLICY_TIME_LIMITED,
-    }
-)
+SUPPORTED_CLAIMS_VERSION = "2"
 
 
 class SignedSchemaError(ValueError):
@@ -59,11 +47,9 @@ class CertificateAuthorityRecord:
 @dataclass(frozen=True)
 class SignedQRCodeClaims:
     version: str
-    usage_policy: str
     certificate_ref: str
     issued_at: str
-    expires_at: str
-    nonce: str
+    expires_at: str | None
     payload: str
 
 
@@ -82,7 +68,11 @@ class VerificationDecision:
     certificate_algorithm_id: str
 
 
-def _parse_timestamp(label: str, value: str) -> datetime:
+def parse_claim_timestamp(label: str, value: object) -> datetime:
+    """Parse one ISO-8601 claim timestamp. Timezone-aware strings only."""
+    if not isinstance(value, str):
+        raise SignedSchemaError(f"Field '{label}' must be an ISO-8601 timestamp")
+
     normalized = value.strip()
     if normalized.endswith("Z"):
         normalized = normalized[:-1] + "+00:00"
@@ -90,10 +80,13 @@ def _parse_timestamp(label: str, value: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
-        raise SignedSchemaError(f"Field '{label}' must be an ISO-8601 timestamp") from exc
+        raise SignedSchemaError(
+            f"Field '{label}' must be an ISO-8601 timestamp"
+        ) from exc
 
     if parsed.tzinfo is None:
         raise SignedSchemaError(f"Field '{label}' must include timezone information")
+
     return parsed
 
 
@@ -107,16 +100,6 @@ def _require_non_empty_string(label: str, value: Any) -> str:
     return normalized
 
 
-def _parse_usage_policy(value: Any) -> str:
-    usage_policy = _require_non_empty_string("usage_policy", value)
-    if usage_policy not in SUPPORTED_USAGE_POLICIES:
-        allowed = sorted(SUPPORTED_USAGE_POLICIES)
-        raise SignedSchemaError(
-            f"Field 'usage_policy' must be one of: {allowed}"
-        )
-    return usage_policy
-
-
 def parse_claims_mapping(data: Mapping[str, Any]) -> SignedQRCodeClaims:
     """
     Parse a mapping into the exact signed-claims contract.
@@ -124,36 +107,43 @@ def parse_claims_mapping(data: Mapping[str, Any]) -> SignedQRCodeClaims:
     The parser is strict on purpose. Unknown fields are rejected so the verifier
     contract is explicit and deterministic.
     """
-    keys = set(data.keys())
-    required = set(CANONICAL_CLAIM_ORDER)
-    missing = [field for field in CANONICAL_CLAIM_ORDER if field not in keys]
-    extras = sorted(keys - required)
-
+    missing = [field for field in CANONICAL_CLAIM_ORDER if field not in data]
     if missing:
         raise SignedSchemaError(f"Missing required signed claim fields: {missing}")
+    # The version check runs before the unknown-field check on purpose: an
+    # envelope from an older claims version carries fields this contract has
+    # since dropped, and the honest diagnosis is the unsupported version, not
+    # the fields that version legitimately carried.
+    version = _require_non_empty_string("version", data["version"])
+    if version != SUPPORTED_CLAIMS_VERSION:
+        raise SignedSchemaError(
+            f"Field 'version' must be exactly '{SUPPORTED_CLAIMS_VERSION}' for this PoC"
+        )
+    extras = sorted(set(data) - set(CANONICAL_CLAIM_ORDER))
     if extras:
         raise SignedSchemaError(f"Unknown signed claim fields are not allowed: {extras}")
 
-    version = _require_non_empty_string("version", data["version"])
-    if version != "1":
-        raise SignedSchemaError("Field 'version' must be exactly '1' for this PoC")
+    certificate_ref = _require_non_empty_string("certificate_ref", data["certificate_ref"])
+    issued_at = parse_claim_timestamp("issued_at", data["issued_at"])
 
-    claims = SignedQRCodeClaims(
+    raw_expires_at = data["expires_at"]
+    if raw_expires_at is None:
+        expires_at_value: str | None = None
+    else:
+        expires_at = parse_claim_timestamp("expires_at", raw_expires_at)
+        if expires_at <= issued_at:
+            raise SignedSchemaError("Field 'expires_at' must be later than 'issued_at'")
+        expires_at_value = str(raw_expires_at)
+
+    payload = _require_non_empty_string("payload", data["payload"])
+
+    return SignedQRCodeClaims(
         version=version,
-        usage_policy=_parse_usage_policy(data["usage_policy"]),
-        certificate_ref=_require_non_empty_string("certificate_ref", data["certificate_ref"]),
-        issued_at=_require_non_empty_string("issued_at", data["issued_at"]),
-        expires_at=_require_non_empty_string("expires_at", data["expires_at"]),
-        nonce=_require_non_empty_string("nonce", data["nonce"]),
-        payload=_require_non_empty_string("payload", data["payload"]),
+        certificate_ref=certificate_ref,
+        issued_at=str(data["issued_at"]),
+        expires_at=expires_at_value,
+        payload=payload,
     )
-
-    issued_at = _parse_timestamp("issued_at", claims.issued_at)
-    expires_at = _parse_timestamp("expires_at", claims.expires_at)
-    if expires_at <= issued_at:
-        raise SignedSchemaError("Field 'expires_at' must be later than 'issued_at'")
-
-    return claims
 
 
 def canonicalize_claims(claims: SignedQRCodeClaims) -> str:
@@ -167,6 +157,12 @@ def canonicalize_claims(claims: SignedQRCodeClaims) -> str:
 def canonical_claims_sha256(claims: SignedQRCodeClaims) -> str:
     canonical = canonicalize_claims(claims)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def compute_envelope_id(claims: SignedQRCodeClaims, signature: str) -> str:
+    """Identity of one issued artifact: sha256(canonical claims + "." + signature)."""
+    material = canonicalize_claims(claims) + "." + signature
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def create_signed_envelope(

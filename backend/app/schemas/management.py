@@ -508,17 +508,16 @@ class ScanAccountingIssuerDayRecord(BaseModel):
     green_count: int = Field(ge=0)
     orange_count: int = Field(ge=0)
     red_count: int = Field(ge=0)
-    distinct_nonces: int = Field(ge=0)
+    distinct_envelopes: int = Field(ge=0)
 
 
 class ScanSpikeRecord(BaseModel):
-    """One nonce whose recent scan burst exceeds its own baseline."""
+    """One envelope whose recent scan burst exceeds its own baseline."""
 
-    nonce_fingerprint: str
+    envelope_fingerprint: str
     issuer_id: str | None
-    # Root program the nonce was verified under; None for unsigned payloads.
+    # Root program the envelope was verified under; None for unsigned payloads.
     root_program_id: str | None = None
-    usage_policy: str | None
     recent_count: int = Field(ge=0)
     baseline_count: int = Field(ge=0)
     # Portion of the counts above served from the verdict cache (no evidence row).

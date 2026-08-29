@@ -53,5 +53,39 @@
     "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
     "issuer_id": "issuer:acme-demo",
     "destination_policy_id": "policy:acme-demo:web-payments:v1"
+  },
+  "envelope_id": "2db730384bcab3a66661304a86a4850cb2f3768634faf783aa755f7ce34ca35a",
+  "residual_vector": {
+    "issuer_chain": {
+      "tier": "pass",
+      "cause": null
+    },
+    "destination_policy": {
+      "tier": "pass",
+      "cause": null
+    },
+    "redirect_flow": {
+      "tier": "not-applicable",
+      "cause": null
+    },
+    "runtime_safety": {
+      "tier": "pass",
+      "cause": null
+    },
+    "freshness": {
+      "tier": "pass",
+      "cause": null
+    },
+    "artifact_integrity": {
+      "tier": "pass",
+      "cause": null
+    }
+  },
+  "model_decision": {
+    "profile": "bounded-online",
+    "primary_state": "verified-issuer",
+    "annotations": [],
+    "reason_codes": [],
+    "attention_level": "positive"
   }
 }

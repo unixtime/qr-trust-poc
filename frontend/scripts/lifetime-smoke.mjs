@@ -1,138 +1,140 @@
-// Pins the demo QR lifetime to the usage policy the operator picked.
+// Validity-window invariants for the lab (spec §3, §7):
 // Run with: node --experimental-strip-types scripts/lifetime-smoke.mjs
 //
-// Invariants:
-//   1. a fresh scenario sealed as `one_time` keeps the short 5-minute window,
-//      while `reusable_public` and `time_limited` get the long one;
-//   2. the `expired` scenario stays expired whatever the policy says;
-//   3. the sign of the lifetime always matches the scenario's own offset, so
-//      `comparison.ts`'s freshness row keeps telling the truth;
-//   4. single-use codes never outlive public ones;
-//   5. `buildScenarioRequest` seals exactly what `lifetimeMinutesFor` says;
-//   6. the pre-generation hint keys exist in both catalogues;
-//   7. a `time_limited` code takes the expiry the operator picked, other
-//      policies ignore it, the expired scenario still wins, and the picker's
-//      local value round-trips through the same helper the request uses;
-//   8. the Generate step is guided: "Options" (not "Advanced"), with an
-//      explanation key per policy and nonce mode, in both catalogues.
+//   1. valid/revoked scenarios default to a 5 minute window (DEFAULT_LIFETIME_MINUTES).
+//   2. the expired scenario keeps its negative offset regardless of any custom window.
+//   3. a positive custom window replaces the default; a null one falls back.
+//   4. expiryValidation rejects past/too-far/invalid input.
+//   5. buildScenarioRequest carries no nonce and no usage_policy.
+import assert from "node:assert/strict"
 import {
+  DEFAULT_LIFETIME_MINUTES,
   MAX_LIFETIME_MINUTES,
   buildScenarioRequest,
   customExpiryMinutes,
   expiryInputValue,
   expiryValidation,
+  generateToastTitleKey,
   lifetimeMinutesFor,
   scenarioMeta,
 } from "../src/routes/lab/content.ts"
-import { en } from "../src/i18n/catalog/en.ts"
-import { es } from "../src/i18n/catalog/es.ts"
 
-const policies = ["one_time", "reusable_public", "time_limited"]
-const failures = []
-function check(condition, message) {
-  if (!condition) failures.push(message)
-}
+// --- 1-3. the validity window -----------------------------------------------
 
-check(lifetimeMinutesFor(scenarioMeta.valid, "one_time") === 5, "valid/one_time must stay at 5 minutes")
-check(lifetimeMinutesFor(scenarioMeta.valid, "reusable_public") === 60, "valid/reusable_public must get 60 minutes")
-check(lifetimeMinutesFor(scenarioMeta.valid, "time_limited") === 60, "valid/time_limited must get 60 minutes")
-for (const policy of policies) {
-  check(
-    lifetimeMinutesFor(scenarioMeta.expired, policy) === scenarioMeta.expired.expiresOffsetMinutes,
-    `expired/${policy} must keep the scenario's negative offset`,
+assert.equal(DEFAULT_LIFETIME_MINUTES, 5)
+assert.equal(lifetimeMinutesFor(scenarioMeta.valid), 5)
+assert.equal(lifetimeMinutesFor(scenarioMeta.revoked), 5)
+assert.ok(lifetimeMinutesFor(scenarioMeta.expired) < 0)
+assert.ok(lifetimeMinutesFor(scenarioMeta.expired, 30) < 0)
+assert.equal(lifetimeMinutesFor(scenarioMeta.valid, 30), 30)
+assert.equal(lifetimeMinutesFor(scenarioMeta.valid, null), 5)
+assert.equal(lifetimeMinutesFor(scenarioMeta.valid, 0), 5)
+
+// The sign of the sealed window always matches the scenario's own offset, so
+// the comparison card's freshness row keeps telling the truth.
+for (const [key, meta] of Object.entries(scenarioMeta)) {
+  const minutes = lifetimeMinutesFor(meta)
+  assert.equal(
+    Math.sign(minutes),
+    Math.sign(meta.expiresOffsetMinutes),
+    `${key}: lifetime sign must match the scenario offset (${minutes} vs ${meta.expiresOffsetMinutes})`,
+  )
+  assert.equal(
+    buildScenarioRequest(key).expires_offset_minutes,
+    minutes,
+    `${key}: request must seal the lifetime the hint shows`,
   )
 }
 
-for (const [key, meta] of Object.entries(scenarioMeta)) {
-  for (const policy of policies) {
-    const minutes = lifetimeMinutesFor(meta, policy)
-    check(
-      Math.sign(minutes) === Math.sign(meta.expiresOffsetMinutes),
-      `${key}/${policy}: lifetime sign must match the scenario offset (${minutes} vs ${meta.expiresOffsetMinutes})`,
-    )
-    check(
-      buildScenarioRequest(key, "fixed", policy).expires_offset_minutes === minutes,
-      `${key}/${policy}: request must seal the lifetime the hint shows`,
-    )
-  }
-  const oneTime = lifetimeMinutesFor(meta, "one_time")
-  for (const policy of policies) {
-    check(oneTime <= lifetimeMinutesFor(meta, policy), `${key}: one_time must not outlive ${policy}`)
-  }
+// --- 5. the request speaks claims v2 only -----------------------------------
+
+const request = buildScenarioRequest("valid", { customExpiryMinutes: 12 })
+assert.equal(request.expires_offset_minutes, 12)
+assert.equal("nonce" in request, false)
+assert.equal("usage_policy" in request, false)
+assert.equal(request.payload, scenarioMeta.valid.payload)
+
+// --- 4. the operator-picked expiry ------------------------------------------
+
+const now = Date.UTC(2026, 7, 26, 10, 0, 0)
+assert.equal(customExpiryMinutes(null, now), null)
+assert.equal(customExpiryMinutes("", now), null)
+assert.equal(customExpiryMinutes("not-a-date", now), null)
+assert.match(expiryInputValue(now), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+assert.equal(expiryValidation(null, now), null)
+assert.equal(expiryValidation(expiryInputValue(now + 5 * 60_000), now), null)
+assert.equal(expiryValidation(expiryInputValue(now - 60_000), now), "past")
+assert.equal(expiryValidation(expiryInputValue(now), now), "past")
+assert.equal(expiryValidation(expiryInputValue(now + (MAX_LIFETIME_MINUTES + 1) * 60_000), now), "tooFar")
+assert.equal(expiryValidation("not-a-date", now), "invalid")
+assert.equal(customExpiryMinutes(expiryInputValue(now + 7 * 60_000), now), 7)
+
+// The cap matches the server's bound on `expires_offset_minutes`.
+assert.equal(MAX_LIFETIME_MINUTES, 30 * 24 * 60)
+
+// --- 6. cycle-2 chips: key-rotated / key-revoked ----------------------------
+
+// Cycle-2 chips: the request builder must say key_state / rotate_key in so many
+// words, and the toast title must follow the trust echo, not the scenario name.
+const rotated = buildScenarioRequest("key-rotated")
+assert.equal(rotated.rotate_key, true)
+assert.equal(rotated.key_state, undefined)
+assert.equal(rotated.certificate_revoked, false)
+
+const keyRevoked = buildScenarioRequest("key-revoked")
+assert.equal(keyRevoked.key_state, "revoked")
+assert.equal(keyRevoked.rotate_key, false)
+assert.equal(keyRevoked.certificate_revoked, false)
+assert.equal(keyRevoked.certificate_revocation_reason, "Issuer revoked this signing key for testing.")
+
+assert.equal(buildScenarioRequest("revoked").key_state, "revoked")
+assert.equal(buildScenarioRequest("valid").key_state, undefined)
+assert.equal(buildScenarioRequest("valid").rotate_key, false)
+
+const trust = (overrides) => ({
+  key_ref: "cert:acme-demo:2026-01",
+  key_state: "active",
+  issuer_status: "active",
+  retired_key_refs: [],
+  ...overrides,
+})
+assert.equal(generateToastTitleKey(scenarioMeta["valid"], trust({})), "lab.generate.ready.title")
+assert.equal(
+  generateToastTitleKey(scenarioMeta["key-rotated"], trust({ retired_key_refs: ["cert:acme-demo:2026-01"], key_ref: "cert:acme-demo:2026-01-r2" })),
+  "lab.generate.rotated.title",
+)
+assert.equal(
+  generateToastTitleKey(scenarioMeta["key-revoked"], trust({ key_state: "revoked" })),
+  "lab.generate.keyRevoked.title",
+)
+assert.equal(
+  generateToastTitleKey(scenarioMeta["revoked"], trust({ key_state: "revoked" })),
+  "lab.generate.keyRevoked.title",
+)
+// First generation after a fresh backend: nothing retired yet, so the plain title.
+assert.equal(generateToastTitleKey(scenarioMeta["key-rotated"], trust({})), "lab.generate.ready.title")
+
+// The sealed card must surface the trust echo the backend returned.
+import { readFileSync } from "node:fs"
+const generateSource = readFileSync(
+  new URL("../src/routes/lab/steps/GenerateStep.tsx", import.meta.url),
+  "utf8",
+)
+for (const id of ["sealed-key-ref", "sealed-key-state", "sealed-retired-keys"]) {
+  assert.ok(generateSource.includes(`data-testid="${id}"`), `GenerateStep must render data-testid ${id}`)
+}
+assert.ok(generateSource.includes("demo.trust.key_ref"), "GenerateStep must render the key ref from the trust echo")
+const enSource = readFileSync(new URL("../src/i18n/catalog/en.ts", import.meta.url), "utf8")
+for (const key of [
+  "lab.generate.sealed.keyRef",
+  "lab.generate.sealed.keyState",
+  "lab.generate.sealed.keyState.active",
+  "lab.generate.sealed.keyState.retired",
+  "lab.generate.sealed.keyState.revoked",
+  "lab.generate.sealed.retiredKeys",
+  "lab.generate.sealed.retiredKeys.count",
+]) {
+  assert.ok(enSource.includes(`"${key}"`), `missing catalogue key ${key}`)
 }
 
-for (const key of ["lab.generate.lifetime.fresh", "lab.generate.lifetime.expired"]) {
-  check(typeof en[key] === "string" && en[key].length > 0, `en catalogue must define ${key}`)
-  check(typeof es[key] === "string" && es[key].length > 0, `es catalogue must define ${key}`)
-}
-check(String(en["lab.generate.lifetime.fresh"]).includes("{minutes}"), "fresh hint must interpolate {minutes}")
-check(String(es["lab.generate.lifetime.fresh"]).includes("{minutes}"), "es fresh hint must interpolate {minutes}")
-
-// --- 7. operator-picked expiry -----------------------------------------------
-
-const now = Date.parse("2026-08-26T09:00:00")
-const minute = 60_000
-check(customExpiryMinutes(null, now) === null, "no picker value means no custom expiry")
-check(customExpiryMinutes("", now) === null, "an empty picker means no custom expiry")
-check(customExpiryMinutes("not a date", now) === null, "garbage in the picker means no custom expiry")
-check(
-  customExpiryMinutes(expiryInputValue(now + 90 * minute), now) === 90,
-  "the picker value round-trips to the minutes the request seals",
-)
-check(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(expiryInputValue(now)), "picker value is datetime-local shaped")
-check(lifetimeMinutesFor(scenarioMeta.valid, "time_limited", 90) === 90, "time_limited seals the picked expiry")
-check(lifetimeMinutesFor(scenarioMeta.valid, "one_time", 90) === 5, "one_time ignores the picker")
-check(lifetimeMinutesFor(scenarioMeta.valid, "reusable_public", 90) === 60, "reusable_public ignores the picker")
-check(lifetimeMinutesFor(scenarioMeta.valid, "time_limited", null) === 60, "no pick keeps the policy default")
-check(
-  lifetimeMinutesFor(scenarioMeta.expired, "time_limited", 90) === scenarioMeta.expired.expiresOffsetMinutes,
-  "the expired scenario wins over the picker",
-)
-check(
-  buildScenarioRequest("valid", "fixed", "time_limited", { customExpiryMinutes: 90 }).expires_offset_minutes === 90,
-  "request seals the picked expiry",
-)
-check(MAX_LIFETIME_MINUTES === 30 * 24 * 60, "lifetime cap is 30 days, matching the server's bound")
-check(expiryValidation(null, now) === null, "no pick needs no validation")
-check(expiryValidation(expiryInputValue(now + 90 * minute), now) === null, "a future pick inside the cap is valid")
-check(expiryValidation(expiryInputValue(now - minute), now) === "past", "a past pick is rejected")
-check(expiryValidation(expiryInputValue(now), now) === "past", "a pick at the current minute is rejected")
-check(
-  expiryValidation(expiryInputValue(now + (MAX_LIFETIME_MINUTES + 1) * minute), now) === "tooFar",
-  "a pick past the cap is rejected",
-)
-check(expiryValidation("not a date", now) === "invalid", "garbage is rejected, not silently defaulted")
-
-// --- 8. guided step wording ------------------------------------------------
-
-const guidedKeys = [
-  "lab.generate.configure",
-  "lab.generate.options",
-  "lab.generate.usagePolicy.help.reusable_public",
-  "lab.generate.usagePolicy.help.one_time",
-  "lab.generate.usagePolicy.help.time_limited",
-  "lab.generate.nonce.help.fixed",
-  "lab.generate.nonce.help.timestamped",
-  "lab.generate.expiry.label",
-  "lab.generate.expiry.help",
-  "lab.generate.expiry.error.past",
-  "lab.generate.expiry.error.tooFar",
-  "lab.generate.expiry.error.invalid",
-  "lab.generate.lifetime.until",
-  "lab.generate.sealed.details",
-]
-for (const [name, catalog] of [["en", en], ["es", es]]) {
-  for (const key of guidedKeys) {
-    check(typeof catalog[key] === "string" && catalog[key].length > 0, `${name} catalogue must define ${key}`)
-  }
-  check(!("lab.generate.advanced" in catalog), `${name}: lab.generate.advanced must be gone`)
-  check(String(catalog["lab.generate.lifetime.until"]).includes("{when}"), `${name}: until hint interpolates {when}`)
-  check(String(catalog["lab.generate.expiry.error.tooFar"]).includes("{days}"), `${name}: tooFar names the cap in {days}`)
-}
-
-if (failures.length > 0) {
-  console.error(`lifetime smoke failed (${failures.length}):`)
-  for (const failure of failures) console.error(`  - ${failure}`)
-  process.exit(1)
-}
-console.log(`lifetime smoke ok: ${Object.keys(scenarioMeta).length} scenarios x ${policies.length} policies`)
+console.log("lifetime smoke: ok")

@@ -185,9 +185,7 @@ DEPLOYMENT_READINESS_STATUSES = {
 }
 
 SCANNER_FLEET_MINIMUM_FIXTURES = [
-    "green_reusable_public",
-    "green_one_time_first_pass",
-    "red_one_time_replay",
+    "green_verified_issuer",
     "red_expired_qr",
     "red_destination_mismatch",
     "red_resolver_final_target_mismatch",
@@ -838,11 +836,13 @@ def validate_verifier_profile_semantics(
 # Decision states whose path returns before destination binding is evaluated,
 # so an evidence row in one of these states cannot attest to it. The verifier
 # reports destination_binding as "not_evaluated" for each. profile_stale is
-# deliberately absent: a stale cache still binds against the cached profile.
+# deliberately absent: there the verifier reports the binding as "unverified"
+# (a destination was read but not checked), which is a weaker claim than
+# "destination_bound" but is not the same as never reaching the check.
 DESTINATION_BINDING_NOT_EVALUATED_STATES = frozenset(
     {
-        "one_time_replay",
         "expired",
+        "stale_trust_state",
         "profile_revoked",
         "plain_url_unrecognized",
         "verifier_unavailable_visible_destination",
@@ -1115,10 +1115,6 @@ def validate_cross_surface_qr_evidence_semantics(
         raise ContractError(
             f"{instance_path.relative_to(ROOT)} qr_artifact payload_hash must be sha256-prefixed"
         )
-
-    usage_policy = qr_artifact.get("usage_policy")
-    if usage_policy not in {"one_time", "reusable_public"}:
-        raise ContractError(f"{instance_path.relative_to(ROOT)} qr_artifact usage_policy is invalid")
 
     destination_fingerprint = qr_artifact.get("destination_fingerprint")
     if (

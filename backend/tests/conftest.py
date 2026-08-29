@@ -9,6 +9,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 import httpx
 import pytest
@@ -40,6 +41,18 @@ def _pick_unused_port() -> int:
         return int(sock.getsockname()[1])
 
 
+def _reset_demo_keys(verifier_endpoint: ModuleType) -> None:
+    """Trim the demo issuer's append-only key list back to its first keypair.
+
+    `_demo_keys` is process-global and never shrinks in production, so without
+    this a test that rotates leaves the next test issuing under `...-rN` and any
+    assertion naming a concrete ref becomes order-dependent. The first entry is
+    kept rather than emptying the list: it is the process-stable base ref, and
+    dropping it would pay for a fresh RSA keypair in every test.
+    """
+    del verifier_endpoint._demo_keys[1:]
+
+
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     from backend.app.api.endpoints import verifier as verifier_endpoint
@@ -54,18 +67,18 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
     monkeypatch.setattr(redis_service, "disconnect", _noop)
     monkeypatch.setattr(redis_service, "redis_client", None)
     monkeypatch.setattr(config, "REDIS_STARTUP_ENABLED", False)
-    verifier_endpoint._replay_guard._records.clear()
-    verifier_endpoint._scanner_trust_records.clear()
+    verifier_endpoint._scanner_trust_store.clear()
     verifier_endpoint._verdict_cache.clear()
+    _reset_demo_keys(verifier_endpoint)
     app.dependency_overrides = {}
 
     with TestClient(app) as test_client:
         yield test_client
 
-    verifier_endpoint._replay_guard._records.clear()
     verifier_endpoint._request_rate_limiter._records.clear()
-    verifier_endpoint._scanner_trust_records.clear()
+    verifier_endpoint._scanner_trust_store.clear()
     verifier_endpoint._verdict_cache.clear()
+    _reset_demo_keys(verifier_endpoint)
 
 
 DB_USER = "qr_admin"

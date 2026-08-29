@@ -16,7 +16,7 @@ def test_live_http_verifier_flow(
 
     missing_key_response = live_http_client.post(
         "/verifier/demo-materials",
-        json={"nonce": "live-http-missing-key"},
+        json={},
     )
     assert missing_key_response.status_code == 401
 
@@ -30,7 +30,7 @@ def test_live_http_verifier_flow(
 
     demo_response = live_http_client.post(
         "/verifier/demo-materials",
-        json={"nonce": "live-http-valid", "usage_policy": "one_time"},
+        json={},
         headers={"X-API-Key": issued_key},
     )
     assert demo_response.status_code == 200
@@ -48,7 +48,7 @@ def test_live_http_verifier_flow(
     assert verify_response.status_code == 200
     assert verify_response.json()["stage"] == "accepted"
 
-    replay_response = live_http_client.post(
+    repeat_response = live_http_client.post(
         "/verifier/verify-scanned",
         json={
             "qr_payload": demo_payload["qr_payload"],
@@ -57,5 +57,5 @@ def test_live_http_verifier_flow(
         },
         headers={"X-API-Key": issued_key},
     )
-    assert replay_response.status_code == 200
-    assert replay_response.json()["stage"] == "replay_guard"
+    assert repeat_response.status_code == 200
+    assert repeat_response.json()["stage"] == "accepted"

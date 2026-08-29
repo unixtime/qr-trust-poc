@@ -354,10 +354,76 @@ struct ScannerDecisionUX: Codable, Equatable {
     }
 }
 
+struct ResidualEntry: Codable, Equatable {
+    let tier: String
+    let cause: String?
+}
+
+struct ModelDecision: Codable, Equatable {
+    let profile: String
+    let primaryState: String
+    let annotations: [String]
+    let reasonCodes: [String]
+    let attentionLevel: String
+
+    enum CodingKeys: String, CodingKey {
+        case profile
+        case primaryState = "primary_state"
+        case annotations
+        case reasonCodes = "reason_codes"
+        case attentionLevel = "attention_level"
+    }
+}
+
+enum ResidualFamilies {
+    static let order = [
+        "issuer_chain",
+        "destination_policy",
+        "redirect_flow",
+        "runtime_safety",
+        "freshness",
+        "artifact_integrity"
+    ]
+
+    static func label(_ family: String) -> String {
+        switch family {
+        case "issuer_chain": return "Issuer chain"
+        case "destination_policy": return "Destination policy"
+        case "redirect_flow": return "Redirect flow"
+        case "runtime_safety": return "Runtime safety"
+        case "freshness": return "Freshness"
+        case "artifact_integrity": return "Artifact integrity"
+        default: return family
+        }
+    }
+
+    static func rank(_ tier: String) -> Int {
+        switch tier {
+        case "pass", "not-applicable": return 0
+        case "not-checked", "unknown", "unavailable": return 1
+        case "stale": return 2
+        case "warn": return 3
+        case "fail", "unaccepted-issuer": return 4
+        case "invalid-managed-claim", "revoked-issuer", "block": return 5
+        default: return 4
+        }
+    }
+
+    static func symbol(_ tier: String) -> String {
+        switch rank(tier) {
+        case 0: return tier == "pass" ? "checkmark.circle.fill" : "minus.circle"
+        case 1, 2, 3: return "exclamationmark.triangle.fill"
+        default: return "xmark.octagon.fill"
+        }
+    }
+}
+
 struct ScannerDecisionResponse: Decodable {
     let decisionState: String
     let openAllowed: Bool
-    let usagePolicy: String?
+    let envelopeId: String?
+    let residualVector: [String: ResidualEntry]
+    let modelDecision: ModelDecision?
     let primaryMessage: String
     let issuer: ScannerDecisionIssuer
     let destination: ScannerDecisionDestination
@@ -372,7 +438,9 @@ struct ScannerDecisionResponse: Decodable {
     enum CodingKeys: String, CodingKey {
         case decisionState = "decision_state"
         case openAllowed = "open_allowed"
-        case usagePolicy = "usage_policy"
+        case envelopeId = "envelope_id"
+        case residualVector = "residual_vector"
+        case modelDecision = "model_decision"
         case primaryMessage = "primary_message"
         case issuer
         case destination
@@ -413,7 +481,9 @@ struct ScanResult: Identifiable, Equatable, Codable {
     let tone: TrustTone
     let title: String
     let message: String
-    let usagePolicy: String?
+    let envelopeId: String?
+    let residualVector: [String: ResidualEntry]?
+    let modelDecision: ModelDecision?
     let destination: String?
     let host: String?
     let checkedAt: Date
@@ -466,7 +536,9 @@ struct ScanResult: Identifiable, Equatable, Codable {
         tone: TrustTone,
         title: String,
         message: String,
-        usagePolicy: String? = nil,
+        envelopeId: String? = nil,
+        residualVector: [String: ResidualEntry]? = nil,
+        modelDecision: ModelDecision? = nil,
         destination: String?,
         host: String?,
         checkedAt: Date,
@@ -488,7 +560,9 @@ struct ScanResult: Identifiable, Equatable, Codable {
         self.tone = tone
         self.title = title
         self.message = message
-        self.usagePolicy = usagePolicy
+        self.envelopeId = envelopeId
+        self.residualVector = residualVector
+        self.modelDecision = modelDecision
         self.destination = destination
         self.host = host
         self.checkedAt = checkedAt
@@ -511,7 +585,6 @@ struct ScanResult: Identifiable, Equatable, Codable {
         tone: .idle,
         title: String(localized: "Ready to scan"),
         message: String(localized: "Scan a QR code to check whether it is safe to open."),
-        usagePolicy: nil,
         destination: nil,
         host: nil,
         checkedAt: Date(),

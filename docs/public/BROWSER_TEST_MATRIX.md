@@ -45,13 +45,13 @@ Entry points:
 
 For each browser/device, validate:
 
-1. `Valid first scan`
-   - with `Reusable public QR`, repeated verification returns `accepted`
-   - with `One-time QR`, first verification returns `accepted` and repeat verification returns `replay_guard`
+1. `Valid scan`
+   - repeat verification of one envelope returns `accepted` again while inside
+     its validity window; an expired envelope returns the `freshness` block
 2. `Expired credential`
    - verification returns `time_window`
 3. `Revoked certificate`
-   - verification returns `certificate_status`
+   - verification returns `issuer_status`
 4. `Subdomain allowed`
    - verification returns `accepted`
 5. `Subdomain blocked`

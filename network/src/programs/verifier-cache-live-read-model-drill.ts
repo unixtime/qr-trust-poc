@@ -181,7 +181,7 @@ const runLiveVerifierCacheDrill = (connectionString: string) =>
         success.report.scanner_decisions[0]?.decision_color === "green" &&
           success.report.scanner_decisions[0]?.decision_state ===
             "verified_issuer",
-        `scanner probe should produce a green verified reusable-public decision from live cache state; decision=${JSON.stringify(
+        `scanner probe should produce a green verified-issuer decision from live cache state; decision=${JSON.stringify(
           success.report.scanner_decisions[0],
         )}`,
       )
@@ -214,7 +214,7 @@ const runLiveVerifierCacheDrill = (connectionString: string) =>
             "verified_issuer" &&
           dbState.scanner_decision.issuer_id ===
             demoIssuerProjection.namespace.issuer_id,
-        `scanner decision row should carry the green verified reusable-public issuer projection; row=${JSON.stringify(
+        `scanner decision row should carry the green verified-issuer projection; row=${JSON.stringify(
           dbState.scanner_decision,
         )}`,
       )

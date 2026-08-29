@@ -53,7 +53,7 @@ End-user scanner behavior:
 - the phone scans a QR payload from the world
 - the phone sends the raw QR payload to the verifier
 - the verifier resolves issuer state, certificate state, destination binding,
-  runtime safety, and replay policy from its own trust cache
+  runtime safety, and freshness from its own trust cache
 - the phone receives a user-facing decision state
 
 Implemented backend contract:
@@ -465,7 +465,7 @@ Recommended user states:
 | Verified, caution | Amber | Review before opening | runtime warning |
 | Signed, unknown issuer | Amber | Continue with caution | unknown issuer |
 | Unverified | Neutral | View destination | no trust signal |
-| Blocked | Red | Do not open | `payload_revalidation`, `replay_guard`, revoked, unsafe |
+| Blocked | Red | Do not open | `payload_revalidation`, expired (`freshness` block, cause `object-expired`), revoked, unsafe |
 
 Important rule:
 - never label an unsigned or unrecognized QR as malicious unless there is an
@@ -478,7 +478,7 @@ The laptop Web UI should become the companion console.
 Primary surfaces:
 
 1. Scenario builder
-- choose issuer, destination policy, runtime state, nonce behavior
+- choose issuer, destination policy, runtime state, validity window
 - generate QR
 - display QR full screen
 
@@ -495,7 +495,7 @@ Primary surfaces:
 4. Operator mode
 - inspect issuer records
 - inspect destination policy
-- inspect replay/rate-limit posture
+- inspect envelope scan-budget and rate-limit posture
 - export evidence packet
 
 The Web UI should not be required for ordinary scanning in the final product.
@@ -627,7 +627,7 @@ Goal:
 - produce clean demo artifacts for the repo
 
 Tasks:
-- capture iPhone screenshots for accepted, replay block, and mismatch block
+- capture iPhone screenshots for accepted, expired block, and mismatch block
 - export matching laptop Web UI screenshots
 - add README walkthrough
 - update release audit to require the final evidence set

@@ -1,12 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
 
 import { useT, type MessageKey } from "@/i18n"
-import type {
-  ScanActivity,
-  ScanActivityReplayState,
-  ScanDestinationOutcome,
-  UsagePolicy,
-} from "@/lib/verifier-client"
+import type { ScanActivity, ScanDestinationOutcome } from "@/lib/verifier-client"
 import { cn } from "@/lib/utils"
 import {
   scanFeedbackPresentation,
@@ -18,25 +13,25 @@ import {
 import { formatLocalClock } from "@/routes/lab/utils"
 
 /**
- * Scan feedback for the demo QR, fed by `GET /verifier/scan-activity`.
+ * Live feedback for the envelope currently on screen: scan count, last
+ * verdict, throttle. No per-presentation state exists on the verifier; every
+ * scan of one envelope is evaluated the same way.
  *
- * Every state here is grounded in what the verifier actually recorded: the
- * frame only glows and says "scanned" once a decision row for this nonce
- * exists, and when the evidence store cannot answer it says so instead of
- * implying "no scans yet". Before the first scan the code simply sits in its
- * frame — there is no "waiting" message, because nothing true has been
- * observed yet and a scan can come from any device. The one-time "Used" stamp comes from the live replay
- * guard, so it reflects the verifier's own view of the nonce, not a guess
- * from the scan count. Rows that need data the verifier does not have
- * (a destination outcome the scanner never reported, an issuer before a
- * green verdict) are omitted rather than filled in.
+ * Every state here is grounded in what the verifier actually recorded, fed by
+ * `GET /verifier/scan-activity?envelope_id=…`: the frame only glows and says
+ * "scanned" once a decision row for this envelope exists, and when the
+ * evidence store cannot answer it says so instead of implying "no scans yet".
+ * Before the first scan the code simply sits in its frame — there is no
+ * "waiting" message, because nothing true has been observed yet and a scan can
+ * come from any device. Rows that need data the verifier does not have (a
+ * destination outcome the scanner never reported, an issuer before a green
+ * verdict) are omitted rather than filled in.
  */
 
 export type ScanFeedbackProps = {
   activity: ScanActivity | null
   /** Last poll error, when the activity endpoint itself could not be reached. */
   error: string | null
-  usagePolicy: UsagePolicy | null
   /**
    * Issuer the demo claims were signed for. Only shown once a scan came back
    * green — that is the moment the verifier actually vouched for it.
@@ -99,15 +94,6 @@ const platformKeys: Record<string, MessageKey> = {
   browser_lab: "lab.scanFeedback.platform.browser_lab",
 }
 
-const replayStateKeys: Record<
-  Exclude<ScanActivityReplayState, "not_applicable">,
-  MessageKey
-> = {
-  unused: "lab.scanFeedback.oneTime.unused",
-  reserved: "lab.scanFeedback.oneTime.reserved",
-  consumed: "lab.scanFeedback.oneTime.consumed",
-}
-
 const destinationKeys: Record<ScanDestinationOutcome, MessageKey> = {
   opened: "lab.scanFeedback.destination.opened",
   cancelled: "lab.scanFeedback.destination.cancelled",
@@ -137,14 +123,6 @@ function useNow(intervalMs: number) {
 
 function stateFor({ activity, error }: ScanFeedbackProps): ScanFeedbackState {
   return scanFeedbackStateFor(activity, error)
-}
-
-function isOneTimeConsumed({ activity, usagePolicy }: ScanFeedbackProps) {
-  return (
-    usagePolicy === "one_time" &&
-    activity?.replay_guard.applies === true &&
-    activity.replay_guard.state === "consumed"
-  )
 }
 
 /**
@@ -191,15 +169,12 @@ export function ScanFeedbackFrame({
 /**
  * Absolutely positioned inside `ScanFeedbackFrame`. The pill straddles the
  * image's bottom edge so it sits on the white quiet-zone padding and never
- * over the modules — feedback must not make the code harder to scan. The
- * "Used" stamp deliberately does cover the modules: a consumed one-time code
- * only ever verifies red again.
+ * over the modules — feedback must not make the code harder to scan.
  */
 function ScanFeedbackOverlay(props: ScanFeedbackProps) {
   const t = useT()
   const state = stateFor(props)
   const { pill } = scanFeedbackPresentation(state)
-  const consumed = isOneTimeConsumed(props)
   const time = formatLocalClock(props.activity?.last_scanned_at)
 
   const label = (pillState: PillState) =>
@@ -211,16 +186,6 @@ function ScanFeedbackOverlay(props: ScanFeedbackProps) {
 
   return (
     <>
-      {consumed ? (
-        <div
-          data-testid="scan-feedback-consumed"
-          className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-2xl bg-[rgba(5,10,18,0.58)] backdrop-blur-[1.5px]"
-        >
-          <span className="-rotate-12 rounded-md border-2 border-trust-amber bg-[rgba(5,10,18,0.7)] px-4 py-1.5 font-mono text-lg font-semibold tracking-[0.3em] text-trust-amber uppercase shadow-[0_0_24px_rgba(0,0,0,0.6)]">
-            {t("lab.scanFeedback.consumedStamp")}
-          </span>
-        </div>
-      ) : null}
       {pill && state !== "waiting" && state !== "checking" ? (
         <div className="pointer-events-none absolute inset-x-3 bottom-1 flex justify-center">
           <span
@@ -276,9 +241,8 @@ function Row({
 /**
  * Live "expires in / expired ago" row computed from the sealed claims'
  * `expires_at`. Client-side on purpose: the expiry is a signed fact in the
- * claims the QR carries, so counting down to it needs no verifier round
- * trip and is honest for every usage policy — the verifier rejects an
- * expired claim whatever the policy says.
+ * claims the QR carries, so counting down to it needs no verifier round trip.
+ * Past `expires_at` the verifier's freshness family blocks the scan.
  */
 export function ClaimExpiryRow({ expiresAt }: { expiresAt: string }) {
   const t = useT()
@@ -306,12 +270,11 @@ export function ClaimExpiryRow({ expiresAt }: { expiresAt: string }) {
 
 /**
  * `<dl>` rows for the sealed-QR card. Renders inside the caller's `<dl>`;
- * the markup mirrors the NONCE / POLICY / ISSUED rows above it.
+ * the markup mirrors the ENVELOPE / ISSUED rows above it.
  */
 export function ScanFeedbackRows({
   activity,
   error,
-  usagePolicy,
   issuerName,
   verifiedDomains,
 }: ScanFeedbackProps) {
@@ -390,41 +353,21 @@ export function ScanFeedbackRows({
   const firstScan =
     activity.scan_count > 1 ? formatLocalClock(activity.first_scanned_at) : null
 
-  // Only from a real throttle block: the verifier omits it for one-time
-  // codes and the card never guesses a budget.
+  // Only from a real throttle block: the budget is per envelope and the card
+  // never guesses one the verifier did not report.
   const throttle = activity.throttle
     ? t("lab.scanFeedback.throttle.value", {
         cached: activity.throttle.cached_verdicts,
-        remaining: activity.throttle.nonce_budget_remaining,
-        limit: activity.throttle.nonce_budget_limit,
+        remaining: activity.throttle.envelope_budget_remaining,
+        limit: activity.throttle.envelope_budget_limit,
         window:
-          activity.throttle.nonce_budget_window_seconds === 60
+          activity.throttle.envelope_budget_window_seconds === 60
             ? t("lab.scanFeedback.throttle.windowMinute")
             : t("lab.scanFeedback.throttle.windowSeconds", {
-                seconds: activity.throttle.nonce_budget_window_seconds,
+                seconds: activity.throttle.envelope_budget_window_seconds,
               }),
       })
     : null
-
-  const guard = activity.replay_guard
-  const guardExpiry = formatLocalClock(guard.expires_at)
-  const usedAt = formatLocalClock(activity.first_verified_at)
-  const oneTime =
-    usagePolicy === "one_time" && guard.applies && guard.state !== "not_applicable"
-      ? guard.state === "consumed" && usedAt
-        ? activity.blocked_since_verified > 0
-          ? t("lab.scanFeedback.oneTime.usedAtBlocked", {
-              time: usedAt,
-              count: activity.blocked_since_verified,
-            })
-          : t("lab.scanFeedback.oneTime.usedAt", { time: usedAt })
-        : guardExpiry && guard.state !== "unused"
-          ? t("lab.scanFeedback.oneTime.until", {
-              state: t(replayStateKeys[guard.state]),
-              time: guardExpiry,
-            })
-          : t(replayStateKeys[guard.state])
-      : null
 
   return (
     <>
@@ -463,9 +406,6 @@ export function ScanFeedbackRows({
           value={vouchedBy}
           testId="scan-feedback-vouched-by"
         />
-      ) : null}
-      {oneTime ? (
-        <Row label={t("lab.scanFeedback.rows.oneTime")} value={oneTime} testId="scan-feedback-one-time" />
       ) : null}
       {throttle ? (
         <Row label={t("lab.scanFeedback.rows.throttle")} value={throttle} testId="scan-feedback-throttle" />

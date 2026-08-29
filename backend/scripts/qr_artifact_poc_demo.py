@@ -14,7 +14,6 @@ from backend.app.services.qr_artifact_poc import (
     encode_envelope_as_qr_payload,
     render_qr_png_bytes,
 )
-from backend.app.services.replay_guard_poc import InMemoryReplayGuard
 from backend.app.services.signed_schema_poc import (
     SUPPORTED_ALGORITHM_ID,
     build_demo_certificate,
@@ -28,12 +27,10 @@ async def main() -> None:
     now = datetime.now(timezone.utc)
     claims = parse_claims_mapping(
         {
-            "version": "1",
-            "usage_policy": "one_time",
+            "version": "2",
             "certificate_ref": certificate.certificate_ref,
             "issued_at": (now - timedelta(minutes=1)).isoformat(),
             "expires_at": (now + timedelta(minutes=5)).isoformat(),
-            "nonce": "qr-demo-script-001",
             "payload": "https://acme.example/pay",
         }
     )
@@ -48,7 +45,7 @@ async def main() -> None:
     decoded_qr_payload = decode_qr_payload_from_png_bytes(png_bytes)
     scanned_envelope = decode_envelope_from_qr_payload(decoded_qr_payload)
 
-    verifier = NarrowedVerifierService(InMemoryReplayGuard())
+    verifier = NarrowedVerifierService()
     issuer_state = IssuerVerificationState(verified_domains=["acme.example"])
     first_result = await verifier.verify_presented_code(
         scanned_envelope,

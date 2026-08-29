@@ -78,13 +78,6 @@ export const en = {
   "lab.stepper.step3": "Scan",
   "lab.stepper.step4": "Verdict & evidence",
 
-  // ── Lab: usage policy ────────────────────────────────────────────────────
-  // The wire values (`reusable_public`, …) go to the verifier untranslated;
-  // these are only what a reader sees.
-  "lab.usagePolicy.reusablePublic": "Reusable public",
-  "lab.usagePolicy.oneTime": "One-time",
-  "lab.usagePolicy.timeLimited": "Time-limited",
-
   // ── Lab: scenario picker ─────────────────────────────────────────────────
   "lab.scenarioStep.eyebrow": "Scenario library",
   "lab.scenarioStep.eyebrowDetail": "Signed demo set · {count} envelopes",
@@ -111,15 +104,21 @@ export const en = {
   // One label per scenario, shared by the picker, the flow header, and the
   // history log. The scenario key itself (`valid`, `subdomain-allowed`, …) is
   // an API identifier and stays out of the catalogue.
-  "lab.scenario.valid.label": "Valid first scan",
+  "lab.scenario.valid.label": "Valid scan",
   "lab.scenario.valid.note":
-    "Clean envelope, live certificate, matching payload, and policy-dependent reuse behavior.",
+    "Clean envelope, live certificate, and a matching payload — no residual family is left open.",
   "lab.scenario.expired.label": "Expired",
   "lab.scenario.expired.note":
     "The verifier should reject this envelope at the time-window gate.",
   "lab.scenario.revoked.label": "Revoked certificate",
   "lab.scenario.revoked.note":
-    "The verifier should block before replay reservation when the issuer state marks the certificate revoked.",
+    "The verifier should block at the issuer chain when the issuer state marks the certificate revoked.",
+  "lab.scenario.keyRotated.label": "Rotated signing key",
+  "lab.scenario.keyRotated.note":
+    "The issuer mints a new signing key and retires the previous one. This code is signed under the new key and verifies; a code sealed before the rotation still verifies under the retired key.",
+  "lab.scenario.keyRevoked.label": "Revoked signing key",
+  "lab.scenario.keyRevoked.note":
+    "The verifier should block at the issuer chain with cause key-revoked: everything signed under a revoked key is blocked, including codes that were valid before the revocation.",
   "lab.scenario.subdomainAllowed.label": "Subdomain allowed",
   "lab.scenario.subdomainAllowed.note":
     "A subdomain payload should pass when the issuer policy explicitly allows subdomains.",
@@ -162,12 +161,17 @@ export const en = {
 
   // ── Lab: generate + history messages ─────────────────────────────────────
   // Whole sentences with named slots. Assembling these from fragments would
-  // lock in English word order; Spanish puts the nonce clause elsewhere.
+  // lock in English word order; Spanish puts the envelope clause elsewhere.
   "lab.generate.ready.title": "Demo QR ready",
   "lab.generate.ready.body":
-    "Generated {scenario} as {policy} with nonce {nonce}.",
+    "Generated {scenario}. {envelopeLabel} {envelope}. {windowLabel} {window}.",
+  "lab.generate.rotated.title": "Key rotated — demo QR sealed under the new key",
+  "lab.generate.keyRevoked.title": "Demo QR sealed under a revoked key",
   "lab.history.generated.title": "QR generated",
-  "lab.history.generated.body": "{scenario}. Usage {policy}. Nonce {nonce}.",
+  "lab.history.generated.body":
+    "{scenario}. {envelopeLabel} {envelope}. {windowLabel} {window}.",
+  "lab.history.generated.envelope": "Envelope",
+  "lab.history.generated.window": "Window",
   "lab.history.directVerify.label": "{scenario} direct verify",
 
   // ── Lab: shared step chrome ──────────────────────────────────────────────
@@ -187,9 +191,14 @@ export const en = {
   "lab.generate.qrAlt": "Generated verifier QR",
   "lab.generate.fullscreen": "View full screen",
   "lab.generate.sealed.badge": "Signed",
-  "lab.generate.sealed.nonce": "Nonce",
-  "lab.generate.sealed.policy": "Policy",
   "lab.generate.sealed.issued": "Issued",
+  "lab.generate.sealed.keyRef": "Signing key",
+  "lab.generate.sealed.keyState": "Key state",
+  "lab.generate.sealed.keyState.active": "Active",
+  "lab.generate.sealed.keyState.retired": "Retired",
+  "lab.generate.sealed.keyState.revoked": "Revoked",
+  "lab.generate.sealed.retiredKeys": "Retired keys",
+  "lab.generate.sealed.retiredKeys.count": "{count} retired",
   "lab.generate.verifierReason": "Verifier reason:",
   "lab.scanFeedback.checking": "Checking for scans",
   "lab.scanFeedback.unavailable": "Scan feedback unavailable",
@@ -197,7 +206,6 @@ export const en = {
   "lab.scanFeedback.scanned.green": "Scanned · verified {time}",
   "lab.scanFeedback.scanned.orange": "Scanned · needs review {time}",
   "lab.scanFeedback.scanned.red": "Scanned · blocked {time}",
-  "lab.scanFeedback.consumedStamp": "Used",
   "lab.scanFeedback.note.unconfigured":
     "Scans are verified but not reported back here: this verifier has no evidence store (QRTRUST_NETWORK_DATABASE_URL).",
   "lab.scanFeedback.note.unavailable":
@@ -207,7 +215,6 @@ export const en = {
   "lab.scanFeedback.rows.scans": "Scans",
   "lab.scanFeedback.rows.lastScan": "Last scan",
   "lab.scanFeedback.rows.scanner": "Scanner",
-  "lab.scanFeedback.rows.oneTime": "One-time",
   "lab.scanFeedback.value.unavailable": "Unavailable",
   "lab.scanFeedback.value.none": "None yet",
   "lab.scanFeedback.count.verified": "{count} verified",
@@ -217,10 +224,6 @@ export const en = {
   "lab.scanFeedback.platform.android": "Android app",
   "lab.scanFeedback.platform.browser_lab": "Web lab (simulated)",
   "lab.scanFeedback.platform.unknown": "Unknown scanner",
-  "lab.scanFeedback.oneTime.unused": "Unused",
-  "lab.scanFeedback.oneTime.reserved": "Reserved · verifying",
-  "lab.scanFeedback.oneTime.consumed": "Used · replay blocked",
-  "lab.scanFeedback.oneTime.until": "{state} until {time}",
   "lab.scanFeedback.rows.firstScan": "First scan",
   "lab.scanFeedback.rows.verdict": "Verdict",
   "lab.scanFeedback.rows.destination": "Destination",
@@ -238,36 +241,23 @@ export const en = {
   "lab.scanFeedback.destination.held": "Hold completed, not opened",
   "lab.scanFeedback.destination.previewed": "Previewed, not opened",
   "lab.scanFeedback.destination.unreported": "Not reported by the scanner",
-  "lab.scanFeedback.oneTime.usedAt": "Used {time} · will not verify again",
-  "lab.scanFeedback.oneTime.usedAtBlocked": "Used {time} · replay blocked ×{count}",
   "lab.scanFeedback.expires.in": "in {duration}",
   "lab.scanFeedback.expires.ago": "expired {duration} ago",
-  "lab.generate.configure": "Configure the QR type",
-  "lab.generate.options": "Options",
-  "lab.generate.usagePolicy.help.reusable_public":
-    "Stays scannable until the issuer's certificate expires. For signage or documentation that cannot carry an expiry.",
-  "lab.generate.usagePolicy.help.one_time":
-    "The first green verdict consumes the code; every later scan is refused. For tickets, vouchers and hand-offs.",
-  "lab.generate.usagePolicy.help.time_limited":
-    "Scannable until the expiry you pick below, then refused. For posters, notices and anything with a natural end date.",
-  "lab.generate.nonce.help.fixed":
-    "Same nonce every time: a regenerated code shares the scan history, and any replay lock, of the earlier one.",
-  "lab.generate.nonce.help.timestamped":
-    "Appends the current time, so every generation is a brand-new code with an empty history.",
+  "lab.generate.validity.title": "Validity window",
+  "lab.generate.validity.description":
+    "Every signed artifact carries issued_at and expires_at. The scanner consults it only inside that window.",
   "lab.generate.expiry.label": "Expires at",
+  "lab.generate.expiry.expiredNote":
+    "This scenario issues an artifact whose window already closed. The scanner's freshness family blocks it.",
   "lab.generate.expiry.help":
-    "Local time. Leave it for the 60-minute default; the verifier refuses the code after this instant.",
+    "The scanner treats the artifact as a governance object consulted inside its window. Past expires_at, the freshness family blocks the scan.",
   "lab.generate.expiry.error.past": "Pick a time in the future. The code would already be expired.",
   "lab.generate.expiry.error.tooFar": "Pick a time within {days} days. The server refuses longer lifetimes.",
   "lab.generate.expiry.error.invalid": "That is not a date and time the picker can seal.",
   "lab.generate.lifetime.until": "The next code will stay valid until {when}.",
   "lab.generate.sealed.details": "Code details",
-  "lab.generate.nonceMode": "Nonce mode",
-  "lab.generate.nonce.fixed": "Fixed nonce",
-  "lab.generate.nonce.timestamped": "Timestamped nonce",
-  "lab.generate.usagePolicyLegend": "Usage policy",
   "lab.generate.lifetime.fresh":
-    "The sealed QR will stay valid for {minutes} min after generation; the verifier rejects it after that whatever the policy says.",
+    "The sealed QR will stay valid for {minutes} min after generation; the verifier rejects it after that.",
   "lab.generate.lifetime.expired":
     "This scenario seals a QR that has already expired, so every scan is rejected at the freshness check.",
   "lab.generate.next": "Next: Scan",
@@ -295,7 +285,6 @@ export const en = {
   "lab.verdict.accepted": "accepted",
   "lab.verdict.rejected": "rejected",
   "lab.verdict.stage": "stage: {stage}",
-  "lab.verdict.usagePolicy": "usage policy: {policy}",
   "lab.verdict.empty.title": "No scanner decision yet",
   // `{action}` is the scan step's button label, interpolated rather than
   // repeated so the two cannot drift apart in translation.
@@ -314,7 +303,6 @@ export const en = {
   "lab.verdict.eyebrowDetail": "Decision {id} · {time}",
   "lab.verdict.crypto.claimsHash": "Claims SHA-256",
   "lab.verdict.crypto.matchedRule": "Matched rule",
-  "lab.verdict.crypto.reservationState": "Reservation state",
   "lab.verdict.destination.title": "Destination",
   "lab.verdict.destination.description":
     "Where this code points, resolved by the verifier.",
@@ -336,6 +324,71 @@ export const en = {
   "lab.verdict.destination.footnote":
     "Resolved by the verifier from the signed envelope.",
 
+  // ── Lab: the decision model's own output and the residual vector.
+  // Labels restate what the wire returned; none of them is a verdict of ours.
+  "lab.verdict.residuals.title": "Residual vector",
+  "lab.verdict.residuals.description":
+    "Six families, each answering one question. The highest-ranked tier decides; ties go to the first family in order.",
+  "lab.verdict.residuals.none": "No residual — every family passed",
+  "lab.verdict.residuals.deciding": "Deciding family",
+  "lab.verdict.model.profile": "Profile",
+  "lab.verdict.model.primaryState": "Model decision",
+  "lab.verdict.model.attention": "Attention",
+  "lab.verdict.model.deciding": "Decided by",
+  "lab.residual.family.issuer_chain": "Issuer chain",
+  "lab.residual.family.destination_policy": "Destination policy",
+  "lab.residual.family.redirect_flow": "Redirect flow",
+  "lab.residual.family.runtime_safety": "Runtime safety",
+  "lab.residual.family.freshness": "Freshness",
+  "lab.residual.family.artifact_integrity": "Artifact integrity",
+  "lab.residual.question.issuer_chain":
+    "Is the signer an accepted issuer under an accepted root?",
+  "lab.residual.question.destination_policy":
+    "Does the destination match what the issuer declared?",
+  "lab.residual.question.redirect_flow":
+    "If the link redirects, does the redirect stay within policy?",
+  "lab.residual.question.runtime_safety":
+    "Did a runtime safety check run, and what did it say?",
+  "lab.residual.question.freshness":
+    "Is the artifact inside its validity window with current trust state?",
+  "lab.residual.question.artifact_integrity":
+    "Was the QR artifact itself intact and unmodified?",
+  "lab.residual.tier.pass": "Pass",
+  "lab.residual.tier.not-applicable": "Not applicable",
+  "lab.residual.tier.not-checked": "Not checked",
+  "lab.residual.tier.unknown": "Unknown",
+  "lab.residual.tier.unavailable": "Unavailable",
+  "lab.residual.tier.stale": "Stale",
+  "lab.residual.tier.warn": "Warn",
+  "lab.residual.tier.fail": "Fail",
+  "lab.residual.tier.unaccepted-issuer": "Unaccepted issuer",
+  "lab.residual.tier.invalid-managed-claim": "Invalid managed claim",
+  "lab.residual.tier.revoked-issuer": "Revoked issuer",
+  "lab.residual.tier.block": "Block",
+  "lab.residual.cause.signature-invalid": "Signature did not verify",
+  "lab.residual.cause.issuer-inactive": "Issuer certificate is not active",
+  "lab.residual.cause.issuer-revoked": "Issuer certificate is revoked",
+  "lab.residual.cause.issuer-record-expired": "Issuer record expired",
+  "lab.residual.cause.issuer-record-not-yet-valid": "Issuer record not yet in force",
+  "lab.residual.cause.key-revoked": "Signing key revoked",
+  "lab.residual.cause.key-window-mismatch": "Signed outside the key's validity window",
+  "lab.residual.cause.destination-mismatch":
+    "Destination is outside the issuer's verified domains",
+  "lab.residual.cause.not-yet-valid": "Validity window has not opened",
+  "lab.residual.cause.object-expired": "Validity window has closed",
+  "lab.residual.cause.redirect-policy-blocked":
+    "Redirect leaves the allowed policy",
+  "lab.residual.cause.runtime-risky": "Runtime check flagged risk",
+  "lab.residual.cause.runtime-blocked":
+    "Runtime check blocked the destination",
+  "lab.residual.cause.runtime-expired": "Runtime verdict expired",
+  "lab.residual.cause.runtime-stale": "Runtime verdict is stale",
+  "lab.residual.cause.runtime-unavailable": "Runtime check unavailable",
+  "lab.residual.cause.no-signed-envelope": "No signed envelope in the QR",
+  "lab.residual.cause.unsupported-envelope": "Envelope could not be decoded",
+  "lab.residual.cause.unsupported-claims-version":
+    "Claims version is not the one this PoC accepts",
+
   // ── Lab: A/B comparison
   "lab.compare.eyebrow": "A/B comparison",
   "lab.compare.title": "Same verifier, one layer changed.",
@@ -352,7 +405,7 @@ export const en = {
   "lab.compare.layer.issuer": "Issuer legitimacy",
   "lab.compare.layer.destination": "Destination binding",
   "lab.compare.layer.redirect": "Redirect policy",
-  "lab.compare.layer.freshness": "Freshness and replay",
+  "lab.compare.layer.freshness": "Freshness",
   "lab.compare.layer.runtime": "Runtime safety",
   "lab.compare.layer.cache": "Verifier cache",
   "lab.compare.layer.artifact": "Artifact integrity",
@@ -360,6 +413,8 @@ export const en = {
   "lab.compare.value.issuer.active": "Enrolled issuer, active certificate",
   "lab.compare.value.issuer.revoked": "Certificate revoked",
   "lab.compare.value.issuer.unenrolled": "Not traceable to an enrolled issuer",
+  "lab.compare.value.issuer.keyRevoked": "Signing key revoked",
+  "lab.compare.value.issuer.rotated": "Signed under a freshly rotated key",
   "lab.compare.value.destination.exact": "Bound to the exact host",
   "lab.compare.value.destination.subdomain": "Allowed by subdomain policy",
   "lab.compare.value.destination.outside": "Outside the approved set",
@@ -390,7 +445,7 @@ export const en = {
   "lab.qrModal.close": "Close",
   "lab.qrModal.qrAlt": "Fullscreen verifier QR",
   "lab.qrModal.meta.scenario": "Scenario",
-  "lab.qrModal.meta.nonce": "Nonce",
+  "lab.qrModal.meta.envelope": "Envelope ID",
   "lab.qrModal.meta.payload": "Payload",
   "lab.qrModal.controls.title": "Display controls",
   "lab.qrModal.controls.description":
@@ -874,8 +929,6 @@ export const en = {
   "lab.scanner.field.requestId": "Request ID:",
   "lab.scanner.summary.verified":
     "The issuer and destination checks line up, so this QR can be opened from the scanner preview.",
-  "lab.scanner.summary.oneTimeUsed":
-    "This one-time QR appears to have already been used. Ask for a fresh QR before continuing.",
   "lab.scanner.summary.destinationMismatch":
     "The destination no longer matches the issuer-approved policy. Do not open it from this scan.",
   "lab.scanner.summary.blocked":
@@ -911,9 +964,6 @@ export const en = {
   "lab.reason.newlyRegisteredDomain.label": "New domain",
   "lab.reason.newlyRegisteredDomain.detail":
     "The destination matched a new-domain hint or a very recent domain age.",
-  "lab.reason.oneTimeUsed.label": "One-time QR used",
-  "lab.reason.oneTimeUsed.detail":
-    "This QR appears to be a one-time code that has already been consumed.",
   "lab.reason.plainUrl.label": "Normal link",
   "lab.reason.plainUrl.detail":
     "The QR contains a plain URL without a recognized QR Trust envelope.",
@@ -935,9 +985,6 @@ export const en = {
   "lab.reason.staleTrustState.label": "Stale trust state",
   "lab.reason.staleTrustState.detail":
     "The verifier cache is too old for a confident decision.",
-  "lab.reason.suspiciousTld.label": "Suspicious domain ending",
-  "lab.reason.suspiciousTld.detail":
-    "The domain uses an ending commonly abused in QR phishing demos.",
   "lab.reason.trustCacheUnavailable.label": "Trust cache unavailable",
   "lab.reason.trustCacheUnavailable.detail":
     "The verifier could not use its local issuer trust state.",
@@ -1106,6 +1153,36 @@ export const en = {
 
   // ── Operator · runtime posture ───────────────────────────────────────────
   "operator.runtime.title": "Runtime posture",
+  "operator.trustStore.title": "Trust store",
+  "operator.trustStore.description":
+    "Issuers and signing keys the scanner currently trusts, with their validity windows. Read-only in this cycle; the demo generator is the only thing that changes it.",
+  "operator.trustStore.refresh": "Refresh trust store",
+  "operator.trustStore.refreshing": "Refreshing…",
+  "operator.trustStore.generatedAt": "Listed at {when}",
+  "operator.trustStore.empty": "The trust store is empty. Generate a demo QR on the lab page to register the demo issuer and key.",
+  "operator.trustStore.failed.title": "Trust store unavailable",
+  "operator.trustStore.issuers": "Issuers",
+  "operator.trustStore.keys": "Signing keys",
+  "operator.trustStore.column.issuer": "Issuer",
+  "operator.trustStore.column.root": "Root",
+  "operator.trustStore.column.status": "Status",
+  "operator.trustStore.column.issuedAt": "In force from",
+  "operator.trustStore.column.expiresAt": "Until",
+  "operator.trustStore.column.domains": "Verified domains",
+  "operator.trustStore.column.keyRef": "Key",
+  "operator.trustStore.column.algorithm": "Algorithm",
+  "operator.trustStore.column.state": "State",
+  "operator.trustStore.column.notBefore": "Valid from",
+  "operator.trustStore.column.notAfter": "Valid until",
+  "operator.trustStore.column.revokedAt": "Revoked",
+  "operator.trustStore.noExpiry": "No expiry",
+  "operator.trustStore.subdomains": "incl. subdomains",
+  "operator.trustStore.status.active": "Active",
+  "operator.trustStore.status.suspended": "Suspended",
+  "operator.trustStore.status.revoked": "Revoked",
+  "operator.trustStore.state.active": "Active",
+  "operator.trustStore.state.retired": "Retired",
+  "operator.trustStore.state.revoked": "Revoked",
   "operator.runtime.subtitle": "What the backend is enforcing right now.",
   "operator.runtime.refresh": "Refresh runtime",
 

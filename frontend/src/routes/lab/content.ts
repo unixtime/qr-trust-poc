@@ -1,10 +1,6 @@
-import type { DemoMaterialsRequest } from "@/lib/verifier-client"
-import type {
-  NonceMode,
-  ScenarioKey,
-  ScenarioMeta,
-  UsagePolicy,
-} from "@/routes/lab/types"
+import type { MessageKey } from "@/i18n/catalog/en"
+import type { DemoMaterialsRequest, DemoTrustEcho } from "@/lib/verifier-client"
+import type { ScenarioKey, ScenarioMeta } from "@/routes/lab/types"
 
 export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
   valid: {
@@ -33,7 +29,7 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     expectedOutcome: {
       tone: "red",
       label: "Do not open",
-      layer: "Freshness and replay",
+      layer: "Freshness",
       summary:
         "The signed envelope is valid structurally, but its time window is already closed.",
     },
@@ -43,6 +39,7 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     verifiedDomains: ["acme.example"],
     allowSubdomains: false,
     certificateRevoked: true,
+    keyState: "revoked",
     certificateRevocationReason: "Issuer revoked this demo certificate for testing.",
     expiresOffsetMinutes: 5,
     expectedOutcome: {
@@ -51,6 +48,38 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
       layer: "Issuer legitimacy",
       summary:
         "The issuer certificate has been revoked, so later destination checks should not rescue it.",
+    },
+  },
+  "key-rotated": {
+    payload: "https://acme.example/pay",
+    verifiedDomains: ["acme.example"],
+    allowSubdomains: false,
+    certificateRevoked: false,
+    certificateRevocationReason: null,
+    expiresOffsetMinutes: 5,
+    rotateKey: true,
+    expectedOutcome: {
+      tone: "green",
+      label: "Safe to open",
+      layer: "Issuer legitimacy",
+      summary:
+        "The issuer rotated its signing key; this code is signed under the new key and verifies, and a code sealed before the rotation still verifies under the retired key.",
+    },
+  },
+  "key-revoked": {
+    payload: "https://acme.example/pay",
+    verifiedDomains: ["acme.example"],
+    allowSubdomains: false,
+    certificateRevoked: false,
+    certificateRevocationReason: "Issuer revoked this signing key for testing.",
+    expiresOffsetMinutes: 5,
+    keyState: "revoked",
+    expectedOutcome: {
+      tone: "red",
+      label: "Do not open",
+      layer: "Issuer legitimacy",
+      summary:
+        "The signing key is revoked, so everything signed under it is blocked — including codes that were valid before the revocation.",
     },
   },
   "subdomain-allowed": {
@@ -258,25 +287,6 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
   },
 }
 
-export const fixedNonces: Record<ScenarioKey, string> = {
-  valid: "lab-valid-fixed-001",
-  expired: "lab-expired-fixed-001",
-  revoked: "lab-revoked-fixed-001",
-  "subdomain-allowed": "lab-subdomain-allow-001",
-  "subdomain-blocked": "lab-subdomain-block-001",
-  "payload-mismatch": "lab-mismatch-fixed-001",
-  "redirect-approved": "lab-redirect-approved-001",
-  "redirect-final-mismatch": "lab-redirect-final-mismatch-001",
-  "redirect-too-many-hops": "lab-redirect-hop-limit-001",
-  "redirect-nested-shortener": "lab-redirect-nested-001",
-  "runtime-risky": "lab-runtime-risky-001",
-  "runtime-blocked": "lab-runtime-blocked-001",
-  "stale-cache": "lab-stale-cache-001",
-  "unknown-issuer": "lab-unknown-issuer-001",
-  "artifact-quiet-zone": "lab-artifact-quiet-zone-001",
-  "artifact-mismatch": "lab-artifact-mismatch-001",
-}
-
 const scenarioKeys = Object.keys(scenarioMeta) as ScenarioKey[]
 
 function isScenarioKey(value: string | null): value is ScenarioKey {
@@ -301,61 +311,31 @@ export function parseInitialCompareScenarioParam(): ScenarioKey | null {
   return null
 }
 
-export function parseInitialNonceMode(): NonceMode {
-  if (typeof window === "undefined") return "fixed"
-  const value = new URLSearchParams(window.location.search).get("nonce")
-  return value === "timestamped" ? "timestamped" : "fixed"
-}
-
-export function parseInitialUsagePolicy(): UsagePolicy {
-  if (typeof window === "undefined") return "reusable_public"
-  const value = new URLSearchParams(window.location.search).get("usage")
-  if (
-    value === "reusable_public" ||
-    value === "one_time" ||
-    value === "time_limited"
-  ) {
-    return value
-  }
-  return "reusable_public"
-}
-
 export function shouldAutogenerateFromRoute() {
   if (typeof window === "undefined") return false
   return new URLSearchParams(window.location.search).get("autogenerate") === "1"
 }
 
-// How long a freshly sealed demo QR stays valid, by usage policy. A one-time
-// code only has to survive its single scan, so it keeps the short window that
-// makes the freshness stage cheap to demonstrate; the two public policies are
-// meant to hang on a wall, so a workbench session should not outlive them.
-// The scenario's own `expiresOffsetMinutes` is a floor, not the value: it keeps
-// its sign (which is what the comparison card's freshness row reads) and a
-// non-positive offset -- the `expired` scenario -- wins whatever the policy.
-const policyLifetimeMinutes: Record<UsagePolicy, number> = {
-  one_time: 5,
-  reusable_public: 60,
-  time_limited: 60,
-}
+// How long a freshly sealed demo QR stays valid. The window is the only
+// freshness input the verifier reads, so the workbench keeps it short enough
+// that a session cannot outlive the code it just sealed. The scenario's own
+// `expiresOffsetMinutes` is a floor, not the value: it keeps its sign (which
+// is what the comparison card's freshness row reads) and a non-positive
+// offset -- the `expired` scenario -- wins whatever the operator picked.
+export const DEFAULT_LIFETIME_MINUTES = 5
 
 // Thirty days: long enough for any poster-style code the workbench should
 // seal, short enough that a slip in the picker cannot mint a year-long claim.
 // The server enforces the same bound on `expires_offset_minutes`.
 export const MAX_LIFETIME_MINUTES = 30 * 24 * 60
 
-// A `time_limited` code takes the expiry the operator picked; the other two
-// policies keep their fixed lifetimes (the picker is only shown for
-// `time_limited`), and the expired scenario still wins over everything.
 export function lifetimeMinutesFor(
   meta: Pick<ScenarioMeta, "expiresOffsetMinutes">,
-  usagePolicy: UsagePolicy,
   customMinutes: number | null = null,
 ): number {
   if (meta.expiresOffsetMinutes <= 0) return meta.expiresOffsetMinutes
-  if (usagePolicy === "time_limited" && customMinutes !== null && customMinutes > 0) {
-    return customMinutes
-  }
-  return Math.max(meta.expiresOffsetMinutes, policyLifetimeMinutes[usagePolicy])
+  if (customMinutes !== null && customMinutes > 0) return customMinutes
+  return Math.max(meta.expiresOffsetMinutes, DEFAULT_LIFETIME_MINUTES)
 }
 
 // `<input type="datetime-local">` speaks wall-clock time with no zone, so the
@@ -391,26 +371,17 @@ export function expiryValidation(localValue: string | null, now = Date.now()): E
   return null
 }
 
-function nonceForScenario(scenario: ScenarioKey, mode: NonceMode) {
-  const base = fixedNonces[scenario]
-  return mode === "timestamped" ? `${base}-${Date.now()}` : base
-}
-
 export type ScenarioRequestOptions = {
   customExpiryMinutes?: number | null
 }
 
 export function buildScenarioRequest(
   scenario: ScenarioKey,
-  nonceMode: NonceMode,
-  usagePolicy: UsagePolicy,
   options: ScenarioRequestOptions = {},
 ): DemoMaterialsRequest {
   const meta = scenarioMeta[scenario]
   return {
     payload: meta.payload,
-    nonce: nonceForScenario(scenario, nonceMode),
-    usage_policy: usagePolicy,
     governance_cache_profile: meta.governanceCacheProfile ?? "fresh",
     verified_domains: meta.verifiedDomains,
     allow_subdomains: meta.allowSubdomains,
@@ -418,8 +389,29 @@ export function buildScenarioRequest(
     certificate_revoked: meta.certificateRevoked,
     certificate_revocation_reason: meta.certificateRevocationReason,
     issued_offset_minutes: meta.issuedOffsetMinutes ?? -1,
-    expires_offset_minutes: lifetimeMinutesFor(meta, usagePolicy, options.customExpiryMinutes ?? null),
+    expires_offset_minutes: lifetimeMinutesFor(meta, options.customExpiryMinutes ?? null),
     register_scanner_trust: meta.registerScannerTrust ?? true,
+    key_state: meta.keyState,
+    rotate_key: meta.rotateKey ?? false,
     artifact_profile: meta.artifactProfile ?? "clean",
   }
+}
+
+/**
+ * The toast title after a successful generation. Decided from the trust echo
+ * the backend returned, not from the chip that was clicked: the first
+ * `key-rotated` press on a fresh backend retires nothing and gets the plain
+ * title, and any chip that produced a revoked key says so.
+ */
+export function generateToastTitleKey(
+  meta: ScenarioMeta,
+  trust: DemoTrustEcho
+): MessageKey {
+  if (trust.key_state === "revoked") {
+    return "lab.generate.keyRevoked.title"
+  }
+  if (meta.rotateKey && trust.retired_key_refs.length > 0) {
+    return "lab.generate.rotated.title"
+  }
+  return "lab.generate.ready.title"
 }

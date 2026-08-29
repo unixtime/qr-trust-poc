@@ -10,7 +10,7 @@ The end-user scanner should remain simple: scan, understand the signal, and deci
 - Preserve a decision-path view for auditors, reviewers, and trained users.
 - Treat orange as "not fully verified" rather than "malicious".
 - Require explicit confirmation before opening orange or red destinations.
-- Keep one-time QR and reusable public QR semantics visibly distinct.
+- Keep the validity window (`issued_at` … `expires_at`) visible, so a user can tell a still-valid artifact from an expired one.
 - Avoid persistent personal identifiers unless a deployment explicitly requires them.
 
 ## Security Requirements
@@ -33,7 +33,7 @@ The end-user scanner should remain simple: scan, understand the signal, and deci
 ## Next App Improvements
 
 - Add a signed provider profile import screen for enterprise reviewers.
-- Add a first-run explanation that distinguishes reusable public QR codes from one-time QR codes.
+- Add a first-run explanation of the validity window: an artifact is consulted the same way on every presentation inside it, and the `freshness` family blocks past `expires_at`.
 - Add app-store-style screenshots for green, orange, red, and check-unavailable outcomes.
 - Add a privacy screen explaining what is sent to the verifier and what stays on-device.
 - Add localization readiness for all user-facing strings.

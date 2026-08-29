@@ -56,9 +56,9 @@ sequenceDiagram
                 Verifier->>Audit: Record scanner-visible decision
                 Verifier-->>Scanner: User-visible warning with destination
             else Runtime clear and binding valid
-                Verifier->>Verifier: Apply usage policy and replay rules
+                Verifier->>Verifier: Evaluate the residual vector (freshness = validity window)
                 Verifier->>Audit: Record scanner-visible decision
-                Verifier-->>Scanner: Green reusable/time-limited or one-time decision
+                Verifier-->>Scanner: Green decision with the residual vector
             end
         end
     end
@@ -75,8 +75,8 @@ sequenceDiagram
 | Destination outside issuer policy | Red | Destination binding fails |
 | Runtime service unavailable | Orange | Destination may be visible but not fully checked |
 | Runtime service reports risk | Orange or red | Present-time destination safety changed |
-| One-time QR reused | Red | Usage policy forbids replay |
-| Reusable public QR scanned repeatedly | Green if other checks pass | Replay blocking does not apply |
+| Expired envelope | Red | `freshness` block, cause `object-expired` |
+| Envelope scanned repeatedly inside its window | Green if other checks pass | Every presentation is evaluated the same way |
 
 ## Implementation Notes
 

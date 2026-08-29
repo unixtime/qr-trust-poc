@@ -276,18 +276,6 @@ private extension EvidencePacketExporter {
                 tone: .orange
             )
         }
-        if result.tone == .blocked && (haystack.contains("replay") || haystack.contains("one-time") || haystack.contains("already")) {
-            return ScannerEvidenceMapping(
-                fixtureID: "red_one_time_replay",
-                decisionState: "one_time_replay",
-                decisionColor: "red",
-                screenshotName: "replay-guard.png",
-                historyName: "history-replay-guard.png",
-                accessibilityName: "accessibility-replay-guard.txt",
-                badge: "One-time QR used",
-                tone: .red
-            )
-        }
         if result.tone == .blocked && haystack.contains("expired") {
             return ScannerEvidenceMapping(
                 fixtureID: "red_expired_qr",
@@ -338,26 +326,14 @@ private extension EvidencePacketExporter {
                 tone: .orange
             )
         }
-        if result.tone == .trusted && result.usagePolicy == "reusable_public" {
-            return ScannerEvidenceMapping(
-                fixtureID: "green_reusable_public",
-                decisionState: "verified_issuer",
-                decisionColor: "green",
-                screenshotName: "accepted-reusable-public.png",
-                historyName: "history-accepted-reusable-public.png",
-                accessibilityName: "accessibility-accepted-reusable-public.txt",
-                badge: "Reusable approved",
-                tone: .green
-            )
-        }
         if result.tone == .trusted {
             return ScannerEvidenceMapping(
-                fixtureID: "green_one_time_first_pass",
+                fixtureID: "green_verified_issuer",
                 decisionState: "verified_issuer",
                 decisionColor: "green",
-                screenshotName: "accepted-one-time-first-pass.png",
-                historyName: "history-accepted-one-time-first-pass.png",
-                accessibilityName: "accessibility-accepted-one-time-first-pass.txt",
+                screenshotName: "accepted.png",
+                historyName: "history-accepted.png",
+                accessibilityName: "accessibility-accepted.txt",
                 badge: "Accepted",
                 tone: .green
             )
@@ -414,7 +390,6 @@ private extension EvidencePacketExporter {
             tone: tone,
             title: title,
             message: message,
-            usagePolicy: "reusable_public",
             destination: "https://acme.example/pay",
             host: "acme.example",
             checkedAt: checkedAt,
@@ -752,7 +727,15 @@ private extension EvidencePacketExporter {
 
 private extension EvidencePacketExporter {
     static func scannerAccessibilityTrace(mapping: ScannerEvidenceMapping, result: ScanResult) -> String {
-        """
+        let vector = result.residualVector ?? [:]
+        let residualLines = ResidualFamilies.order
+            .map { family -> String in
+                let entry = vector[family]
+                return "residual.\(family): \(entry?.tier ?? "-")\(entry?.cause.map { " (\($0))" } ?? "")"
+            }
+            .joined(separator: "\n")
+
+        return """
         fixture_id: \(mapping.fixtureID)
         decision_state: \(mapping.decisionState)
         decision_color: \(mapping.decisionColor)
@@ -762,7 +745,9 @@ private extension EvidencePacketExporter {
         message: \(result.message)
         destination: \(result.destination ?? "not provided")
         host: \(result.host ?? "not provided")
-        usage_policy: \(result.usagePolicy ?? "not provided")
+        envelope_id: \(result.envelopeId ?? "-")
+        primary_state: \(result.modelDecision?.primaryState ?? "-")
+        \(residualLines)
         risk_score: \(result.scannerUX.map { String($0.riskScore) } ?? "not provided")
         reason_codes: \(result.scannerUX?.reasonCodes.joined(separator: ", ") ?? "not provided")
         checked_at: \(isoDate(result.checkedAt))
@@ -802,8 +787,11 @@ private extension EvidencePacketExporter {
         var details: [(String, String)] = []
         details.append(("Destination", result.destination ?? "not provided"))
         details.append(("Host", result.host ?? "not provided"))
-        if let usagePolicy = result.usagePolicy {
-            details.append(("Usage policy", usagePolicy))
+        if let envelopeId = result.envelopeId {
+            details.append(("Envelope", envelopeId))
+        }
+        if let primaryState = result.modelDecision?.primaryState {
+            details.append(("Decision", primaryState))
         }
         if let riskScore = result.scannerUX?.riskScore {
             details.append(("Risk score", String(riskScore)))
@@ -850,7 +838,7 @@ private extension EvidencePacketExporter {
         return [
             result.title,
             result.message,
-            result.usagePolicy,
+            result.modelDecision?.primaryState,
             result.destination,
             result.host,
             result.technicalSummary,

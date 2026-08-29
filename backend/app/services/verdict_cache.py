@@ -1,12 +1,11 @@
 """Short-lived verdict cache for reusable QR codes.
 
-A ``reusable_public`` or ``time_limited`` code that is scanned by a crowd (or
-replayed by a flood) yields the same verdict for every identical envelope
-until the claims expire. Computing it once per short window and serving the
-rest from cache is the single largest cost reduction in the scan-flood design:
-a cache hit skips the signature check, the budget spend, and the evidence
-write. Hits are counted per nonce fingerprint so the lab card's scan count
-stays honest without a row per scan.
+A signed code that is scanned by a crowd yields the same verdict for every
+identical envelope until the claims expire. Computing it once per short window
+and serving the rest from cache is the single largest cost reduction in the
+scan-flood design: a cache hit skips the signature check, the budget spend, and
+the evidence write. Hits are counted per envelope fingerprint so the lab card's
+scan count stays honest without a row per scan.
 
 Shape mirrors ``RequestRateLimiter``: Redis when the shared client is
 connected, a process-local fallback otherwise, and any Redis failure degrades
@@ -40,7 +39,7 @@ _RATE_PRUNE_INTERVAL_SECONDS = 60.0
 
 @dataclass(frozen=True)
 class VerdictHitSummary:
-    """Cached verdicts served for one nonce in the current counting window."""
+    """Cached verdicts served for one envelope in the current counting window."""
 
     total: int = 0
     green: int = 0
@@ -246,9 +245,9 @@ class VerdictCache:
     async def record_cached_scan(self, fingerprint: str, *, retain_seconds: int) -> None:
         """Count one cached scan in the current minute bucket.
 
-        Cached verdicts write no evidence row and spend no nonce budget, so the
+        Cached verdicts write no evidence row and spend no envelope budget, so the
         spike detector reads these buckets to see the part of a flood the cache
-        absorbed. One key per (nonce, minute) keeps the read a bounded MGET.
+        absorbed. One key per (envelope, minute) keeps the read a bounded MGET.
         """
         client = redis_service.redis_client
         if client is None:
@@ -264,7 +263,7 @@ class VerdictCache:
             await self._fallback.record_cached_scan(fingerprint, retain_seconds=retain_seconds)
 
     async def cached_scan_count(self, fingerprint: str, *, since: float, until: float) -> int:
-        """Cached scans of one nonce across the minute buckets overlapping the window."""
+        """Cached scans of one envelope across the minute buckets overlapping the window."""
         client = redis_service.redis_client
         if client is None:
             return await self._fallback.cached_scan_count(fingerprint, since=since, until=until)

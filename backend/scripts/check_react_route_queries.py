@@ -70,7 +70,7 @@ def _expect_comparison_layer(page: Page, layer: str) -> None:
 
 def _check_lab_query_refresh(page: Page, base_url: str) -> None:
     page.goto(
-        f"{base_url}/?scenario=payload-mismatch&nonce=fixed&autogenerate=0&compare=valid",
+        f"{base_url}/?scenario=payload-mismatch&autogenerate=0&compare=valid",
         wait_until="domcontentloaded",
     )
     expect(page.get_by_test_id("flow-stepper")).to_be_visible(timeout=10_000)
@@ -82,7 +82,7 @@ def _check_lab_query_refresh(page: Page, base_url: str) -> None:
     )
     _expect_comparison_layer(page, "Destination binding")
 
-    _push_route(page, "/?scenario=subdomain-blocked&nonce=fixed&autogenerate=0&compare=subdomain-allowed")
+    _push_route(page, "/?scenario=subdomain-blocked&autogenerate=0&compare=subdomain-allowed")
     _expect_pressed(page, "scenario-subdomain-blocked", True)
     _expect_pressed(page, "scenario-payload-mismatch", False)
     _expect_text(page, "Subdomain blocked")

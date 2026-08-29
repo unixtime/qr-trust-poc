@@ -8,11 +8,7 @@ import { useT } from "@/i18n"
 import { requestJson, type ScannerDecisionRecent, type VerifierStatus } from "@/lib/verifier-client"
 import { FlowStepper } from "@/routes/lab/components/FlowStepper"
 import QrDisplayModal from "@/routes/lab/components/QrDisplayModal"
-import {
-  lifetimeMinutesFor,
-  scenarioMeta,
-  shouldAutogenerateFromRoute,
-} from "@/routes/lab/content"
+import { shouldAutogenerateFromRoute } from "@/routes/lab/content"
 import { deriveFlowState, type FlowStepId } from "@/routes/lab/deriveFlowStep"
 import GenerateStep from "@/routes/lab/steps/GenerateStep"
 import { ScanStep } from "@/routes/lab/steps/ScanStep"
@@ -170,15 +166,23 @@ export default function FlowPage() {
     void runProbe()
   }, [runProbe])
 
-  const goToStep = useCallback((step: FlowStepId) => {
-    setActiveStep(step)
-    setVisitedSteps((prev) => {
-      if (prev.has(step)) return prev
-      const next = new Set(prev)
-      next.add(step)
-      return next
-    })
-  }, [])
+  const goToStep = useCallback(
+    (step: FlowStepId) => {
+      // Steps live inside one route, so the browser never resets the viewport
+      // for them the way it does for a real navigation. Jump to the top so a
+      // step opens at its heading instead of wherever the previous one was
+      // scrolled to (instant, not smooth: the content has already swapped).
+      if (step !== activeStep) window.scrollTo({ top: 0, behavior: "auto" })
+      setActiveStep(step)
+      setVisitedSteps((prev) => {
+        if (prev.has(step)) return prev
+        const next = new Set(prev)
+        next.add(step)
+        return next
+      })
+    },
+    [activeStep],
+  )
 
   const flow = deriveFlowState(lab)
 
@@ -215,15 +219,13 @@ export default function FlowPage() {
             />
           ) : activeStep === 2 ? (
             <GenerateStep
+              scenario={lab.scenario}
               scenarioLabel={t(scenarioLabelKeys[lab.scenario])}
               demo={lab.demo}
               isGenerating={lab.isGenerating}
               generationError={lab.generationError}
               isVerifyingCurrent={lab.isVerifyingCurrent}
-              nonceMode={lab.nonceMode}
-              usagePolicy={lab.usagePolicy}
               expiresAt={lab.expiresAt}
-              lifetimeMinutes={lifetimeMinutesFor(scenarioMeta[lab.scenario], lab.usagePolicy)}
               showKeyIssue={lab.apiAuthEnabled && lab.adminFlowEnabled && !lab.apiKey.trim()}
               isIssuingLabKey={lab.isIssuingLabKey}
               latestActivity={lab.history[0] ?? null}
@@ -233,8 +235,6 @@ export default function FlowPage() {
               onGenerate={() => void lab.generateDemo()}
               onVerifyCurrent={() => void lab.verifyCurrent()}
               onIssueLabKey={() => void lab.issueLocalLabKey()}
-              onNonceModeChange={lab.setNonceMode}
-              onUsagePolicyChange={lab.setUsagePolicy}
               onExpiresAtChange={lab.setExpiresAt}
               onOpenFullscreen={lab.openQrFullscreen}
               onBack={() => goToStep(1)}

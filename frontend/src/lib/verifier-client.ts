@@ -256,27 +256,14 @@ export type ScannerDecisionRecent = {
   reason_codes: string[]
   risk_score: number | null
   destination_fingerprint: string | null
-  usage_policy: UsagePolicy | null
   hold_to_open_required: boolean
   hold_to_open_duration_ms: number
   created_at: string
 }
 
-export type ScanActivityReplayState =
-  | "not_applicable"
-  | "unused"
-  | "reserved"
-  | "consumed"
-
 export type ScanActivityDecision = ScannerDecisionRecent & {
   /** `ios`, `android`, `browser_lab` or `unknown`, as the scanner reported it. */
   client_platform: string | null
-}
-
-export type ScanActivityReplayGuard = {
-  applies: boolean
-  state: ScanActivityReplayState
-  expires_at: string | null
 }
 
 /**
@@ -292,49 +279,42 @@ export type ScanDestinationOutcome =
   | "unreported"
 
 /**
- * Scans of one demo nonce as the verifier recorded them
- * (`GET /verifier/scan-activity`). `persistence_state` is the honesty flag:
- * the counts only mean something when it is `observable`;
- * `unconfigured`/`unavailable` say the evidence store cannot report phone
- * scans, not that none happened.
- */
-/**
- * Scan-flood state for a reusable code (`reusable_public`, `time_limited`):
- * verdicts served from the short-lived cache write no evidence row, so they
- * are counted here instead, next to the per-code budget that still applies
- * to the scans the cache does not absorb. Absent (`null`) for `one_time`.
+ * Scan-flood state for one envelope: verdicts served from the short-lived
+ * shared cache write no evidence row, so they are counted here instead, next
+ * to the per-envelope budget that still applies to the scans the cache does
+ * not absorb.
  */
 export type ScanActivityThrottle = {
   cached_verdicts: number
   last_cached_at: string | null
   verdict_cache_ttl_seconds: number
-  nonce_budget_limit: number
-  nonce_budget_remaining: number
-  nonce_budget_window_seconds: number
+  envelope_budget_limit: number
+  envelope_budget_remaining: number
+  envelope_budget_window_seconds: number
 }
 
+/**
+ * Scans of one demo envelope as the verifier recorded them
+ * (`GET /verifier/scan-activity?envelope_id=...`). `persistence_state` is the
+ * honesty flag: the counts only mean something when it is `observable`;
+ * `unconfigured`/`unavailable` say the evidence store cannot report phone
+ * scans, not that none happened.
+ */
 export type ScanActivity = {
-  nonce_fingerprint: string
+  envelope_fingerprint: string
   persistence_state: "observable" | "unconfigured" | "unavailable"
   lookback_seconds: number
-  /**
-   * Echo of the `issued_at` the poll asked about. When set, every count and
-   * `latest` covers this issuance only — a regenerated lab code with a fixed
-   * nonce does not inherit the earlier code's scans.
-   */
-  issued_at: string | null
   scan_count: number
   green_count: number
   orange_count: number
   red_count: number
   first_scanned_at: string | null
   last_scanned_at: string | null
-  /** First green decision — for `one_time` codes, the scan that consumed the nonce. */
+  /** First green scan of this envelope. */
   first_verified_at: string | null
-  /** Red decisions recorded after `first_verified_at` (replay attempts on a one-time code). */
+  /** Red decisions recorded after `first_verified_at`. */
   blocked_since_verified: number
   latest: ScanActivityDecision | null
-  replay_guard: ScanActivityReplayGuard
   destination_outcome: ScanDestinationOutcome | null
   throttle: ScanActivityThrottle | null
   error: string | null
@@ -375,8 +355,8 @@ export type VerifierStatus = {
   rate_limit_window_seconds: number
   rate_limit_max_requests: number
   decode_rate_limit_max_requests: number
-  nonce_rate_limit_window_seconds: number
-  nonce_rate_limit_max_requests: number
+  envelope_rate_limit_window_seconds: number
+  envelope_rate_limit_max_requests: number
   issuer_rate_limit_max_requests: number
   forwarded_ip_trust_configured: boolean
   max_qr_payload_chars: number
@@ -401,16 +381,15 @@ export type IssuerVerificationState = {
   certificate_revocation_reason: string | null
 }
 
-export type UsagePolicy = "reusable_public" | "one_time" | "time_limited"
 export type GovernanceCacheProfile = "fresh" | "stale" | "expired"
 
+// Claims v2, in canonical order. The validity window is the only freshness
+// input the verifier reads.
 export type SignedClaims = {
   version: string
-  usage_policy: UsagePolicy
   certificate_ref: string
   issued_at: string
   expires_at: string
-  nonce: string
   payload: string
 }
 
@@ -424,22 +403,19 @@ export type NarrowedVerifierRequest = {
   envelope: SignedEnvelope
   certificate: CertificateRecord
   issuer_state: IssuerVerificationState
-  reservation_ttl_seconds: number
-  consumed_ttl_seconds: number
 }
 
 export type ScannedVerifierRequest = {
   qr_payload: string
   certificate: CertificateRecord
   issuer_state: IssuerVerificationState
-  reservation_ttl_seconds: number
-  consumed_ttl_seconds: number
 }
+
+export type TrustKeyState = "active" | "retired" | "revoked"
+export type TrustIssuerStatus = "active" | "suspended" | "revoked"
 
 export type DemoMaterialsRequest = {
   payload: string
-  nonce: string
-  usage_policy: UsagePolicy
   governance_cache_profile: GovernanceCacheProfile
   verified_domains: string[]
   allow_subdomains: boolean
@@ -448,11 +424,24 @@ export type DemoMaterialsRequest = {
   certificate_revocation_reason: string | null
   issued_offset_minutes: number
   expires_offset_minutes: number
+  /** Cycle 2: issuer-record window, relative to now. Omitted = no expiry. */
+  issuer_record_expires_offset_minutes?: number | null
+  /** Cycle 2: explicit key state; the backend derives "revoked" from `certificate_revoked` when absent. */
+  key_state?: TrustKeyState
+  /** Cycle 2: mint a new demo key and retire the previous one. */
+  rotate_key?: boolean
   register_scanner_trust?: boolean
   artifact_profile?: ArtifactRenderProfile
 }
 
 export type ArtifactRenderProfile = "clean" | "low-quiet-zone" | "payload-mismatch"
+
+export type DemoTrustEcho = {
+  key_ref: string
+  key_state: TrustKeyState
+  issuer_status: TrustIssuerStatus
+  retired_key_refs: string[]
+}
 
 export type DemoMaterialsResponse = {
   certificate: CertificateRecord
@@ -461,16 +450,43 @@ export type DemoMaterialsResponse = {
   verify_request: NarrowedVerifierRequest
   qr_payload: string
   qr_png_base64: string
+  /** sha256 over the canonical claims and the signature; 64 hex chars. */
+  envelope_id: string
+  trust: DemoTrustEcho
+}
+
+export type TrustStoreIssuerRecord = {
+  issuer_id: string
+  issuer_name: string
+  root_id: string
+  status: TrustIssuerStatus
+  issued_at: string
+  expires_at: string | null
+  verified_domains: string[]
+  allow_subdomains: boolean
+}
+export type TrustStoreKeyRecord = {
+  key_ref: string
+  issuer_id: string
+  algorithm_id: string
+  state: TrustKeyState
+  not_before: string
+  not_after: string | null
+  revoked_at: string | null
+  revocation_reason: string | null
+}
+export type TrustStoreResponse = {
+  generated_at: string
+  issuers: TrustStoreIssuerRecord[]
+  keys: TrustStoreKeyRecord[]
 }
 
 export type VerifierDecision = {
   allowed: boolean
   stage: string
   reason: string
-  usage_policy: UsagePolicy
   canonical_claims_sha256: string | null
   matched_rule: string | null
-  reservation_state: string | null
 }
 
 export type ScannerDecisionRequest = {
@@ -600,10 +616,81 @@ export type ScannerDecisionContract = {
   governance: Record<string, unknown>
 }
 
+// The six residual families the decision model scores, exactly as
+// `RESIDUAL_FAMILIES` names them in `trust_residuals_decision.py`.
+export type ResidualFamily =
+  | "issuer_chain"
+  | "destination_policy"
+  | "redirect_flow"
+  | "runtime_safety"
+  | "freshness"
+  | "artifact_integrity"
+
+// Every tier `decide()` accepts. The backend emits a subset today; the union
+// stays complete so a new tier is a type error, not a silent fallthrough.
+export type ResidualTier =
+  | "pass"
+  | "not-applicable"
+  | "not-checked"
+  | "unknown"
+  | "unavailable"
+  | "stale"
+  | "warn"
+  | "fail"
+  | "unaccepted-issuer"
+  | "invalid-managed-claim"
+  | "revoked-issuer"
+  | "block"
+
+/**
+ * Closed vocabulary of residual causes the scanner emits. The backend's
+ * scope-honesty source guard checks this list against every catalogue; adding
+ * a slug here without copy in `en.ts` fails that guard, and copy without a
+ * slug here fails the same guard from the other side.
+ */
+export type ResidualCause =
+  | "signature-invalid"
+  | "issuer-inactive"
+  | "issuer-revoked"
+  | "issuer-record-expired"
+  | "issuer-record-not-yet-valid"
+  | "key-revoked"
+  | "key-window-mismatch"
+  | "destination-mismatch"
+  | "not-yet-valid"
+  | "object-expired"
+  | "redirect-policy-blocked"
+  | "runtime-risky"
+  | "runtime-blocked"
+  | "runtime-expired"
+  | "runtime-stale"
+  | "runtime-unavailable"
+  | "no-signed-envelope"
+  | "unsupported-envelope"
+  | "unsupported-claims-version"
+
+export type ResidualEntry = {
+  tier: ResidualTier
+  cause: ResidualCause | null
+}
+
+export type ResidualVector = Record<ResidualFamily, ResidualEntry>
+
+export type ModelDecision = {
+  profile: string
+  primary_state: string
+  annotations: string[]
+  reason_codes: string[]
+  attention_level: "positive" | "neutral" | "warning" | "block"
+}
+
 export type ScannerDecisionResponse = {
   decision_state: string
   open_allowed: boolean
-  usage_policy: UsagePolicy | null
+  /** sha256 over the canonical claims and the signature; 64 hex chars. */
+  envelope_id: string | null
+  residual_vector: ResidualVector
+  model_decision: ModelDecision | null
   primary_message: string
   issuer: ScannerDecisionIssuer
   destination: ScannerDecisionDestination
@@ -762,10 +849,6 @@ export async function requestJson<T>(
 
 export function qrImageDataUrl(base64: string) {
   return `data:image/png;base64,${base64}`
-}
-
-export function makeTimestampedNonce(baseNonce: string) {
-  return `${baseNonce}-${Date.now()}`
 }
 
 export function fileToBase64(file: File) {

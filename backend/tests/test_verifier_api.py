@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import base64
 import copy
+import json
+import re
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from typing import Any
 from urllib.parse import quote
@@ -29,12 +31,16 @@ from backend.app.schemas.poc import (
 )
 from backend.app.schemas.poc import (
     ScanActivityDecisionResponse,
-    ScanActivityReplayGuardResponse,
     ScanActivityResponse,
 )
+from backend.app.schemas.poc import TrustStoreResponse
 from backend.app.services import verifier_api_key_service as api_key_service_module
-from backend.app.services.scan_activity import nonce_fingerprint
-from backend.app.services.qr_artifact_poc import decode_qr_payload_from_png_bytes
+from backend.app.services.scan_activity import envelope_fingerprint
+from backend.app.services.qr_artifact_poc import (
+    decode_envelope_from_qr_payload,
+    decode_qr_payload_from_png_bytes,
+    encode_envelope_as_qr_payload,
+)
 
 
 def _render_custom_qr_base64(payload: str, *, border: int) -> str:
@@ -52,10 +58,10 @@ def _render_custom_qr_base64(payload: str, *, border: int) -> str:
     return base64.b64encode(output.getvalue()).decode("ascii")
 
 
-def test_verifier_reference_api_accepts_then_blocks_replay(client: TestClient) -> None:
+def test_verifier_reference_api_accepts_a_signed_demo_envelope(client: TestClient) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-accept-001", "usage_policy": "one_time"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -68,11 +74,6 @@ def test_verifier_reference_api_accepts_then_blocks_replay(client: TestClient) -
     assert first_result.status_code == 200
     assert first_result.json()["allowed"] is True
     assert first_result.json()["stage"] == "accepted"
-
-    second_result = client.post("/verifier/verify", json=verify_request)
-    assert second_result.status_code == 200
-    assert second_result.json()["allowed"] is False
-    assert second_result.json()["stage"] == "replay_guard"
 
 
 def test_root_serves_service_descriptor(client: TestClient) -> None:
@@ -313,7 +314,6 @@ def test_verifier_status_reports_scanner_decision_persistence(
                         reason_codes=["net_new_domain"],
                         risk_score=42,
                         destination_fingerprint="pay.example",
-                        usage_policy="reusable_public",
                         hold_to_open_required=True,
                         hold_to_open_duration_ms=800,
                         created_at="2026-05-18T00:00:00Z",
@@ -459,9 +459,12 @@ def test_verifier_reference_api_blocks_expired_and_revoked(client: TestClient) -
     expired_demo = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-expired-001",
-            "issued_offset_minutes": -10,
-            "expires_offset_minutes": -1,
+            # Offsets clear the 300-second clock-skew tolerance every
+            # artifact-time comparison applies (global-constraints.md); a
+            # 1-minute overrun no longer counts as expired once the verify
+            # surface is wired through the trust store's skew-aware check.
+            "issued_offset_minutes": -20,
+            "expires_offset_minutes": -10,
         },
     )
     expired_request = expired_demo.json()["verify_request"]
@@ -473,7 +476,6 @@ def test_verifier_reference_api_blocks_expired_and_revoked(client: TestClient) -
     revoked_demo = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-revoked-001",
             "certificate_revoked": True,
             "certificate_revocation_reason": "revoked for test",
         },
@@ -482,7 +484,62 @@ def test_verifier_reference_api_blocks_expired_and_revoked(client: TestClient) -
     revoked_result = client.post("/verifier/verify", json=revoked_request)
     assert revoked_result.status_code == 200
     assert revoked_result.json()["allowed"] is False
-    assert revoked_result.json()["stage"] == "certificate_status"
+    assert revoked_result.json()["stage"] == "key_status"
+
+
+def test_verifier_verify_allows_expiry_within_the_clock_skew_tolerance(
+    client: TestClient,
+) -> None:
+    # Deliberately pins config.VERIFIER_CLOCK_SKEW_SECONDS: evaluate_trust_window
+    # applies that tolerance to every artifact-time comparison (global-constraints.md),
+    # so an object whose expires_at is only 1 minute in the past still reads
+    # as within the window and must verify.
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={
+            "issued_offset_minutes": -20,
+            "expires_offset_minutes": -1,
+        },
+    )
+    assert demo_response.status_code == 200
+
+    result = client.post(
+        "/verifier/verify",
+        json=demo_response.json()["verify_request"],
+    )
+
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["allowed"] is True
+    assert payload["cause"] is None
+
+
+def test_verifier_verify_blocks_expiry_past_the_clock_skew_tolerance(
+    client: TestClient,
+) -> None:
+    # Companion to the allow-within-tolerance case above: 10 minutes past
+    # expires_at clears config.VERIFIER_CLOCK_SKEW_SECONDS, so the request
+    # must be blocked with the closed-vocabulary "object-expired" cause,
+    # not just a time_window stage.
+    demo_response = client.post(
+        "/verifier/demo-materials",
+        json={
+            "issued_offset_minutes": -20,
+            "expires_offset_minutes": -10,
+        },
+    )
+    assert demo_response.status_code == 200
+
+    result = client.post(
+        "/verifier/verify",
+        json=demo_response.json()["verify_request"],
+    )
+
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["allowed"] is False
+    assert payload["stage"] == "time_window"
+    assert payload["cause"] == "object-expired"
 
 
 def test_verifier_reference_api_rejects_malformed_payload_port(
@@ -491,9 +548,7 @@ def test_verifier_reference_api_rejects_malformed_payload_port(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-malformed-port-001",
             "payload": "https://acme.example:99999/pay",
-            "usage_policy": "reusable_public",
             "verified_domains": ["acme.example"],
         },
     )
@@ -519,37 +574,36 @@ def test_verifier_demo_materials_reject_lifetimes_beyond_thirty_days(
     thirty_days = 30 * 24 * 60
     accepted = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-lifetime-cap-ok-001", "expires_offset_minutes": thirty_days},
+        json={"expires_offset_minutes": thirty_days},
     )
     assert accepted.status_code == 200
 
     rejected = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-lifetime-cap-001", "expires_offset_minutes": thirty_days + 1},
+        json={"expires_offset_minutes": thirty_days + 1},
     )
     assert rejected.status_code == 422
     assert rejected.json()["detail"][0]["loc"] == ["body", "expires_offset_minutes"]
 
 
-def test_verifier_demo_materials_support_expired_reusable_public_lab_case(
+def test_verifier_demo_materials_support_the_expired_lab_case(
     client: TestClient,
 ) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-expired-reusable-public-001",
-            "usage_policy": "reusable_public",
-            "issued_offset_minutes": -10,
-            "expires_offset_minutes": -2,
+            # Offsets clear the 300-second clock-skew tolerance every
+            # artifact-time comparison applies (global-constraints.md); a
+            # 2-minute overrun no longer counts as expired once the verify
+            # surface is wired through the trust store's skew-aware check.
+            "issued_offset_minutes": -20,
+            "expires_offset_minutes": -10,
             "verified_domains": ["acme.example"],
         },
     )
     assert demo_response.status_code == 200
 
     demo_payload = demo_response.json()
-    assert demo_payload["verify_request"]["envelope"]["claims"]["usage_policy"] == (
-        "reusable_public"
-    )
 
     scanner_response = client.post(
         "/scanner/decisions",
@@ -566,7 +620,7 @@ def test_scanner_decision_uses_server_verifier_profile_state(
     monkeypatch.setattr(config, "VERIFIER_PROVIDER_PROFILE_STATE", "revoked")
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-profile-revoked-001", "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -588,7 +642,7 @@ def test_scanner_decision_uses_server_verifier_profile_state(
 def test_verifier_scanned_api_accepts_real_qr_roundtrip(client: TestClient) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-scan-001", "usage_policy": "one_time"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -612,14 +666,14 @@ def test_verifier_scanned_api_accepts_real_qr_roundtrip(client: TestClient) -> N
 
     second_result = client.post("/verifier/verify-scanned", json=verify_request)
     assert second_result.status_code == 200
-    assert second_result.json()["allowed"] is False
-    assert second_result.json()["stage"] == "replay_guard"
+    assert second_result.json()["allowed"] is True
+    assert second_result.json()["stage"] == "accepted"
 
 
 def test_scanner_decision_api_resolves_registered_demo_qr(client: TestClient) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-scanner-decision-001", "usage_policy": "one_time"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -674,30 +728,23 @@ def test_scanner_decision_api_resolves_registered_demo_qr(client: TestClient) ->
     second_result = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
     assert second_result.status_code == 200
     second_payload = second_result.json()
-    assert second_payload["decision_state"] == "blocked"
-    assert second_payload["open_allowed"] is False
-    assert second_payload["verifier_stage"] == "replay_guard"
-    assert second_payload["usage_policy"] == "one_time"
-    assert second_payload["scanner_ux"]["risk_level"] == "red"
-    assert "one_time_used" in second_payload["scanner_ux"]["reason_codes"]
-    replay_contract = second_payload["contract"]
-    assert replay_contract["decision_color"] == "red"
-    assert replay_contract["hold_to_open"]["required"] is False
-    assert "one_time_used" in replay_contract["reason_codes"]
-    assert replay_contract["trust_path"]["runtime_safety"]["status"] == "replay_blocked"
+    assert second_payload["decision_state"] == "verified_issuer"
+    assert second_payload["open_allowed"] is True
+    assert second_payload["verifier_stage"] == "accepted"
+    assert second_payload["envelope_id"] == first_payload["envelope_id"]
+    assert second_payload["scanner_ux"]["risk_level"] == "green"
 
 
 def test_scanner_decision_api_flags_unregistered_demo_qr(client: TestClient) -> None:
     registered = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-scanner-registered-001"},
+        json={},
     )
     assert registered.status_code == 200
 
     unregistered = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-unregistered-001",
             "register_scanner_trust": False,
         },
     )
@@ -720,8 +767,6 @@ def test_scanner_decision_uses_image_artifact_warning(client: TestClient) -> Non
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-artifact-warning-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -751,8 +796,6 @@ def test_scanner_decision_blocks_image_payload_mismatch(client: TestClient) -> N
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-artifact-mismatch-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -782,7 +825,6 @@ def test_demo_materials_low_quiet_zone_profile_yields_artifact_warning(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-artifact-profile-quiet-zone-001",
             "artifact_profile": "low-quiet-zone",
         },
     )
@@ -815,7 +857,6 @@ def test_demo_materials_payload_mismatch_profile_blocks_scan(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-artifact-profile-mismatch-001",
             "artifact_profile": "payload-mismatch",
         },
     )
@@ -875,8 +916,6 @@ def test_scanner_decision_uses_unique_internal_decision_id_for_reused_request_id
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-reused-request-id-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -911,8 +950,6 @@ def test_scanner_decision_replaces_invalid_request_id_header(client: TestClient)
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-invalid-request-id-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -970,8 +1007,6 @@ def test_scanner_decision_api_records_decorated_evidence(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-recording-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1197,10 +1232,10 @@ def test_scanner_provider_profile_uses_configured_public_base_url(
     assert response.json()["endpoints"] == ["https://scanner-provider.example"]
 
 
-def test_scanner_decision_api_allows_reusable_public_qr_multiple_times(client: TestClient) -> None:
+def test_scanner_decision_api_allows_repeated_scans_of_one_qr(client: TestClient) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-scanner-reusable-001", "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -1215,7 +1250,6 @@ def test_scanner_decision_api_allows_reusable_public_qr_multiple_times(client: T
     second_payload = second_result.json()
     assert first_payload["decision_state"] == "verified_issuer"
     assert first_payload["open_allowed"] is True
-    assert first_payload["usage_policy"] == "reusable_public"
     assert first_payload["issuer"]["tier"] == "verified_business"
     assert first_payload["governance"]["assurance_tier"] == "verified_business"
     assert first_payload["governance"]["destination_policy_id"] == "policy:acme-demo:web-payments:v1"
@@ -1224,7 +1258,6 @@ def test_scanner_decision_api_allows_reusable_public_qr_multiple_times(client: T
     assert second_payload["decision_state"] == "verified_issuer"
     assert second_payload["open_allowed"] is True
     assert second_payload["verifier_stage"] == "accepted"
-    assert second_payload["usage_policy"] == "reusable_public"
     assert second_payload["scanner_ux"]["risk_level"] == "green"
     assert second_payload["scanner_ux"]["hold_required"] is False
 
@@ -1232,7 +1265,7 @@ def test_scanner_decision_api_allows_reusable_public_qr_multiple_times(client: T
 def test_demo_materials_exposes_non_normative_governance_projection(client: TestClient) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-governance-projection-001", "usage_policy": "reusable_public"},
+        json={},
     )
 
     assert demo_response.status_code == 200
@@ -1249,8 +1282,6 @@ def test_scanner_decision_downgrades_stale_governance_cache(client: TestClient) 
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-stale-cache-001",
-            "usage_policy": "reusable_public",
             "governance_cache_profile": "stale",
         },
     )
@@ -1291,8 +1322,6 @@ def test_scanner_decision_blocks_expired_governance_cache(client: TestClient) ->
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-expired-cache-001",
-            "usage_policy": "reusable_public",
             "governance_cache_profile": "expired",
         },
     )
@@ -1317,16 +1346,15 @@ def test_scanner_decision_blocks_expired_governance_cache(client: TestClient) ->
     assert payload["signals"][3]["state"] == "blocked"
     assert payload["contract"]["decision_color"] == "red"
     assert payload["contract"]["cache_freshness"]["status"] == "expired"
+    assert re.fullmatch(r"[0-9a-f]{64}", payload["envelope_id"])
 
 
-def test_scanner_decision_downgrades_stale_verifier_profile_without_consuming_nonce(
+def test_scanner_decision_downgrades_stale_verifier_profile(
     client: TestClient,
 ) -> None:
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-stale-profile-001",
-            "usage_policy": "one_time",
         },
     )
     assert demo_response.status_code == 200
@@ -1378,8 +1406,6 @@ def test_scanner_decision_blocks_revoked_verifier_profile(client: TestClient) ->
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-revoked-profile-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1420,9 +1446,7 @@ def test_scanner_decision_api_marks_verified_destination_risky(client: TestClien
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-runtime-risky-001",
             "payload": "https://acme.example/pay?runtime=risky",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1470,9 +1494,7 @@ def test_scanner_decision_runtime_degraded_reason_codes_are_specific(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": f"api-scanner-runtime-{runtime_state}-001",
             "payload": f"https://acme.example/pay?runtime={runtime_state}",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1495,8 +1517,6 @@ def test_scanner_decision_ignores_client_bad_host_hints_for_verified_destination
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-client-hint-001",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1522,9 +1542,7 @@ def test_scanner_decision_api_blocks_verified_destination_runtime_block(client: 
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-runtime-blocked-001",
             "payload": "https://acme.example/pay?runtime=blocked",
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1548,10 +1566,8 @@ def test_scanner_decision_api_blocks_direct_destination_path_mismatch(
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-direct-path-mismatch-001",
             "payload": "https://acme.example/admin",
             "verified_domains": ["acme.example"],
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1580,10 +1596,8 @@ def test_scanner_decision_api_allows_approved_resolver_flow(client: TestClient) 
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-redirect-approved-001",
             "payload": resolver_url,
             "verified_domains": ["qr.acme.example"],
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1615,10 +1629,8 @@ def test_scanner_decision_api_blocks_resolver_final_host_mismatch(client: TestCl
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-redirect-host-mismatch-001",
             "payload": resolver_url,
             "verified_domains": ["qr.acme.example"],
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1647,10 +1659,8 @@ def test_scanner_decision_api_blocks_excessive_redirect_hops(client: TestClient)
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-redirect-hops-001",
             "payload": resolver_url,
             "verified_domains": ["qr.acme.example"],
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1676,10 +1686,8 @@ def test_scanner_decision_api_blocks_nested_shortener_flow(client: TestClient) -
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-redirect-nested-001",
             "payload": resolver_url,
             "verified_domains": ["qr.acme.example"],
-            "usage_policy": "reusable_public",
         },
     )
     assert demo_response.status_code == 200
@@ -1700,7 +1708,6 @@ def test_scanner_decision_api_blocks_destination_mismatch(client: TestClient) ->
     demo_response = client.post(
         "/verifier/demo-materials",
         json={
-            "nonce": "api-scanner-mismatch-001",
             "payload": "https://rogue.example/phish",
             "verified_domains": ["acme.example"],
         },
@@ -1810,20 +1817,22 @@ def test_scanner_decision_api_flags_plain_url_with_embedded_credentials(
     assert payload["decision_state"] == "unverified"
     assert payload["open_allowed"] is True
     assert payload["destination"]["host"] == "wallet-login.example.zip"
-    assert payload["scanner_ux"]["risk_score"] == 60
-    assert payload["scanner_ux"]["risk_level"] == "red"
+    # Without the suspicious-TLD heuristic the plain-URL and embedded-credential
+    # signals alone total 45, which is amber rather than red. The heuristic was
+    # the only thing that pushed this destination over the red threshold.
+    assert payload["scanner_ux"]["risk_score"] == 45
+    assert payload["scanner_ux"]["risk_level"] == "amber"
     assert payload["scanner_ux"]["hold_required"] is True
     assert payload["scanner_ux"]["destination_display"] == "example.zip"
     assert payload["scanner_ux"]["destination_fingerprint"] == "example.zip"
     assert "plain_url" in payload["scanner_ux"]["reason_codes"]
     assert "embedded_credentials" in payload["scanner_ux"]["reason_codes"]
-    assert "suspicious_tld" in payload["scanner_ux"]["reason_codes"]
     assert payload["contract"]["destination"]["display_host"] == "example.zip"
-    assert payload["contract"]["decision_color"] == "red"
+    assert payload["contract"]["decision_color"] == "orange"
 
 
 def test_verifier_decode_image_endpoint_returns_qr_payload(client: TestClient) -> None:
-    demo_response = client.post("/verifier/demo-materials", json={"nonce": "api-image-001"})
+    demo_response = client.post("/verifier/demo-materials", json={})
     assert demo_response.status_code == 200
 
     demo_payload = demo_response.json()
@@ -1859,7 +1868,7 @@ def test_verifier_decode_image_rate_limit_returns_429(
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_RATE_LIMIT_WINDOW_SECONDS", 60)
     verifier_endpoint._request_rate_limiter._records.clear()
 
-    demo_response = client.post("/verifier/demo-materials", json={"nonce": "api-rate-limit-001"})
+    demo_response = client.post("/verifier/demo-materials", json={})
     demo_payload = demo_response.json()
 
     first_response = client.post(
@@ -1883,15 +1892,15 @@ def test_verifier_post_routes_require_api_key_when_configured(
 ) -> None:
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_API_KEYS", ["test-api-key"])
 
-    missing_key_response = client.post("/verifier/demo-materials", json={"nonce": "api-auth-001"})
+    missing_key_response = client.post("/verifier/demo-materials", json={})
     invalid_key_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-auth-001"},
+        json={},
         headers={"X-API-Key": "wrong-key"},
     )
     valid_key_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-auth-001"},
+        json={},
         headers={"X-API-Key": "test-api-key"},
     )
 
@@ -1959,7 +1968,7 @@ def test_verifier_api_key_store_unavailable_returns_503(
     )
     protected_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "dynamic-auth-unavailable"},
+        json={},
         headers={"X-API-Key": "unavailable-key"},
     )
 
@@ -1970,7 +1979,6 @@ def test_verifier_api_key_store_unavailable_returns_503(
 def _scan_activity_fixture(
     fingerprint: str,
     *,
-    usage_policy: str,
     scan_count: int = 1,
 ) -> ScanActivityResponse:
     latest = ScanActivityDecisionResponse(
@@ -1983,12 +1991,11 @@ def _scan_activity_fixture(
         hold_to_open_duration_ms=0,
         destination_fingerprint="acme.example",
         policy_ref="policy:acme-demo:web-payments:v1",
-        usage_policy=usage_policy,
         client_platform="ios",
         created_at="2026-08-25T10:00:00Z",
     )
     return ScanActivityResponse(
-        nonce_fingerprint=fingerprint,
+        envelope_fingerprint=fingerprint,
         persistence_state="observable",
         lookback_seconds=86_400,
         scan_count=scan_count,
@@ -2000,174 +2007,40 @@ def _scan_activity_fixture(
         first_verified_at="2026-08-25T10:00:00Z",
         blocked_since_verified=0,
         latest=latest,
-        replay_guard=ScanActivityReplayGuardResponse(applies=False, state="not_applicable"),
     )
 
 
-def test_scan_activity_requires_nonce(client: TestClient) -> None:
+def test_scan_activity_requires_envelope_id(client: TestClient) -> None:
     assert client.get("/verifier/scan-activity").status_code == 422
+    assert client.get("/verifier/scan-activity", params={"envelope_id": "zz" * 32}).status_code == 422
+    ok = client.get("/verifier/scan-activity", params={"envelope_id": "ab" * 32})
+    assert ok.status_code == 200
+    body = ok.json()
+    assert body["envelope_fingerprint"] == "ab" * 8
+    assert "replay_guard" not in body
+    assert "issued_at" not in body
+    assert body["throttle"]["envelope_budget_limit"] == 300
+    assert body["throttle"]["envelope_budget_window_seconds"] == 60
 
 
 def test_scan_activity_reports_unconfigured_store_without_database(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
     monkeypatch.setattr(config, "QRTRUST_NETWORK_DATABASE_URL", "")
 
-    response = client.get("/verifier/scan-activity", params={"nonce": "lab-nonce-001"})
+    response = client.get(
+        "/verifier/scan-activity",
+        params={"envelope_id": demo["envelope_id"]},
+    )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["nonce_fingerprint"] == nonce_fingerprint("lab-nonce-001")
+    assert payload["envelope_fingerprint"] == envelope_fingerprint(demo["envelope_id"])
     assert payload["persistence_state"] == "unconfigured"
     assert payload["scan_count"] == 0
     assert payload["latest"] is None
-    assert payload["replay_guard"] == {
-        "applies": False,
-        "state": "not_applicable",
-        "expires_at": None,
-    }
-
-
-def test_scan_activity_reports_one_time_replay_guard_state(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    fingerprint = nonce_fingerprint("api-scan-activity-one-time-001")
-
-    async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
-        assert requested_fingerprint == fingerprint
-        return _scan_activity_fixture(fingerprint, usage_policy="one_time")
-
-    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
-
-    unused = client.get(
-        "/verifier/scan-activity",
-        params={"nonce": "api-scan-activity-one-time-001"},
-    )
-    assert unused.status_code == 200
-    assert unused.json()["replay_guard"] == {
-        "applies": True,
-        "state": "unused",
-        "expires_at": None,
-    }
-
-    demo_response = client.post(
-        "/verifier/demo-materials",
-        json={"nonce": "api-scan-activity-one-time-001", "usage_policy": "one_time"},
-    )
-    assert demo_response.status_code == 200
-    scan_response = client.post(
-        "/scanner/decisions",
-        json={"qr_payload": demo_response.json()["qr_payload"]},
-    )
-    assert scan_response.status_code == 200
-    assert scan_response.json()["decision_state"] == "verified_issuer"
-
-    consumed = client.get(
-        "/verifier/scan-activity",
-        params={"nonce": "api-scan-activity-one-time-001"},
-    )
-    assert consumed.status_code == 200
-    replay_guard = consumed.json()["replay_guard"]
-    assert replay_guard["applies"] is True
-    assert replay_guard["state"] == "consumed"
-    assert replay_guard["expires_at"].endswith("Z")
-    assert consumed.json()["latest"]["client_platform"] == "ios"
-
-
-def test_scan_activity_uses_caller_usage_policy_when_store_is_unconfigured(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(config, "QRTRUST_NETWORK_DATABASE_URL", "")
-
-    response = client.get(
-        "/verifier/scan-activity",
-        params={"nonce": "api-scan-activity-unscanned-001", "usage_policy": "one_time"},
-    )
-
-    assert response.status_code == 200
-    assert response.json()["persistence_state"] == "unconfigured"
-    assert response.json()["replay_guard"]["state"] == "unused"
-
-
-def test_scan_activity_scopes_history_to_the_issuance(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A fixed lab nonce is reused across regenerations, so the card asks about
-    one issuance: history before ``issued_at`` belongs to an earlier code."""
-    captured: dict[str, Any] = {}
-
-    async def fake_load(requested_fingerprint: str, **kwargs: Any) -> ScanActivityResponse:
-        captured["fingerprint"] = requested_fingerprint
-        captured.update(kwargs)
-        return _scan_activity_fixture(requested_fingerprint, usage_policy="reusable_public")
-
-    monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
-    response = client.get(
-        "/verifier/scan-activity",
-        params={
-            "nonce": "api-scan-activity-issued-001",
-            "usage_policy": "reusable_public",
-            "issued_at": "2026-08-25T17:36:59Z",
-        },
-    )
-
-    assert response.status_code == 200
-    assert captured["fingerprint"] == nonce_fingerprint("api-scan-activity-issued-001")
-    assert captured["issued_at"] == datetime(2026, 8, 25, 17, 36, 59, tzinfo=timezone.utc)
-
-
-def test_scan_activity_rejects_an_unparseable_issued_at(client: TestClient) -> None:
-    response = client.get(
-        "/verifier/scan-activity",
-        params={"nonce": "api-scan-activity-issued-002", "issued_at": "yesterday"},
-    )
-    assert response.status_code == 422
-
-
-def test_scan_activity_scopes_cached_hits_to_the_issuance(client: TestClient) -> None:
-    _clear_verifier_rate_limiter()
-    nonce = "api-verdict-cache-issuance-001"
-    demo_response = client.post(
-        "/verifier/demo-materials",
-        json={"nonce": nonce, "usage_policy": "reusable_public"},
-    )
-    assert demo_response.status_code == 200
-    demo = demo_response.json()
-    issued_at = demo["verify_request"]["envelope"]["claims"]["issued_at"]
-    base_params = {"nonce": nonce, "usage_policy": "reusable_public"}
-
-    try:
-        first = client.post("/scanner/decisions", json={"qr_payload": demo["qr_payload"]})
-        second = client.post("/scanner/decisions", json={"qr_payload": demo["qr_payload"]})
-        unscoped = client.get("/verifier/scan-activity", params=base_params)
-        this_issuance = client.get(
-            "/verifier/scan-activity",
-            params={**base_params, "issued_at": issued_at},
-        )
-        # The same nonce regenerated later: a fresh code with no scans yet.
-        later_issuance = client.get(
-            "/verifier/scan-activity",
-            params={**base_params, "issued_at": "2036-01-01T00:00:00Z"},
-        )
-    finally:
-        _clear_verifier_rate_limiter()
-
-    assert first.status_code == 200
-    assert second.headers["X-QR-Trust-Verdict"] == "cached"
-    assert unscoped.json()["throttle"]["cached_verdicts"] == 1
-    assert this_issuance.json()["throttle"]["cached_verdicts"] == 1
-    assert later_issuance.json()["issued_at"] == "2036-01-01T00:00:00Z"
-    assert later_issuance.json()["throttle"]["cached_verdicts"] == 0
-    assert later_issuance.json()["throttle"]["last_cached_at"] is None
-    # The nonce budget is the flood control; it must not reset on reissue.
-    assert (
-        later_issuance.json()["throttle"]["nonce_budget_remaining"]
-        == this_issuance.json()["throttle"]["nonce_budget_remaining"]
-    )
 
 
 def _scan_activity_ux_event(decision_id: str, event_type: str) -> dict[str, Any]:
@@ -2192,13 +2065,14 @@ def test_scan_activity_reports_destination_outcome_from_ux_events(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fingerprint = nonce_fingerprint("api-scan-activity-outcome-001")
+    envelope_id = "cd" * 32
+    fingerprint = envelope_fingerprint(envelope_id)
 
     async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
-        return _scan_activity_fixture(fingerprint, usage_policy="reusable_public")
+        return _scan_activity_fixture(fingerprint)
 
     monkeypatch.setattr(verifier_endpoint, "load_scan_activity", fake_load)
-    params = {"nonce": "api-scan-activity-outcome-001"}
+    params = {"envelope_id": envelope_id}
 
     # No UX event for this decision reached the verifier yet: say so, do not
     # guess that the phone never opened anything.
@@ -2207,6 +2081,13 @@ def test_scan_activity_reports_destination_outcome_from_ux_events(
     assert unreported.json()["destination_outcome"] == "unreported"
     assert unreported.json()["first_verified_at"] == "2026-08-25T10:00:00Z"
     assert unreported.json()["blocked_since_verified"] == 0
+
+    body = unreported.json()
+    assert body["latest"] is not None
+    serialized = json.dumps(body)
+    assert "nonce" not in serialized
+    assert "usage_policy" not in serialized
+    assert "replay_guard" not in serialized
 
     for event_type in ["preview", "hold_start", "hold_complete"]:
         response = client.post(
@@ -2235,10 +2116,11 @@ def test_scan_activity_omits_destination_outcome_without_a_latest_decision(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    fingerprint = nonce_fingerprint("api-scan-activity-unscanned-002")
+    envelope_id = "ef" * 32
+    fingerprint = envelope_fingerprint(envelope_id)
 
     async def fake_load(requested_fingerprint: str, **_: Any) -> ScanActivityResponse:
-        return _scan_activity_fixture(fingerprint, usage_policy="reusable_public").model_copy(
+        return _scan_activity_fixture(fingerprint).model_copy(
             update={
                 "scan_count": 0,
                 "green_count": 0,
@@ -2253,14 +2135,14 @@ def test_scan_activity_omits_destination_outcome_without_a_latest_decision(
 
     response = client.get(
         "/verifier/scan-activity",
-        params={"nonce": "api-scan-activity-unscanned-002"},
+        params={"envelope_id": envelope_id},
     )
     assert response.status_code == 200
     assert response.json()["destination_outcome"] is None
     assert response.json()["blocked_since_verified"] == 0
 
 
-def test_scanner_decision_records_nonce_fingerprint_and_platform(
+def test_scanner_decision_records_envelope_fingerprint_and_platform(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2277,7 +2159,7 @@ def test_scanner_decision_records_nonce_fingerprint_and_platform(
 
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-scan-activity-fingerprint-001", "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
 
@@ -2291,11 +2173,13 @@ def test_scanner_decision_records_nonce_fingerprint_and_platform(
 
     assert scan_response.status_code == 200
     assert captured["decision_id"] == scan_response.json()["contract"]["decision_id"]
-    assert captured["nonce_fingerprint"] == nonce_fingerprint("api-scan-activity-fingerprint-001")
+    assert captured["envelope_fingerprint"] == envelope_fingerprint(
+        demo_response.json()["envelope_id"]
+    )
     assert captured["client_platform"] == "browser_lab"
 
 
-def test_scanner_decision_skips_nonce_fingerprint_for_plain_urls(
+def test_scanner_decision_skips_the_envelope_fingerprint_for_plain_urls(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2314,7 +2198,7 @@ def test_scanner_decision_skips_nonce_fingerprint_for_plain_urls(
     )
 
     assert scan_response.status_code == 200
-    assert captured["nonce_fingerprint"] is None
+    assert captured["envelope_fingerprint"] is None
 
 
 def _clear_verifier_rate_limiter() -> None:
@@ -2328,24 +2212,21 @@ def _disable_verdict_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_VERDICT_CACHE_TTL_SECONDS", 0)
 
 
-def _demo_verify_request(client: TestClient, nonce: str, usage_policy: str) -> dict[str, Any]:
-    demo_response = client.post(
-        "/verifier/demo-materials",
-        json={"nonce": nonce, "usage_policy": usage_policy},
-    )
+def _demo_verify_request(client: TestClient) -> dict[str, Any]:
+    demo_response = client.post("/verifier/demo-materials", json={})
     assert demo_response.status_code == 200
     return demo_response.json()["verify_request"]
 
 
-def test_verifier_nonce_budget_rejects_flood_before_signature_verification(
+def test_verifier_envelope_budget_rejects_flood_before_signature_verification(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _disable_verdict_cache(monkeypatch)
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS", 60)
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS", 60)
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-nonce-budget-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
 
     signature_checks = 0
     original_verify = verifier_endpoint._verifier.verify_presented_code
@@ -2372,25 +2253,26 @@ def test_verifier_nonce_budget_rejects_flood_before_signature_verification(
     assert signature_checks == 1
 
 
-def test_scanner_decision_nonce_budget_returns_429_without_recording_evidence(
+def test_scanner_decision_envelope_budget_returns_429_without_recording_evidence(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _disable_verdict_cache(monkeypatch)
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "api-nonce-budget-scanner-001", "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
-    qr_payload = demo_response.json()["qr_payload"]
+    demo = demo_response.json()
+    qr_payload = demo["qr_payload"]
 
     recorded_fingerprints: list[str | None] = []
     original_record = verifier_endpoint.record_scanner_evidence
 
     async def tracking_record(*args: Any, **kwargs: Any) -> Any:
-        recorded_fingerprints.append(kwargs.get("nonce_fingerprint"))
+        recorded_fingerprints.append(kwargs.get("envelope_fingerprint"))
         return await original_record(*args, **kwargs)
 
     monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", tracking_record)
@@ -2405,36 +2287,7 @@ def test_scanner_decision_nonce_budget_returns_429_without_recording_evidence(
     assert second.status_code == 429
     assert second.headers["Retry-After"]
     # Only the served decision produced evidence; the throttled one left no row.
-    assert recorded_fingerprints == [nonce_fingerprint("api-nonce-budget-scanner-001")]
-
-
-def test_verifier_nonce_budget_is_scoped_to_the_nonce_and_skips_one_time(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _disable_verdict_cache(monkeypatch)
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
-    _clear_verifier_rate_limiter()
-    reusable_a = _demo_verify_request(client, "api-nonce-budget-a", "reusable_public")
-    reusable_b = _demo_verify_request(client, "api-nonce-budget-b", "time_limited")
-    one_time = _demo_verify_request(client, "api-nonce-budget-one-time", "one_time")
-
-    try:
-        assert client.post("/verifier/verify", json=reusable_a).status_code == 200
-        assert client.post("/verifier/verify", json=reusable_a).status_code == 429
-        # Same caller identity, different nonce: its own budget, untouched.
-        assert client.post("/verifier/verify", json=reusable_b).status_code == 200
-        assert client.post("/verifier/verify", json=reusable_b).status_code == 429
-        # one_time codes self-limit through the replay guard and stay exempt.
-        first_one_time = client.post("/verifier/verify", json=one_time)
-        second_one_time = client.post("/verifier/verify", json=one_time)
-    finally:
-        _clear_verifier_rate_limiter()
-
-    assert first_one_time.status_code == 200
-    assert first_one_time.json()["allowed"] is True
-    assert second_one_time.status_code == 200
-    assert second_one_time.json()["stage"] == "replay_guard"
+    assert recorded_fingerprints == [envelope_fingerprint(demo["envelope_id"])]
 
 
 def test_verifier_issuer_budget_counts_only_signature_verified_requests(
@@ -2444,9 +2297,9 @@ def test_verifier_issuer_budget_counts_only_signature_verified_requests(
     _disable_verdict_cache(monkeypatch)
     monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ISSUER_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-issuer-budget-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
     forged_request = copy.deepcopy(verify_request)
-    forged_request["envelope"]["claims"]["nonce"] = "api-issuer-budget-forged"
+    forged_request["envelope"]["signature"] = "AAAA" + forged_request["envelope"]["signature"][4:]
 
     try:
         forged = client.post("/verifier/verify", json=forged_request)
@@ -2473,8 +2326,8 @@ def test_verifier_status_reports_scan_flood_budgets(
     monkeypatch.setattr(verifier_endpoint.config, "FORWARDED_ALLOW_IPS", "")
     payload = client.get("/verifier/status").json()
     assert payload["forwarded_ip_trust_configured"] is False
-    assert payload["nonce_rate_limit_window_seconds"] == 60
-    assert payload["nonce_rate_limit_max_requests"] == 300
+    assert payload["envelope_rate_limit_window_seconds"] == 60
+    assert payload["envelope_rate_limit_max_requests"] == 300
     assert payload["issuer_rate_limit_max_requests"] == 3000
 
     # Loopback is uvicorn's own default: an explicit 127.0.0.1 trusts nothing new.
@@ -2502,7 +2355,7 @@ def test_verifier_verdict_cache_serves_repeat_scan_without_signature_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-verdict-cache-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
     checks = _count_signature_checks(monkeypatch)
 
     try:
@@ -2523,13 +2376,13 @@ def test_verifier_verdict_cache_serves_repeat_scan_without_signature_check(
     assert checks[0] == 1
 
 
-def test_verifier_verdict_cache_wins_over_nonce_budget_but_not_for_tampered_envelope(
+def test_verifier_verdict_cache_wins_over_the_envelope_budget(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS", 1)
+    monkeypatch.setattr(verifier_endpoint.config, "VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS", 1)
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-verdict-cache-budget-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
     tampered = copy.deepcopy(verify_request)
     tampered["envelope"]["signature"] = "AAAA" + tampered["envelope"]["signature"][4:]
 
@@ -2537,6 +2390,7 @@ def test_verifier_verdict_cache_wins_over_nonce_budget_but_not_for_tampered_enve
         first = client.post("/verifier/verify", json=verify_request)
         replay = client.post("/verifier/verify", json=verify_request)
         forged = client.post("/verifier/verify", json=tampered)
+        forged_replay = client.post("/verifier/verify", json=tampered)
     finally:
         _clear_verifier_rate_limiter()
 
@@ -2544,9 +2398,14 @@ def test_verifier_verdict_cache_wins_over_nonce_budget_but_not_for_tampered_enve
     # A crowd scanning the same poster gets the cached verdict, not a 429 ...
     assert replay.status_code == 200
     assert replay.headers["X-QR-Trust-Verdict"] == "cached"
-    # ... while a different envelope under the same nonce still meets the budget.
-    assert forged.status_code == 429
-    assert forged.json()["detail"] == "Rate limit exceeded for this QR code"
+    # ... while a tampered envelope is a different envelope: it carries its own
+    # budget and its own failed signature check.
+    assert forged.status_code == 200
+    assert forged.json()["allowed"] is False
+    assert forged.json()["stage"] == "signed_schema"
+    # A forgery verdict is never cached, so replaying it meets the budget.
+    assert forged_replay.status_code == 429
+    assert forged_replay.json()["detail"] == "Rate limit exceeded for this QR code"
 
 
 def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
@@ -2554,19 +2413,19 @@ def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_verifier_rate_limiter()
-    nonce = "api-verdict-cache-scanner-001"
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": nonce, "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
-    qr_payload = demo_response.json()["qr_payload"]
+    demo = demo_response.json()
+    qr_payload = demo["qr_payload"]
 
     recorded_fingerprints: list[str | None] = []
     original_record = verifier_endpoint.record_scanner_evidence
 
     async def tracking_record(*args: Any, **kwargs: Any) -> Any:
-        recorded_fingerprints.append(kwargs.get("nonce_fingerprint"))
+        recorded_fingerprints.append(kwargs.get("envelope_fingerprint"))
         return await original_record(*args, **kwargs)
 
     monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", tracking_record)
@@ -2576,7 +2435,7 @@ def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
         second = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
         activity = client.get(
             "/verifier/scan-activity",
-            params={"nonce": nonce, "usage_policy": "reusable_public"},
+            params={"envelope_id": demo["envelope_id"]},
         )
     finally:
         _clear_verifier_rate_limiter()
@@ -2588,7 +2447,7 @@ def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
     assert second.json()["verdict_source"] == "cached"
     assert second.json()["decision_state"] == first.json()["decision_state"]
     # The cached scan wrote no evidence row; it is counted in the throttle block.
-    assert recorded_fingerprints == [nonce_fingerprint(nonce)]
+    assert recorded_fingerprints == [envelope_fingerprint(demo["envelope_id"])]
 
     assert activity.status_code == 200
     payload = activity.json()
@@ -2596,10 +2455,16 @@ def test_scanner_decision_cached_verdict_skips_evidence_and_reports_throttle(
     assert throttle["cached_verdicts"] == 1
     assert throttle["last_cached_at"]
     assert throttle["verdict_cache_ttl_seconds"] == config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
-    assert throttle["nonce_budget_limit"] == config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS
-    assert throttle["nonce_budget_window_seconds"] == config.VERIFIER_NONCE_RATE_LIMIT_WINDOW_SECONDS
+    assert throttle["envelope_budget_limit"] == config.VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS
+    assert (
+        throttle["envelope_budget_window_seconds"]
+        == config.VERIFIER_ENVELOPE_RATE_LIMIT_WINDOW_SECONDS
+    )
     # Only the computed scan spent budget.
-    assert throttle["nonce_budget_remaining"] == config.VERIFIER_NONCE_RATE_LIMIT_MAX_REQUESTS - 1
+    assert (
+        throttle["envelope_budget_remaining"]
+        == config.VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS - 1
+    )
     # Without an evidence store the row counts stay honest: no fabricated scans.
     assert payload["persistence_state"] == "unconfigured"
     assert payload["scan_count"] == 0
@@ -2609,13 +2474,13 @@ def test_scanner_decision_cached_verdict_counts_toward_spike_detection(
     client: TestClient,
 ) -> None:
     _clear_verifier_rate_limiter()
-    nonce = "api-verdict-cache-spike-001"
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": nonce, "usage_policy": "reusable_public"},
+        json={},
     )
     assert demo_response.status_code == 200
-    qr_payload = demo_response.json()["qr_payload"]
+    demo = demo_response.json()
+    qr_payload = demo["qr_payload"]
 
     try:
         sources = [
@@ -2628,7 +2493,7 @@ def test_scanner_decision_cached_verdict_counts_toward_spike_detection(
         now = time.time()
         cached_scans = asyncio.run(
             verifier_endpoint._verdict_cache.cached_scan_count(
-                nonce_fingerprint(nonce), since=now - 60, until=now
+                envelope_fingerprint(demo["envelope_id"]), since=now - 60, until=now
             )
         )
     finally:
@@ -2638,42 +2503,17 @@ def test_scanner_decision_cached_verdict_counts_toward_spike_detection(
     assert cached_scans == 2
 
 
-def test_verifier_verdict_cache_skips_one_time_codes(
-    client: TestClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _clear_verifier_rate_limiter()
-    nonce = "api-verdict-cache-one-time-001"
-    verify_request = _demo_verify_request(client, nonce, "one_time")
-    checks = _count_signature_checks(monkeypatch)
-
-    try:
-        first = client.post("/verifier/verify", json=verify_request)
-        second = client.post("/verifier/verify", json=verify_request)
-        activity = client.get(
-            "/verifier/scan-activity",
-            params={"nonce": nonce, "usage_policy": "one_time"},
-        )
-    finally:
-        _clear_verifier_rate_limiter()
-
-    assert first.status_code == 200
-    assert first.json()["allowed"] is True
-    assert second.status_code == 200
-    assert second.headers["X-QR-Trust-Verdict"] == "computed"
-    assert second.json()["stage"] == "replay_guard"
-    assert checks[0] == 2
-    # one_time codes have no scan-flood budget or cache, so no throttle block.
-    assert activity.json()["throttle"] is None
-
-
 def test_verifier_verdict_cache_misses_when_issuer_state_changes(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-verdict-cache-revoked-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
     revoked = copy.deepcopy(verify_request)
+    # Demo materials now bakes an explicit issuer_status onto the returned
+    # issuer_state (Task 6); clear it so the legacy certificate_revoked
+    # fallback this test exercises is still the thing deciding the outcome.
+    revoked["issuer_state"]["issuer_status"] = None
     revoked["issuer_state"]["certificate_revoked"] = True
     revoked["issuer_state"]["certificate_revocation_reason"] = "key_compromise"
 
@@ -2695,7 +2535,7 @@ def test_verifier_verdict_cache_disabled_by_zero_ttl(
 ) -> None:
     _disable_verdict_cache(monkeypatch)
     _clear_verifier_rate_limiter()
-    verify_request = _demo_verify_request(client, "api-verdict-cache-off-001", "reusable_public")
+    verify_request = _demo_verify_request(client)
     checks = _count_signature_checks(monkeypatch)
 
     try:
@@ -2724,3 +2564,799 @@ def test_verifier_status_reports_scan_spike_settings(client: TestClient) -> None
     assert payload["scan_spike_baseline_seconds"] == 3600
     assert payload["scan_spike_ratio"] == 10.0
     assert payload["scan_spike_min_scans"] == 30
+
+
+def test_demo_materials_returns_envelope_id_and_v2_claims(client):
+    response = client.post("/verifier/demo-materials", json={})
+    assert response.status_code == 200
+    body = response.json()
+    claims = body["verify_request"]["envelope"]["claims"]
+    assert claims["version"] == "2"
+    assert set(claims) == {"version", "certificate_ref", "issued_at", "expires_at", "payload"}
+    assert re.fullmatch(r"[0-9a-f]{64}", body["envelope_id"])
+    assert "nonce" not in json.dumps(body)
+    assert "usage_policy" not in json.dumps(body)
+
+
+def test_verifier_reference_api_accepts_repeated_scans_of_one_envelope(client):
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    first = client.post("/verifier/verify", json=demo["verify_request"]).json()
+    second = client.post("/verifier/verify", json=demo["verify_request"]).json()
+    assert first["allowed"] is True
+    assert second["allowed"] is True
+    assert second["stage"] == first["stage"]
+    assert "reservation_state" not in second
+    assert "usage_policy" not in second
+
+
+def test_scanner_decision_reports_envelope_id_for_signed_envelope(client):
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    response = client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": demo["qr_payload"],
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision_state"] == "verified_issuer"
+    assert body["envelope_id"] == demo["envelope_id"]
+    assert "usage_policy" not in body
+
+
+def test_scanner_decision_reports_envelope_id_for_unregistered_signed_envelope(client: TestClient) -> None:
+    registered = client.post(
+        "/verifier/demo-materials",
+        json={},
+    )
+    assert registered.status_code == 200
+
+    unregistered = client.post(
+        "/verifier/demo-materials",
+        json={
+            "register_scanner_trust": False,
+        },
+    )
+    assert unregistered.status_code == 200
+
+    result = client.post(
+        "/scanner/decisions",
+        json={"qr_payload": unregistered.json()["qr_payload"]},
+    )
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["decision_state"] == "signed_unknown_issuer"
+    assert re.fullmatch(r"[0-9a-f]{64}", payload["envelope_id"])
+
+
+def test_scanner_decision_accepted_runtime_safety_message_drops_replay_wording(client: TestClient) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    response = client.post(
+        "/scanner/decisions",
+        json={"qr_payload": demo["qr_payload"]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision_state"] == "verified_issuer"
+    runtime_signal = next(signal for signal in body["signals"] if signal["layer"] == "runtime_safety")
+    assert runtime_signal["message"] == "Signature and validity checks passed."
+    body_text = json.dumps(body)
+    assert "replay" not in body_text.lower()
+
+
+def test_scanner_decision_never_emits_suspicious_tld(client):
+    demo = client.post(
+        "/verifier/demo-materials",
+        json={"payload": "https://acme.zip/pay", "verified_domains": ["acme.zip"]},
+    ).json()
+    response = client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": demo["qr_payload"],
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision_state"] == "verified_issuer"
+    assert "suspicious" not in json.dumps(body).lower()
+
+
+def test_verify_budget_is_keyed_by_envelope(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "VERIFIER_ENVELOPE_RATE_LIMIT_MAX_REQUESTS", 2)
+    monkeypatch.setattr(config, "VERIFIER_VERDICT_CACHE_TTL_SECONDS", 0)
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    codes = [
+        client.post("/verifier/verify", json=demo["verify_request"]).status_code
+        for _ in range(3)
+    ]
+    assert codes == [200, 200, 429]
+    # A different envelope carries its own budget.
+    other = client.post("/verifier/demo-materials", json={}).json()
+    assert client.post("/verifier/verify", json=other["verify_request"]).status_code == 200
+
+
+def test_verify_second_presentation_is_served_from_cache(client: TestClient) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    first = client.post("/verifier/verify", json=demo["verify_request"])
+    second = client.post("/verifier/verify", json=demo["verify_request"])
+    assert first.json()["verdict_source"] == "computed"
+    assert second.json()["verdict_source"] == "cached"
+    assert second.headers["X-QR-Trust-Verdict"] == "cached"
+    activity = client.get(
+        "/verifier/scan-activity",
+        params={"envelope_id": demo["envelope_id"]},
+    ).json()
+    assert activity["throttle"]["cached_verdicts"] >= 1
+
+
+def test_scanner_decisions_records_envelope_fingerprint(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_record(
+        response: ScannerDecisionResponse,
+        *,
+        envelope_fingerprint: str | None = None,
+        client_platform: str | None = None,
+    ) -> None:
+        captured["fingerprint"] = envelope_fingerprint
+        return None
+
+    monkeypatch.setattr(verifier_endpoint, "record_scanner_evidence", fake_record)
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": demo["qr_payload"],
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    )
+    assert captured["fingerprint"] == demo["envelope_id"][:16]
+
+
+FAMILIES = (
+    "issuer_chain",
+    "destination_policy",
+    "redirect_flow",
+    "runtime_safety",
+    "freshness",
+    "artifact_integrity",
+)
+
+
+def _scan(client: TestClient, demo: dict[str, Any]) -> dict[str, Any]:
+    return client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": demo["qr_payload"],
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    ).json()
+
+
+def _legacy_v1_qr_payload(demo: dict[str, Any]) -> str:
+    """A real legacy-v1 QR payload, built with the production artifact codec.
+
+    The v2 envelope is decoded and re-encoded by `qr_artifact_poc`, so the
+    container framing is the real one; only the claims mapping is put back the
+    way version 1 carried it (a `version` of "1" alongside the two claim fields
+    v2 removed). The signature is kept as-is: it will not verify, which is
+    fine, because the claims-version check runs first.
+    """
+    envelope = decode_envelope_from_qr_payload(demo["qr_payload"])
+    payload_mapping = json.loads(encode_envelope_as_qr_payload(envelope))
+    claims = payload_mapping["claims"]
+    claims["version"] = "1"
+    claims["nonce"] = "legacy-001"
+    claims["usage_policy"] = "reusable_public"
+    return json.dumps(payload_mapping, separators=(",", ":"), ensure_ascii=True)
+
+
+def test_verified_scan_exposes_a_passing_residual_vector_and_model_decision(
+    client: TestClient,
+) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    body = _scan(client, demo)
+    assert tuple(body["residual_vector"]) == FAMILIES
+    assert body["residual_vector"]["issuer_chain"] == {"tier": "pass", "cause": None}
+    assert body["residual_vector"]["freshness"] == {"tier": "pass", "cause": None}
+    assert body["residual_vector"]["runtime_safety"]["tier"] in {"not-checked", "pass"}
+    model = body["model_decision"]
+    assert model["profile"] == "bounded-online"
+    assert model["primary_state"] == "verified-issuer"
+    assert model["attention_level"] in {"positive", "neutral", "warning", "block"}
+
+
+def test_expired_scan_blocks_on_freshness_with_object_expired_cause(
+    client: TestClient,
+) -> None:
+    demo = client.post(
+        "/verifier/demo-materials",
+        json={"issued_offset_minutes": -10, "expires_offset_minutes": -5},
+    ).json()
+    body = _scan(client, demo)
+    assert body["decision_state"] != "verified_issuer"
+    assert body["residual_vector"]["freshness"] == {
+        "tier": "block",
+        "cause": "object-expired",
+    }
+    assert body["model_decision"]["primary_state"] != "verified-issuer"
+
+
+def test_revoked_scan_marks_issuer_chain_revoked(client: TestClient) -> None:
+    demo = client.post(
+        "/verifier/demo-materials",
+        json={"certificate_revoked": True, "certificate_revocation_reason": "key_compromise"},
+    ).json()
+    body = _scan(client, demo)
+    # Task 6 redefines certificate_revoked on this surface as a revoked KEY, not
+    # a revoked issuer (see verifier._build_demo_materials_response): the tier
+    # both stages share stays revoked-issuer, but the cause slug now says which
+    # half of the credential actually failed.
+    assert body["residual_vector"]["issuer_chain"] == {
+        "tier": "revoked-issuer",
+        "cause": "key-revoked",
+    }
+
+
+def test_plain_url_scan_is_unverified_with_no_signed_envelope_cause(
+    client: TestClient,
+) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    body = client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": "https://acme.example/pay",
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    ).json()
+    assert body["decision_state"] == "unverified"
+    assert body["envelope_id"] is None
+    assert body["residual_vector"]["issuer_chain"] == {
+        "tier": "unaccepted-issuer",
+        "cause": "no-signed-envelope",
+    }
+    assert body["model_decision"]["primary_state"] != "verified-issuer"
+
+
+def test_version_1_envelope_is_unverified_not_a_500(client: TestClient) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    legacy_payload = _legacy_v1_qr_payload(demo)
+    response = client.post(
+        "/scanner/decisions",
+        json={
+            "qr_payload": legacy_payload,
+            "certificate": demo["certificate"],
+            "issuer_state": demo["issuer_state"],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision_state"] == "unverified"
+    assert body["residual_vector"]["issuer_chain"] == {
+        "tier": "unaccepted-issuer",
+        "cause": "unsupported-claims-version",
+    }
+    assert "unsupported_claims_version" in body["model_decision"]["reason_codes"]
+
+
+def test_verify_reports_key_revoked_from_the_new_key_state_field(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    request = _demo_verify_request(client)
+    request["issuer_state"]["key_state"] = "revoked"
+    request["issuer_state"]["key_revocation_reason"] = "key compromise"
+    try:
+        response = client.post("/verifier/verify", json=request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed"] is False
+    assert body["stage"] == "key_status"
+    assert body["cause"] == "key-revoked"
+
+
+def test_verify_keeps_the_legacy_inactive_certificate_cause(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    request = _demo_verify_request(client)
+    # Demo materials now bakes an explicit issuer_status onto the returned
+    # issuer_state (Task 6); clear it so this test exercises the legacy
+    # certificate_active fallback it is actually named for.
+    request["issuer_state"]["issuer_status"] = None
+    request["issuer_state"]["certificate_active"] = False
+    try:
+        response = client.post("/verifier/verify", json=request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed"] is False
+    assert body["stage"] == "issuer_status"
+    # The stage name changed; the cause slug the catalogues key on did not.
+    assert body["cause"] == "issuer-inactive"
+
+
+def test_verify_accepts_an_unchanged_legacy_request(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    request = _demo_verify_request(client)
+    # No new fields at all: absent windows default to unbounded, absent states to active.
+    try:
+        response = client.post("/verifier/verify", json=request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["allowed"] is True
+    assert body["stage"] == "accepted"
+    assert body["cause"] is None
+
+
+def test_verify_rejects_an_inverted_key_window_with_422(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    request = _demo_verify_request(client)
+    request["issuer_state"]["key_not_before"] = "2026-03-01T00:00:00Z"
+    request["issuer_state"]["key_not_after"] = "2026-02-01T00:00:00Z"
+    try:
+        response = client.post("/verifier/verify", json=request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    # Malformed trust input is an input error, never a blocked verdict.
+    assert response.status_code == 422
+
+
+def test_verify_rejects_an_unknown_issuer_status_with_422(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+    request = _demo_verify_request(client)
+    request["issuer_state"]["issuer_status"] = "probationary"
+    try:
+        response = client.post("/verifier/verify", json=request)
+    finally:
+        _clear_verifier_rate_limiter()
+
+    assert response.status_code == 422
+
+
+def test_verdict_cache_ttl_is_the_configured_ttl_for_open_ended_claims() -> None:
+    # The demo surface cannot emit a null expiry until Task 6, so this covers the
+    # nullable branch directly rather than through an HTTP round trip.
+    assert (
+        verifier_endpoint._verdict_cache_ttl_seconds(None)
+        == config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
+    )
+
+
+def test_scanner_trust_survives_a_second_issuance_under_a_new_key() -> None:
+    """Two demo issuances no longer fight over one slot.
+
+    This is the bug the store exists to fix: the old dict was keyed on
+    certificate_ref, and every demo call minted a fresh keypair under the same
+    ref, so the first QR stopped verifying the moment a second one was made.
+    """
+    from backend.app.api.endpoints import verifier as verifier_endpoint
+    from backend.app.services.scanner_trust_store import IssuerRecord, KeyEntry
+
+    verifier_endpoint._scanner_trust_store.clear()
+    now = datetime.now(timezone.utc)
+    issuer = IssuerRecord(
+        issuer_id="acme-demo",
+        issuer_name="Acme Demo Issuer",
+        root_id="root:qrtrust-demo",
+        status="active",
+        issued_at=now - timedelta(days=1),
+        expires_at=None,
+        verified_domains=("acme.example",),
+        allow_subdomains=False,
+    )
+    verifier_endpoint._scanner_trust_store.put_issuer(issuer)
+    for ref in ("cert:acme-demo:2026-01", "cert:acme-demo:2026-01-r1"):
+        verifier_endpoint._scanner_trust_store.put_key(
+            KeyEntry(
+                key_ref=ref,
+                issuer_id="acme-demo",
+                algorithm_id="rsa-pss-sha256-v1",
+                public_key_pem="-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n",
+                state="active",
+                not_before=now - timedelta(days=1),
+                not_after=None,
+            )
+        )
+
+    first = verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01")
+    second = verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01-r1")
+
+    assert first is not None
+    assert second is not None
+    assert first.certificate.certificate_ref == "cert:acme-demo:2026-01"
+    assert second.certificate.certificate_ref == "cert:acme-demo:2026-01-r1"
+    assert first.certificate.issuer_name == "Acme Demo Issuer"
+
+
+def test_scanner_record_for_returns_none_for_an_unknown_key() -> None:
+    from backend.app.api.endpoints import verifier as verifier_endpoint
+
+    verifier_endpoint._scanner_trust_store.clear()
+
+    assert verifier_endpoint._scanner_record_for("cert:nobody:2026-01") is None
+
+
+def test_scanner_record_round_trips_the_issuer_state_the_rules_need() -> None:
+    """The derived view must re-derive to the same trust decision inputs.
+
+    _run_scanned_verifier rebuilds a TrustContext from record.issuer_state via
+    the Task 4 adapter. If the round-trip drops a field, the scanner and the
+    verify endpoint would disagree about the same artifact.
+    """
+    from backend.app.api.endpoints import verifier as verifier_endpoint
+    from backend.app.schemas.poc import CertificateRecordInput, IssuerVerificationStateInput
+
+    verifier_endpoint._scanner_trust_store.clear()
+    now = datetime.now(timezone.utc)
+    certificate = CertificateRecordInput(
+        issuer_name="Acme Demo Issuer",
+        certificate_ref="cert:acme-demo:2026-01",
+        algorithm_id="rsa-pss-sha256-v1",
+        public_key_pem="-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n",
+    )
+    verifier_endpoint._register_scanner_trust(
+        certificate,
+        IssuerVerificationStateInput(
+            verified_domains=["acme.example"],
+            allow_subdomains=True,
+            certificate_active=True,
+            certificate_revoked=False,
+        ),
+        key_state="retired",
+        key_not_before=now - timedelta(days=5),
+        key_not_after=now - timedelta(days=1),
+    )
+
+    record = verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01")
+
+    assert record is not None
+    assert record.issuer_state.verified_domains == ["acme.example"]
+    assert record.issuer_state.allow_subdomains is True
+    assert record.issuer_state.key_state == "retired"
+    assert record.issuer_state.key_not_before is not None
+    assert record.issuer_state.key_not_after is not None
+
+
+def test_unregister_scanner_trust_removes_only_that_key() -> None:
+    from backend.app.api.endpoints import verifier as verifier_endpoint
+    from backend.app.schemas.poc import CertificateRecordInput, IssuerVerificationStateInput
+
+    verifier_endpoint._scanner_trust_store.clear()
+    for ref in ("cert:acme-demo:2026-01", "cert:acme-demo:2026-01-r1"):
+        verifier_endpoint._register_scanner_trust(
+            CertificateRecordInput(
+                issuer_name="Acme Demo Issuer",
+                certificate_ref=ref,
+                algorithm_id="rsa-pss-sha256-v1",
+                public_key_pem="-----BEGIN PUBLIC KEY-----\nstub\n-----END PUBLIC KEY-----\n",
+            ),
+            IssuerVerificationStateInput(verified_domains=["acme.example"]),
+        )
+
+    verifier_endpoint._unregister_scanner_trust("cert:acme-demo:2026-01")
+
+    assert verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01") is None
+    assert verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01-r1") is not None
+
+
+def test_demo_materials_reuse_one_key_across_issuances(client: TestClient) -> None:
+    """The fix for the single-slot overwrite, asserted end to end."""
+    _clear_verifier_rate_limiter()
+
+    first = client.post("/verifier/demo-materials", json={})
+    second = client.post("/verifier/demo-materials", json={})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_ref = first.json()["certificate"]["certificate_ref"]
+    assert second.json()["certificate"]["certificate_ref"] == first_ref
+    assert (
+        second.json()["certificate"]["public_key_pem"]
+        == first.json()["certificate"]["public_key_pem"]
+    )
+
+    # The QR issued first still verifies after the second issuance.
+    replayed = client.post("/verifier/verify", json=first.json()["verify_request"])
+    assert replayed.status_code == 200
+    assert replayed.json()["allowed"] is True
+
+
+def test_demo_materials_rotate_key_mints_a_new_ref_and_retires_the_old(
+    client: TestClient,
+) -> None:
+    _clear_verifier_rate_limiter()
+
+    before = client.post("/verifier/demo-materials", json={})
+    rotated = client.post("/verifier/demo-materials", json={"rotate_key": True})
+
+    assert rotated.status_code == 200
+    old_ref = before.json()["certificate"]["certificate_ref"]
+    new_ref = rotated.json()["certificate"]["certificate_ref"]
+    assert new_ref != old_ref
+    assert rotated.json()["trust"]["key_ref"] == new_ref
+    assert rotated.json()["trust"]["key_state"] == "active"
+    assert old_ref in rotated.json()["trust"]["retired_key_refs"]
+
+    # The pre-rotation QR still verifies: it was signed while its key was current.
+    replayed = client.post("/verifier/verify", json=before.json()["verify_request"])
+    assert replayed.status_code == 200
+    assert replayed.json()["allowed"] is True
+
+
+def test_demo_materials_key_state_revoked_blocks_with_the_key_cause(
+    client: TestClient,
+) -> None:
+    _clear_verifier_rate_limiter()
+
+    demo = client.post("/verifier/demo-materials", json={"key_state": "revoked"})
+    assert demo.status_code == 200
+    assert demo.json()["trust"]["key_state"] == "revoked"
+
+    result = client.post("/verifier/verify", json=demo.json()["verify_request"])
+
+    assert result.status_code == 200
+    assert result.json()["allowed"] is False
+    assert result.json()["stage"] == "key_status"
+    assert result.json()["cause"] == "key-revoked"
+
+
+def test_demo_materials_open_ended_expiry_emits_a_null_claim(client: TestClient) -> None:
+    _clear_verifier_rate_limiter()
+
+    demo = client.post(
+        "/verifier/demo-materials", json={"expires_offset_minutes": None}
+    )
+
+    assert demo.status_code == 200
+    claims = demo.json()["verify_request"]["envelope"]["claims"]
+    assert claims["expires_at"] is None
+
+    result = client.post("/verifier/verify", json=demo.json()["verify_request"])
+    assert result.status_code == 200
+    assert result.json()["allowed"] is True
+
+
+def test_demo_materials_finite_expiry_still_caps_at_thirty_days(
+    client: TestClient,
+) -> None:
+    _clear_verifier_rate_limiter()
+
+    too_long = client.post(
+        "/verifier/demo-materials",
+        json={"expires_offset_minutes": 30 * 24 * 60 + 1},
+    )
+
+    assert too_long.status_code == 422
+
+
+def test_demo_materials_expired_issuer_record_blocks_with_the_record_cause(
+    client: TestClient,
+) -> None:
+    _clear_verifier_rate_limiter()
+
+    demo = client.post(
+        "/verifier/demo-materials",
+        json={"issuer_record_expires_offset_minutes": -1},
+    )
+    assert demo.status_code == 200
+
+    result = client.post("/verifier/verify", json=demo.json()["verify_request"])
+
+    assert result.status_code == 200
+    assert result.json()["allowed"] is False
+    assert result.json()["stage"] == "issuer_status"
+    assert result.json()["cause"] == "issuer-record-expired"
+
+
+def test_trust_store_lists_issuers_and_keys_with_windows(client: TestClient) -> None:
+    verifier_endpoint._scanner_trust_store.clear()
+
+    first = client.post("/verifier/demo-materials", json={})
+    assert first.status_code == 200
+    rotated = client.post("/verifier/demo-materials", json={"rotate_key": True})
+    assert rotated.status_code == 200
+
+    response = client.get("/verifier/trust-store")
+    assert response.status_code == 200
+    listing = TrustStoreResponse.model_validate(response.json())
+
+    assert [issuer.issuer_id for issuer in listing.issuers] == ["Acme Demo Issuer"]
+    issuer = listing.issuers[0]
+    assert issuer.status == "active"
+    assert issuer.root_id == "root:qrtrust-demo"
+    assert issuer.expires_at is None
+    assert issuer.verified_domains == ["acme.example"]
+
+    states = {entry.key_ref: entry.state for entry in listing.keys}
+    assert states == {
+        first.json()["trust"]["key_ref"]: "retired",
+        rotated.json()["trust"]["key_ref"]: "active",
+    }
+    retired = next(entry for entry in listing.keys if entry.state == "retired")
+    assert retired.not_after is not None
+    assert retired.revoked_at is None
+    assert all("public_key_pem" not in entry.model_dump() for entry in listing.keys)
+    assert listing.generated_at.endswith("+00:00")
+
+
+def test_trust_store_is_empty_after_clear(client: TestClient) -> None:
+    verifier_endpoint._scanner_trust_store.clear()
+
+    response = client.get("/verifier/trust-store")
+    assert response.status_code == 200
+    assert response.json() == {
+        "generated_at": response.json()["generated_at"],
+        "issuers": [],
+        "keys": [],
+    }
+
+
+def test_trust_store_echoes_a_full_length_revocation_reason(client: TestClient) -> None:
+    """Response caps must not sit below the input caps the store accepts.
+
+    A 300-character revocation reason is legal on the way in (512), so the
+    listing has to render it rather than fail model validation and 500.
+    """
+    verifier_endpoint._scanner_trust_store.clear()
+    _clear_verifier_rate_limiter()
+
+    reason = "r" * 300
+    demo = client.post(
+        "/verifier/demo-materials",
+        json={"key_state": "revoked", "certificate_revocation_reason": reason},
+    )
+    assert demo.status_code == 200
+
+    response = client.get("/verifier/trust-store")
+
+    assert response.status_code == 200
+    listing = TrustStoreResponse.model_validate(response.json())
+    revoked = next(entry for entry in listing.keys if entry.state == "revoked")
+    assert revoked.revocation_reason == reason
+
+
+def test_trust_store_is_readable_without_a_credential_when_auth_disabled(
+    client: TestClient,
+) -> None:
+    """The demo default. The lab and the cross-surface smokes depend on it."""
+    verifier_endpoint._scanner_trust_store.clear()
+    _clear_verifier_rate_limiter()
+
+    response = client.get("/verifier/trust-store")
+
+    assert response.status_code == 200
+    assert response.json()["keys"] == []
+
+
+def test_trust_store_requires_an_operator_credential_when_auth_enabled(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The listing is operator evidence, gated exactly like /verifier/status."""
+    verifier_endpoint._scanner_trust_store.clear()
+    _clear_verifier_rate_limiter()
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["trust-store-admin"])
+
+    denied = client.get("/verifier/trust-store")
+
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == (
+        "Trust store listing requires an operator credential"
+    )
+
+    allowed = client.get(
+        "/verifier/trust-store",
+        headers={"X-Admin-Token": "trust-store-admin"},
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.json()["keys"] == []
+
+
+def test_valid_after_key_revoked_mints_a_new_key_and_leaves_the_old_blocked(
+    client: TestClient,
+) -> None:
+    """Spec Q3: a revoked key blocks every artifact it signed, forever.
+
+    The lab drives exactly this sequence — the key-revoked chip, then the valid
+    chip. Reusing the revoked ref for the second issuance re-put it as active,
+    which un-revoked the key and let the first QR verify again.
+    """
+    verifier_endpoint._scanner_trust_store.clear()
+    _clear_verifier_rate_limiter()
+
+    revoked = client.post("/verifier/demo-materials", json={"key_state": "revoked"})
+    assert revoked.status_code == 200
+    revoked_ref = revoked.json()["trust"]["key_ref"]
+
+    valid = client.post("/verifier/demo-materials", json={})
+    assert valid.status_code == 200
+    valid_ref = valid.json()["trust"]["key_ref"]
+
+    assert valid_ref != revoked_ref
+    assert valid.json()["trust"]["key_state"] == "active"
+
+    listing = TrustStoreResponse.model_validate(
+        client.get("/verifier/trust-store").json()
+    )
+    states = {entry.key_ref: entry.state for entry in listing.keys}
+    assert states[revoked_ref] == "revoked"
+    assert states[valid_ref] == "active"
+
+    first = client.post("/verifier/verify", json=revoked.json()["verify_request"])
+    assert first.status_code == 200
+    assert first.json()["allowed"] is False
+    assert first.json()["cause"] == "key-revoked"
+
+    second = client.post("/verifier/verify", json=valid.json()["verify_request"])
+    assert second.status_code == 200
+    assert second.json()["allowed"] is True
+
+
+def test_cycling_the_lab_chips_never_hits_the_terminal_revocation_guard(
+    client: TestClient,
+) -> None:
+    """put_key's guard is unreachable from the demo surface, asserted not assumed.
+
+    Driving the key-revoked and valid chips alternately is the sequence that
+    would re-put a revoked ref; every call must stay a 200 and every revoked ref
+    must stay revoked in the listing.
+    """
+    verifier_endpoint._scanner_trust_store.clear()
+    _clear_verifier_rate_limiter()
+
+    revoked_refs: list[str] = []
+    for _ in range(3):
+        revoked = client.post("/verifier/demo-materials", json={"key_state": "revoked"})
+        assert revoked.status_code == 200
+        revoked_refs.append(revoked.json()["trust"]["key_ref"])
+
+        valid = client.post("/verifier/demo-materials", json={})
+        assert valid.status_code == 200
+        assert valid.json()["trust"]["key_state"] == "active"
+        assert valid.json()["trust"]["key_ref"] not in revoked_refs
+
+    assert len(set(revoked_refs)) == 3
+
+    listing = TrustStoreResponse.model_validate(
+        client.get("/verifier/trust-store").json()
+    )
+    states = {entry.key_ref: entry.state for entry in listing.keys}
+    assert [states[ref] for ref in revoked_refs] == ["revoked", "revoked", "revoked"]
+
+
+def test_demo_materials_starts_from_the_base_key_ref_after_the_fixture_reset(
+    client: TestClient,
+) -> None:
+    """_demo_keys is process-global and append-only.
+
+    The client fixture clears the trust store but used to leave the key list
+    alone, so demo serials drifted with test order and any assertion naming a
+    concrete ref was order-dependent. The fixture now trims the list back to its
+    first, process-stable keypair.
+    """
+    _clear_verifier_rate_limiter()
+
+    demo = client.post("/verifier/demo-materials", json={})
+
+    assert demo.status_code == 200
+    assert demo.json()["trust"]["key_ref"] == "cert:acme-demo:2026-01"

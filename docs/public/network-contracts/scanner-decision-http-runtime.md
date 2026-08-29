@@ -95,8 +95,8 @@ The scanner-decision service should still preserve the paper's user-visible
 discipline:
 
 - unknown or unavailable trust state maps to orange, not green
-- explicit destination mismatch, block state, or one-time replay failure maps
-  to red
+- explicit destination mismatch, block state, or an expired envelope
+  (`freshness` block, cause `object-expired`) maps to red
 - runtime safety unavailable must not produce a strong green state
 - positive green decisions require issuer legitimacy, destination binding,
   runtime safety, and acceptable verifier-cache freshness

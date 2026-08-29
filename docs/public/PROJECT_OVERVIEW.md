@@ -51,7 +51,7 @@ The controlled evaluation and expected residual vectors are documented in the
 | Surface | Primary user | Responsibility | Default access |
 | --- | --- | --- | --- |
 | React workbench | Researcher, developer, operator | Guided explanation, scenario generation, camera/upload experiments, and operator state | <http://127.0.0.1:5173/> |
-| FastAPI verifier | Scanner and workbench clients | Decode, validate, re-evaluate policy state, apply replay controls, and return scanner decisions | <http://127.0.0.1:8000/> |
+| FastAPI verifier | Scanner and workbench clients | Decode, validate, re-evaluate policy state, evaluate the residual vector, and return scanner decisions | <http://127.0.0.1:8000/> |
 | SwiftUI scanner | iPhone test user | Real-device QR capture and end-user decision presentation | Xcode project |
 | Reference network package | Protocol and infrastructure engineer | Publish governance artifacts, propagate events, materialize verifier caches, and record runtime observations | Optional local profiles |
 | Deterministic evaluation | Researcher and reviewer | Compare the shared decision core and weaker baselines against controlled expected outcomes | Offline command |
@@ -65,7 +65,7 @@ The controlled evaluation and expected residual vectors are documented in the
 | `frontend` | React 19 and Vite | 5173 | Browser workbench and scanner-facing interaction | Yes |
 | `api` | FastAPI and Uvicorn | 8000, or 8443 with local TLS | Verifier endpoints, management surface, artifact analysis, and status | Yes |
 | `postgres` | PostgreSQL 17 | 5432 | Durable issuer/policy state, audit data, outbox state, and management records | Yes |
-| `redis` | Redis 7 | 6379 | Replay coordination, rate limiting, and short-lived hot-path state | Yes |
+| `redis` | Redis 7 | 6379 | Verdict cache, envelope scan budgets, request rate limiting, and short-lived hot-path state | Yes |
 | `nats` | NATS JetStream | 4222; monitor 8222 | Optional propagation of governance and runtime events | No |
 | Network workers | Node.js and Effect TypeScript | No public port | Optional outbox publication, subscriptions, artifact publication, and cache materialization | No |
 | Secondary verifier | FastAPI | 8001 by default | Optional federation and stale-cache experiments | No |
@@ -91,8 +91,8 @@ provider measurements that this PoC does not supply.
 
 - **Postgres is authoritative.** Durable governance, issuer, destination,
   audit, and outbox state belongs in Postgres.
-- **Redis is transient.** It accelerates replay and rate-limit paths but is not
-  the source of truth for issuer trust.
+- **Redis is transient.** It backs the verdict cache, envelope scan budgets and
+  request rate limits, but is not the source of truth for issuer trust.
 - **NATS distributes changes.** It carries events to subscribers and cache
   workers; it does not decide trust.
 - **Verifier caches are explicit evidence.** Cache freshness and accepted-root

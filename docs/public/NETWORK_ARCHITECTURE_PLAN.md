@@ -174,8 +174,8 @@ the governance and verifier semantics are proven.
 Use Redis only for hot-path runtime state.
 
 Good uses:
-- one-time nonce replay guard
 - short-lived runtime verdict cache
+- per-envelope scan budgets
 - rate limits
 - transient scanner-session state
 - temporary challenge tokens for domain validation
@@ -821,10 +821,9 @@ Current implementation note:
   counts, benign median delay, false-friction rate, risk scores, and reason
   codes without claiming to be durable production analytics storage
 - the scanner UX risk model now includes deterministic local URL syntax checks
-  for embedded credentials, suspicious domain endings, HTTPS absence, and
-  redirect depth; live known-bad, newly registered, caption-mismatch, and
-  first-seen-domain signals remain provider or device-history adapters rather
-  than hard-coded trust-model inputs
+  for embedded credentials, HTTPS absence, and redirect depth; live known-bad,
+  newly registered, caption-mismatch, and first-seen-domain signals remain
+  provider or device-history adapters rather than hard-coded trust-model inputs
 
 ### Phase 5: Scanner UX and measurement
 
@@ -877,7 +876,7 @@ Kafka remains a later integration target for analytics-heavy deployments.
 ### ADR-003: Keep Redis hot-path only
 
 Decision:
-- Redis is allowed for replay guards, rate limits, and short-lived cache
+- Redis is allowed for verdict caching, per-envelope scan budgets, rate limits, and short-lived cache
 
 Reason:
 - Redis is useful for speed but not appropriate as the source of truth for governance state

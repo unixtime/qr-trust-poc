@@ -234,7 +234,7 @@ const throwsMissingHoldGate = (): boolean => {
 const throwsProfileMismatch = (): boolean => {
   const rows = SCANNER_FLEET_REQUIRED_FIXTURES.map((fixture, index) => {
     const row = makeEvidenceRow(fixture, index)
-    if (fixture.fixture_id === "green_reusable_public") {
+    if (fixture.fixture_id === "green_verified_issuer") {
       return {
         ...row,
         profile_fingerprint: `sha256:${"3".repeat(64)}`,
@@ -280,7 +280,7 @@ const throwsMissingReasonCodes = (): boolean => {
 const throwsDestinationBoundOnUnevaluatedBinding = (): boolean => {
   const rows = SCANNER_FLEET_REQUIRED_FIXTURES.map((fixture, index) => {
     const row = makeEvidenceRow(fixture, index)
-    if (fixture.fixture_id === "red_one_time_replay") {
+    if (fixture.fixture_id === "red_expired_qr") {
       return { ...row, reason_codes: [...row.reason_codes, "destination_bound"] }
     }
     return row
@@ -314,7 +314,7 @@ const throwsRawDomainFingerprint = (): boolean => {
 const throwsMissingEvidenceRef = (): boolean => {
   const rows = SCANNER_FLEET_REQUIRED_FIXTURES.map((fixture, index) => {
     const row = makeEvidenceRow(fixture, index)
-    if (fixture.fixture_id === "green_reusable_public") {
+    if (fixture.fixture_id === "green_verified_issuer") {
       const { accessibility_ref: _removed, ...missingAccessibilityRef } = row
       return missingAccessibilityRef as unknown as ScannerFleetEvidenceRow
     }

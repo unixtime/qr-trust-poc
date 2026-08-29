@@ -1,7 +1,7 @@
 [project]
 name = "qrcode-poc"
 version = "0.1.0"
-description = "Reference implementation for narrowed QR verification with canonical signed schema, replay-safe nonce control, and issuer-state payload revalidation."
+description = "Reference implementation for narrowed QR verification with canonical signed schema, signed-claims validity-window verification, and issuer-state payload revalidation."
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.14.1",

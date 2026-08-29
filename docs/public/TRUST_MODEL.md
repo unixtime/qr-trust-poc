@@ -196,7 +196,7 @@ The PoC remains useful as:
 - protocol reference
 - verifier behavior proof
 - payload-binding proof
-- replay-control proof
+- freshness-window proof
 
 But ecosystem success depends on:
 - issuer enrollment

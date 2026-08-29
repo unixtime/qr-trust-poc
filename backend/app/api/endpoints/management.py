@@ -1461,7 +1461,7 @@ async def management_scan_accounting(
     limit: int = Query(default=200, ge=1, le=1000),
     admin_token: str = Depends(require_management_credential),
 ) -> ScanAccountingResponse:
-    """Scans per issuer per UTC day plus the nonces currently spiking.
+    """Scans per issuer per UTC day plus the envelopes currently spiking.
 
     Reads the same evidence table and the same spike detector the background
     monitor uses, so what the operator sees here is what the outbox alerts
@@ -1486,7 +1486,7 @@ async def management_scan_accounting(
         issuers = await scan_accounting.load_issuer_day_accounting(
             connection, since=since, until=now, limit=limit
         )
-        spikes = await scan_accounting.detect_nonce_spikes(
+        spikes = await scan_accounting.detect_envelope_spikes(
             connection,
             now=now,
             window_seconds=window_seconds,

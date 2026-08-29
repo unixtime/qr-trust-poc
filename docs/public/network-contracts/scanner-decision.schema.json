@@ -12,7 +12,8 @@
     "destination",
     "trust_path",
     "hold_to_open",
-    "cache_freshness"
+    "cache_freshness",
+    "residual_vector"
   ],
   "properties": {
     "decision_id": {
@@ -163,6 +164,40 @@
     },
     "governance": {
       "type": "object"
+    },
+    "envelope_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "residual_vector": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/residual_family"
+      },
+      "required": [
+        "issuer_chain",
+        "destination_policy",
+        "redirect_flow",
+        "runtime_safety",
+        "freshness",
+        "artifact_integrity"
+      ],
+      "additionalProperties": {
+        "$ref": "#/$defs/residual_entry"
+      }
+    },
+    "model_decision": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/model_decision"
+        }
+      ]
     }
   },
   "additionalProperties": false,
@@ -195,6 +230,94 @@
         }
       },
       "additionalProperties": true
+    },
+    "residual_family": {
+      "type": "string",
+      "enum": [
+        "issuer_chain",
+        "destination_policy",
+        "redirect_flow",
+        "runtime_safety",
+        "freshness",
+        "artifact_integrity"
+      ]
+    },
+    "residual_tier": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "not-applicable",
+        "not-checked",
+        "unknown",
+        "unavailable",
+        "stale",
+        "warn",
+        "fail",
+        "unaccepted-issuer",
+        "invalid-managed-claim",
+        "revoked-issuer",
+        "block"
+      ]
+    },
+    "residual_entry": {
+      "type": "object",
+      "required": [
+        "tier",
+        "cause"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tier": {
+          "$ref": "#/$defs/residual_tier"
+        },
+        "cause": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        }
+      }
+    },
+    "model_decision": {
+      "type": "object",
+      "required": [
+        "profile",
+        "primary_state",
+        "annotations",
+        "reason_codes",
+        "attention_level"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string"
+        },
+        "primary_state": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attention_level": {
+          "type": "string",
+          "enum": [
+            "positive",
+            "neutral",
+            "warning",
+            "block"
+          ]
+        }
+      }
     }
   }
 }

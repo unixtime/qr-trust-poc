@@ -25,16 +25,14 @@ import {
   customExpiryMinutes,
   expiryValidation,
   type ExpiryProblem,
-  fixedNonces,
+  generateToastTitleKey,
   parseInitialCompareScenarioParam,
-  parseInitialNonceMode,
   parseInitialScenarioParam,
-  parseInitialUsagePolicy,
   scenarioMeta,
   shouldAutogenerateFromRoute,
 } from "@/routes/lab/content"
 import { buildOperatorLink } from "@/domain/links"
-import { scenarioLabelKeys, usagePolicyLabelKeys } from "@/domain/scenarios"
+import { scenarioLabelKeys } from "@/domain/scenarios"
 // The plain `t()`, not `useT()`: these strings are built inside async
 // handlers, where reading the live locale beats a value captured at render.
 import { t, type MessageKey } from "@/i18n"
@@ -42,10 +40,8 @@ import type {
   CameraDevice,
   HistoryEntry,
   MessageState,
-  NonceMode,
   ScenarioKey,
   Tone,
-  UsagePolicy,
 } from "@/routes/lab/types"
 import {
   dataUrlToBase64,
@@ -260,24 +256,22 @@ export function useLabController() {
   const [compareScenario, setCompareScenario] = useState<ScenarioKey | null>(() =>
     parseInitialCompareScenarioParam(),
   )
-  const [nonceMode, setNonceMode] = useState<NonceMode>(() => parseInitialNonceMode())
-  const [usagePolicy, setUsagePolicy] = useState<UsagePolicy>(() =>
-    parseInitialUsagePolicy(),
-  )
-  // The operator's pick from the `time_limited` expiry picker, kept as the
-  // `datetime-local` value it came in as; null keeps the policy default.
+  // The operator's pick from the validity-window picker, kept as the
+  // `datetime-local` value it came in as; null keeps the scenario default.
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [apiKey, setApiKey] = useState(() => readStoredVerifierApiKey())
   const [demo, setDemo] = useState<DemoMaterialsResponse | null>(null)
-  // Keyed by nonce so a regenerated demo never shows the previous code's scans.
+  // Keyed by envelope id so a regenerated demo never shows the previous
+  // artifact's scans: a new signature is a new envelope, hence a new key.
   const [scanActivityState, setScanActivityState] = useState<{
-    nonce: string
+    envelopeId: string
     activity: ScanActivity | null
     error: string | null
   } | null>(null)
   const [generatedScenario, setGeneratedScenario] = useState<ScenarioKey | null>(null)
   const [generationError, setGenerationError] = useState<string | null>(null)
-  const [generatedNonceMode, setGeneratedNonceMode] = useState<NonceMode | null>(null)
+  // The validity-window pick the current artifact was actually sealed with.
+  const [generatedExpiresAt, setGeneratedExpiresAt] = useState<string | null>(null)
   const [scannerDecision, setScannerDecision] = useState<ScannerDecisionResponse | null>(
     null,
   )
@@ -344,19 +338,11 @@ export function useLabController() {
   // Was a substring search through `cameraMessage.body` for "secure context" —
   // program behaviour that silently broke the moment the copy was translated.
   const secureContextBlocked = cameraBlock === "insecureContext"
-  const artifactUsagePolicy = demo?.verify_request.envelope.claims.usage_policy ?? null
+  // The artifact on screen is stale once the scenario or the requested
+  // validity window has drifted from what it was sealed with.
   const generatorSettingsChanged = Boolean(
-    demo &&
-      (generatedScenario !== scenario ||
-        generatedNonceMode !== nonceMode ||
-        artifactUsagePolicy !== usagePolicy),
+    demo && (generatedScenario !== scenario || generatedExpiresAt !== expiresAt),
   )
-  const fixedReplayVisible =
-    result?.stage === "replay_guard" &&
-    generatedNonceMode === "fixed" &&
-    artifactUsagePolicy === "one_time" &&
-    generatedScenario !== null &&
-    demo?.verify_request.envelope.claims.nonce === fixedNonces[generatedScenario]
   const demoRef = useRef<DemoMaterialsResponse | null>(null)
   const apiKeyRef = useRef("")
   const apiKeyHeaderRef = useRef(apiKeyHeader)
@@ -552,16 +538,16 @@ export function useLabController() {
     }
   }, [])
 
-  const demoNonce = demo?.verify_request.envelope.claims.nonce ?? null
-  const demoUsagePolicy = demo?.verify_request.envelope.claims.usage_policy ?? null
-  const demoIssuedAt = demo?.verify_request.envelope.claims.issued_at ?? null
+  const demoEnvelopeId = demo?.envelope_id ?? null
 
-  // Phone-scan feedback for the sealed QR: poll the verifier's per-nonce
-  // activity while a demo is on screen. Keyed on the nonce, not the demo
-  // object, so a re-verify of the same code does not restart the poll.
+  // Scan feedback for the sealed QR: poll the verifier's per-envelope activity
+  // while a demo is on screen. Keyed on the envelope id, not the demo object,
+  // so a re-verify of the same code does not restart the poll. The id already
+  // scopes the card to this issuance — it is the hash of these claims and this
+  // signature, so a regenerated demo can never inherit the old scans.
   useEffect(() => {
-    if (!demoNonce) return
-    const nonce = demoNonce
+    if (!demoEnvelopeId) return
+    const envelopeId = demoEnvelopeId
     let cancelled = false
     let inFlight = false
 
@@ -569,11 +555,7 @@ export function useLabController() {
       if (cancelled || inFlight) return
       inFlight = true
       try {
-        const params = new URLSearchParams({ nonce })
-        if (demoUsagePolicy) params.set("usage_policy", demoUsagePolicy)
-        // Scope the card to this issuance: lab scenarios reuse fixed nonces
-        // across regenerations, so the nonce alone would inherit old scans.
-        if (demoIssuedAt) params.set("issued_at", demoIssuedAt)
+        const params = new URLSearchParams({ envelope_id: envelopeId })
         const activity = await requestJson<ScanActivity>(
           `/verifier/scan-activity?${params.toString()}`,
           {
@@ -581,14 +563,14 @@ export function useLabController() {
             apiKeyHeader: apiKeyHeaderRef.current,
           },
         )
-        if (!cancelled) setScanActivityState({ nonce, activity, error: null })
+        if (!cancelled) setScanActivityState({ envelopeId, activity, error: null })
       } catch (error) {
         // Keep the last good snapshot but surface the error: a dead poll
         // must never read as "no scans yet".
         if (!cancelled) {
           setScanActivityState((previous) => ({
-            nonce,
-            activity: previous?.nonce === nonce ? previous.activity : null,
+            envelopeId,
+            activity: previous?.envelopeId === envelopeId ? previous.activity : null,
             error: summariseError(error),
           }))
         }
@@ -607,12 +589,12 @@ export function useLabController() {
       cancelled = true
       window.clearInterval(timer)
     }
-  }, [demoNonce, demoUsagePolicy, demoIssuedAt])
+  }, [demoEnvelopeId])
 
   const scanActivity =
-    scanActivityState?.nonce === demoNonce ? scanActivityState.activity : null
+    scanActivityState?.envelopeId === demoEnvelopeId ? scanActivityState.activity : null
   const scanActivityError =
-    scanActivityState?.nonce === demoNonce ? scanActivityState.error : null
+    scanActivityState?.envelopeId === demoEnvelopeId ? scanActivityState.error : null
 
   useEffect(() => {
     selectedCameraIdRef.current = selectedCameraId
@@ -633,22 +615,19 @@ export function useLabController() {
 
   async function generateDemoFor(
     nextScenario: ScenarioKey,
-    nextNonceMode: NonceMode,
-    nextUsagePolicy: UsagePolicy,
     nextExpiresAt: string | null = expiresAt,
   ): Promise<boolean> {
     // A bad pick is refused out loud rather than silently sealed as the
-    // 60-minute default: the operator asked for a specific expiry.
-    const timeLimited = nextUsagePolicy === "time_limited"
-    const expiryProblem = timeLimited ? expiryValidation(nextExpiresAt) : null
+    // default lifetime: the operator asked for a specific expiry.
+    const expiryProblem = expiryValidation(nextExpiresAt)
     if (expiryProblem) {
       setGenerationError(expiryProblemMessage(expiryProblem))
       return false
     }
     stopCamera()
     setIsGenerating(true)
-    const request = buildScenarioRequest(nextScenario, nextNonceMode, nextUsagePolicy, {
-      customExpiryMinutes: timeLimited ? customExpiryMinutes(nextExpiresAt) : null,
+    const request = buildScenarioRequest(nextScenario, {
+      customExpiryMinutes: customExpiryMinutes(nextExpiresAt),
     })
     setGenerationError(null)
     try {
@@ -662,22 +641,27 @@ export function useLabController() {
         },
       )
       setScenario(nextScenario)
-      setNonceMode(nextNonceMode)
-      setUsagePolicy(nextUsagePolicy)
       setDemo(response)
       setGeneratedScenario(nextScenario)
       setGenerationError(null)
-      setGeneratedNonceMode(nextNonceMode)
+      setGeneratedExpiresAt(nextExpiresAt)
       setScannerDecision(null)
       setScannerDecisionError(null)
       setScannedPayload(response.qr_payload)
       setResult(null)
+      // The envelope fingerprint and the signed window are the two facts that
+      // identify this artifact; both are read straight off the response.
+      const claims = response.verify_request.envelope.claims
+      const envelopeFingerprint = response.envelope_id.slice(0, 16)
+      const validityWindow = `${claims.issued_at} → ${claims.expires_at}`
       setScanMessage({
-        title: t("lab.generate.ready.title"),
+        title: t(generateToastTitleKey(scenarioMeta[nextScenario], response.trust)),
         body: t("lab.generate.ready.body", {
           scenario: t(scenarioLabelKeys[nextScenario]),
-          policy: t(usagePolicyLabelKeys[nextUsagePolicy]),
-          nonce: response.verify_request.envelope.claims.nonce,
+          envelopeLabel: t("lab.history.generated.envelope"),
+          envelope: envelopeFingerprint,
+          windowLabel: t("lab.history.generated.window"),
+          window: validityWindow,
         }),
         tone: "success",
       })
@@ -693,8 +677,10 @@ export function useLabController() {
         t("lab.history.generated.title"),
         t("lab.history.generated.body", {
           scenario: t(scenarioLabelKeys[nextScenario]),
-          policy: t(usagePolicyLabelKeys[nextUsagePolicy]),
-          nonce: response.verify_request.envelope.claims.nonce,
+          envelopeLabel: t("lab.history.generated.envelope"),
+          envelope: envelopeFingerprint,
+          windowLabel: t("lab.history.generated.window"),
+          window: validityWindow,
         }),
         "neutral",
       )
@@ -707,7 +693,7 @@ export function useLabController() {
       const message = staleKey ? staleStoredKeyMessage() : summariseError(error)
       setDemo(null)
       setGeneratedScenario(null)
-      setGeneratedNonceMode(null)
+      setGeneratedExpiresAt(null)
       setScannerDecision(null)
       setScannerDecisionError(null)
       setScannedPayload("")
@@ -726,11 +712,11 @@ export function useLabController() {
   }
 
   async function generateDemo() {
-    await generateDemoFor(scenario, nonceMode, usagePolicy)
+    await generateDemoFor(scenario)
   }
 
   async function generateFreshValidDemo() {
-    await generateDemoFor("valid", "timestamped", usagePolicy)
+    await generateDemoFor("valid")
   }
 
   // Load B, then make the old A the new B: the pair becomes a toggle the
@@ -738,7 +724,7 @@ export function useLabController() {
   async function generateComparisonDemo() {
     if (!compareScenario) return
     const previous = scenario
-    const generated = await generateDemoFor(compareScenario, nonceMode, usagePolicy)
+    const generated = await generateDemoFor(compareScenario)
     if (generated) setCompareScenario(previous)
   }
 
@@ -988,15 +974,9 @@ export function useLabController() {
     return response
   }
 
-  const generateRouteDemo = useEffectEvent(
-    (
-      nextScenario: ScenarioKey,
-      nextNonceMode: NonceMode,
-      nextUsagePolicy: UsagePolicy,
-    ) => {
-      void generateDemoFor(nextScenario, nextNonceMode, nextUsagePolicy)
-    },
-  )
+  const generateRouteDemo = useEffectEvent((nextScenario: ScenarioKey) => {
+    void generateDemoFor(nextScenario)
+  })
 
   async function runScannedVerifier({
     source,
@@ -1025,8 +1005,6 @@ export function useLabController() {
         qr_payload: qrPayload,
         certificate: activeDemo.certificate,
         issuer_state: activeDemo.issuer_state,
-        reservation_ttl_seconds: activeDemo.verify_request.reservation_ttl_seconds,
-        consumed_ttl_seconds: activeDemo.verify_request.consumed_ttl_seconds,
       } satisfies ScannedVerifierRequest,
     })
 
@@ -1464,7 +1442,6 @@ export function useLabController() {
         source: "lab",
         scenario,
         compareScenario: compareScenario ?? undefined,
-        nonceMode,
       }),
     )
   }
@@ -1521,16 +1498,14 @@ export function useLabController() {
   useEffect(() => {
     if (!routeAutogenerateRef.current) return
     routeAutogenerateRef.current = false
-    generateRouteDemo(scenario, nonceMode, usagePolicy)
-  }, [scenario, nonceMode, usagePolicy])
+    generateRouteDemo(scenario)
+  }, [scenario])
 
   return {
     runtimeStatus,
     scanActivity,
     scanActivityError,
     scenario,
-    nonceMode,
-    usagePolicy,
     expiresAt,
     apiKey,
     demo,
@@ -1570,7 +1545,6 @@ export function useLabController() {
     decoderLabel,
     secureContextBlocked,
     generatorSettingsChanged,
-    fixedReplayVisible,
     scannerDecision,
     scannerDecisionError,
     generationError,
@@ -1579,8 +1553,6 @@ export function useLabController() {
     canvasRef,
     qrDisplayFrameRef,
     setScenario,
-    setNonceMode,
-    setUsagePolicy,
     setExpiresAt,
     setApiKey,
     setSelectedCameraId,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from hashlib import sha256
 from typing import Any
 
 import asyncpg
@@ -9,7 +8,6 @@ import asyncpg
 from backend.app.core.config import config
 from backend.app.schemas.poc import (
     ScanActivityDecisionResponse,
-    ScanActivityReplayGuardResponse,
     ScanActivityResponse,
 )
 from backend.app.services.database_url import asyncpg_dsn
@@ -22,24 +20,23 @@ from backend.app.services.scanner_decision_status import (
 )
 
 
-NONCE_FINGERPRINT_HEX_LENGTH = 16
+ENVELOPE_FINGERPRINT_HEX_LENGTH = 16
 DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS = 86_400
 
 
-def nonce_fingerprint(nonce: str) -> str:
-    """Truncated SHA-256 of a QR nonce: stable for lookups, useless for replay."""
-    return sha256(nonce.encode("utf-8")).hexdigest()[:NONCE_FINGERPRINT_HEX_LENGTH]
+def envelope_fingerprint(envelope_id: str) -> str:
+    """Stable, non-reversible key for one issued artifact (first 16 hex chars of envelope_id)."""
+    return envelope_id.strip().lower()[:ENVELOPE_FINGERPRINT_HEX_LENGTH]
 
 
 _SCAN_ACTIVITY_QUERY = """
 with matched as (
   select *
   from qr_trust.scanner_decisions
-  where nonce_fingerprint = $1::text
+  where envelope_fingerprint = $1::text
     and created_at >= (
       $2::timestamptz - make_interval(secs => $3::integer)
     )
-    and ($4::timestamptz is null or created_at >= $4::timestamptz)
 )
 select
   count(*)::integer as scan_count,
@@ -66,7 +63,6 @@ select
       'reason_codes', latest.reason_codes,
       'risk_score', latest.risk_score,
       'destination_fingerprint', latest.destination_fingerprint,
-      'usage_policy', latest.usage_policy,
       'hold_to_open_required', latest.hold_to_open_required,
       'hold_to_open_duration_ms', latest.hold_to_open_duration_ms,
       'client_platform', latest.client_platform,
@@ -80,36 +76,22 @@ from matched
 """.strip()
 
 
-def _no_replay_guard() -> ScanActivityReplayGuardResponse:
-    return ScanActivityReplayGuardResponse(applies=False, state="not_applicable")
-
-
 async def load_scan_activity(
     fingerprint: str,
     *,
     lookback_seconds: int = DEFAULT_SCAN_ACTIVITY_LOOKBACK_SECONDS,
-    issued_at: datetime | None = None,
 ) -> ScanActivityResponse:
-    """Read back every recorded scan of one QR from the evidence store.
-
-    ``issued_at`` narrows the read to this issuance of the nonce: scans recorded
-    before it belong to an earlier code that happened to carry the same nonce.
-    The replay-guard view is left at ``not_applicable``; the endpoint layers the
-    live one-time state on top because the guard is process-local, not stored.
-    """
-    issued_at_text = _optional_timestamp(issued_at)
+    """Read back every recorded scan of one envelope from the evidence store."""
     dsn = config.QRTRUST_NETWORK_DATABASE_URL
     if not dsn:
         return ScanActivityResponse(
-            nonce_fingerprint=fingerprint,
+            envelope_fingerprint=fingerprint,
             persistence_state="unconfigured",
             lookback_seconds=lookback_seconds,
-            issued_at=issued_at_text,
             scan_count=0,
             green_count=0,
             orange_count=0,
             red_count=0,
-            replay_guard=_no_replay_guard(),
         )
 
     observed_at = datetime.now(timezone.utc)
@@ -125,15 +107,13 @@ async def load_scan_activity(
             fingerprint,
             observed_at,
             lookback_seconds,
-            issued_at,
         )
         if row is None:
             raise RuntimeError("Scan activity query returned no row.")
         return ScanActivityResponse(
-            nonce_fingerprint=fingerprint,
+            envelope_fingerprint=fingerprint,
             persistence_state="observable",
             lookback_seconds=lookback_seconds,
-            issued_at=issued_at_text,
             scan_count=_int_field(row["scan_count"]),
             green_count=_int_field(row["green_count"]),
             orange_count=_int_field(row["orange_count"]),
@@ -143,19 +123,16 @@ async def load_scan_activity(
             first_verified_at=_optional_timestamp(row["first_verified_at"]),
             blocked_since_verified=_int_field(row["blocked_since_verified"]),
             latest=_decode_latest(row["latest"]),
-            replay_guard=_no_replay_guard(),
         )
     except Exception as exc:
         return ScanActivityResponse(
-            nonce_fingerprint=fingerprint,
+            envelope_fingerprint=fingerprint,
             persistence_state="unavailable",
             lookback_seconds=lookback_seconds,
-            issued_at=issued_at_text,
             scan_count=0,
             green_count=0,
             orange_count=0,
             red_count=0,
-            replay_guard=_no_replay_guard(),
             error=str(exc),
         )
     finally:
@@ -182,7 +159,6 @@ def _decode_latest(value: Any) -> ScanActivityDecisionResponse | None:
         reason_codes=_string_list(row.get("reason_codes")),
         risk_score=_optional_int_field(row.get("risk_score")),
         destination_fingerprint=row.get("destination_fingerprint"),
-        usage_policy=row.get("usage_policy"),
         hold_to_open_required=bool(row["hold_to_open_required"]),
         hold_to_open_duration_ms=_int_field(row["hold_to_open_duration_ms"]),
         created_at=_iso_timestamp(row["created_at"]),

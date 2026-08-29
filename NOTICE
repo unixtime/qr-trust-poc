@@ -1,8 +1,8 @@
 QR Verification PoC
 
 This repository contains a public reference implementation for narrowed QR
-verification behavior, including canonical signed-schema handling, replay-safe
-nonce control, and issuer-state payload revalidation.
+verification behavior, including canonical signed-schema handling, envelope
+identity and validity-window checks, and issuer-state payload revalidation.
 
 Copyright 2026 QR Verification PoC contributors
 

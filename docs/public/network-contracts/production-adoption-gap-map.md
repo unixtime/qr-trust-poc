@@ -36,9 +36,10 @@ publication, revocation, cache-refresh, and runtime-observation notifications
 between authority nodes, verifier nodes, and workers. Consumers must still fetch
 and verify the referenced signed artifacts by ID, hash, version, and scope.
 
-Redis is hot-path support only. It can hold rate limits, short-lived replay
-state, and local verifier cache hints, but it should not be the authoritative
-record for issuer legitimacy, destination binding, or governance state.
+Redis is hot-path support only. It can hold request rate limits, per-envelope
+scan budgets, cached verdicts, and local verifier cache hints, but it should
+not be the authoritative record for issuer legitimacy, destination binding, or
+governance state.
 
 KMS/HSM custody belongs at signer and authority boundaries. The reference code
 can model signer keys and custody policy, but production adoption requires a
@@ -65,7 +66,7 @@ audit export, and incident drill.
 | Runtime destination safety | `runtime-safety-observation.schema.json`, provider deployment policy | Contracted with local observations | Choose provider adapters, define stale/unavailable behavior, protect provider credentials, record observation provenance | Provider config, sample observation, stale-provider test, failure-mode decision record |
 | Verifier cache | `verifier-cache-entry.schema.json`, cache materialization, read model, worker-operations evidence | Contracted, locally materialized, and worker-evidence modeled | Run cache workers, monitor freshness, prove source artifact hashes, fail closed on stale or missing source state | Cache sync log, freshness window, source artifact hashes, stale-cache decision test, replay/recovery drill |
 | Scanner decision state | `scanner-decision.schema.json`, browser lab, iOS scanner, deployed-scanner readiness report | Implemented for local demo and end-user PoC | Distribute trusted provider profile, protect app configuration, keep UX faithful to issuer, binding, runtime, and decision state separation | iOS screenshots, scanner event logs, provider profile proof, green/amber/red acceptance traces, scanner readiness report |
-| Usage policy and replay | One-time versus reusable policy in scanner decisions | Implemented for one-time and reusable local scenarios | Let issuers declare usage class explicitly, avoid blocking reusable printed QR codes as replay, preserve one-time controls for login/payment/ticket flows | Reusable printed QR test, one-time replay test, issuer usage policy record |
+| Envelope freshness | Validity window (`issued_at` … `expires_at`) in signed claims v2, `freshness` residual family | Implemented; every presentation inside the window is evaluated the same way and the verifier keeps no per-presentation state | Let issuers choose a validity window that matches the artifact's lifetime, and re-issue rather than depend on verifier-side per-presentation state | Expired-envelope decision test, repeat-scan-inside-window test, `issued_at`/`expires_at` values in the evidence row |
 | Operator readiness | Readiness report, bundle, operator guide, evidence example, worker-operations evidence, restore-automation evidence, packaged-deployment approval evidence, operator evidence index | Contracted and locally generated | Own migrations, backups, restore automation, always-on workers, packaged release approval, KMS/HSM vendor config, custody audit export, production runbooks | Readiness bundle, backup proof, restore drill, restore automation packet, worker operations packet, packaged deployment approval packet, operator evidence index, KMS/HSM config reference, operator signoff |
 
 ## What A Public Reference Repo Should Provide
@@ -127,7 +128,7 @@ audit export, and incident drill.
 - Domain control should not be presented as business identity.
 - Events should not be treated as trusted state. They are invalidation and
   propagation signals.
-- Reusable public QR codes should not be blocked by one-time replay semantics.
+- Every presentation of one envelope is evaluated the same way; the verifier keeps no per-presentation state.
 - A production deployment should not pass readiness without evidence references
   for source-of-truth, propagation, custody, runtime safety, persistence, and
   operator runbook ownership.

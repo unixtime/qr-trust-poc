@@ -28,7 +28,8 @@ from __future__ import annotations
 import base64
 import importlib.util
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from types import ModuleType
@@ -38,6 +39,8 @@ from urllib.parse import quote
 import pytest
 import qrcode
 from fastapi.testclient import TestClient
+
+from backend.app.api.endpoints import verifier as verifier_endpoint
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -113,6 +116,41 @@ def _plain_scan(client: TestClient, url: str) -> dict[str, Any]:
     return result.json()
 
 
+def _scan_qr(client: TestClient, qr_payload: str) -> dict[str, Any]:
+    result = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
+    assert result.status_code == 200
+    return result.json()
+
+
+def _minutes_from_now(minutes: int) -> datetime:
+    return datetime.now(timezone.utc) + timedelta(minutes=minutes)
+
+
+def _scan_issuer_record_not_yet_valid(client: TestClient) -> dict[str, Any]:
+    demo = client.post("/verifier/demo-materials", json={})
+    assert demo.status_code == 200
+    store = verifier_endpoint._scanner_trust_store
+    resolved = store.resolve(demo.json()["trust"]["key_ref"])
+    assert resolved is not None
+    _, issuer = resolved
+    store.put_issuer(replace(issuer, issued_at=_minutes_from_now(60)))
+    return _scan_qr(client, demo.json()["qr_payload"])
+
+
+def _scan_key_window_mismatch(client: TestClient) -> dict[str, Any]:
+    # Artifact issued 30 minutes ago; key window opened 5 minutes ago.
+    demo = client.post(
+        "/verifier/demo-materials", json={"issued_offset_minutes": -30}
+    )
+    assert demo.status_code == 200
+    store = verifier_endpoint._scanner_trust_store
+    resolved = store.resolve(demo.json()["trust"]["key_ref"])
+    assert resolved is not None
+    key, _ = resolved
+    store.put_key(replace(key, not_before=_minutes_from_now(-5)))
+    return _scan_qr(client, demo.json()["qr_payload"])
+
+
 def _resolver_url(final_url: str, *, hops: int = 1, nested: bool = False) -> str:
     suffix = "&nested=1" if nested else ""
     return (
@@ -124,14 +162,14 @@ def _resolver_url(final_url: str, *, hops: int = 1, nested: bool = False) -> str
 def _scan_unknown_issuer(client: TestClient) -> dict[str, Any]:
     demo_response = client.post(
         "/verifier/demo-materials",
-        json={"nonce": "diff-c2-001"},
+        json={},
     )
     assert demo_response.status_code == 200
     qr_payload = demo_response.json()["qr_payload"]
 
     from backend.app.api.endpoints import verifier as verifier_endpoint
 
-    verifier_endpoint._scanner_trust_records.clear()
+    verifier_endpoint._scanner_trust_store.clear()
     result = client.post("/scanner/decisions", json={"qr_payload": qr_payload})
     assert result.status_code == 200
     return result.json()
@@ -179,7 +217,7 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
     RuntimeScenario(
         "C3",
         "verified_issuer",
-        lambda client: _demo_scan(client, {"nonce": "diff-c3-001"}),
+        lambda client: _demo_scan(client, {}),
         "Default demo materials: accepted issuer, bound destination.",
     ),
     RuntimeScenario(
@@ -188,7 +226,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c4-001",
                 "payload": "https://rogue.example/phish",
                 "verified_domains": ["acme.example"],
             },
@@ -201,7 +238,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c5-001",
                 "payload": _resolver_url("https://acme.example/pay"),
                 "verified_domains": ["qr.acme.example"],
             },
@@ -214,7 +250,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c6-001",
                 "payload": _resolver_url("https://evil.example/pay"),
                 "verified_domains": ["qr.acme.example"],
             },
@@ -227,7 +262,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c7-001",
                 "payload": "https://acme.example/pay?runtime=blocked",
             },
         ),
@@ -239,7 +273,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c8-001",
                 "payload": "https://acme.example/pay?runtime=risky",
             },
         ),
@@ -251,7 +284,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c9-001",
                 "certificate_revoked": True,
             },
         ),
@@ -263,7 +295,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c10a-001",
                 "governance_cache_profile": "expired",
             },
         ),
@@ -275,7 +306,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c10b-001",
                 "governance_cache_profile": "stale",
             },
         ),
@@ -288,7 +318,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c11a-001",
                 "payload": "https://acme.example/pay?runtime=expired",
             },
         ),
@@ -301,7 +330,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c11b-001",
                 "payload": "https://acme.example/pay?runtime=unavailable",
             },
         ),
@@ -314,7 +342,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c12-001",
                 "payload": _resolver_url("https://acme.example/pay", nested=True),
                 "verified_domains": ["qr.acme.example"],
             },
@@ -326,7 +353,7 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         "verified_issuer",
         lambda client: _demo_scan(
             client,
-            {"nonce": "diff-c14-001"},
+            {},
             scan_extra=lambda qr_payload: {
                 "image_base64": _render_qr_base64(qr_payload, border=0)
             },
@@ -347,21 +374,10 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c15c-001",
                 "payload": "https://acme.example/pay?runtime=blocked",
             },
         ),
         "Signed payload with runtime block (same mechanism as C7; distinct corpus vector).",
-    ),
-    RuntimeScenario(
-        "C17",
-        "blocked",
-        lambda client: _demo_scan(
-            client,
-            {"nonce": "diff-c17-001", "usage_policy": "one_time"},
-            scans=2,
-        ),
-        "One-time payload scanned twice: second scan hits the replay guard.",
     ),
     RuntimeScenario(
         "C18",
@@ -369,7 +385,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c18-001",
                 "payload": "https://xn--acm-fna.example/pay",
                 "verified_domains": ["acme.example"],
             },
@@ -382,7 +397,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c19a-001",
                 "payload": _resolver_url("https://acme.example/pay", hops=3),
                 "verified_domains": ["qr.acme.example"],
             },
@@ -395,12 +409,55 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         lambda client: _demo_scan(
             client,
             {
-                "nonce": "diff-c20-001",
                 "payload": _resolver_url("https://attacker.example/steal"),
                 "verified_domains": ["qr.acme.example"],
             },
         ),
         "Open redirect to an unauthorized final host (same check as C6; distinct vector).",
+    ),
+)
+
+
+@dataclass(frozen=True)
+class Cycle2Scenario:
+    """A cycle-2 trust-store failure, anchored to the corpus case that already
+    encodes the offline decision for its class. Not a new corpus id: the corpus
+    is frozen, and the totality test needs the three tables to cover it exactly.
+    """
+
+    cause: str
+    anchor_case_id: str
+    run: Callable[[TestClient], dict[str, Any]]
+    note: str
+
+
+CYCLE2_TRUST_SCENARIOS: tuple[Cycle2Scenario, ...] = (
+    Cycle2Scenario(
+        "key-revoked",
+        "C9",
+        lambda client: _demo_scan(client, {"key_state": "revoked"}),
+        "A revoked signing key blocks everything signed under it (spec Q2).",
+    ),
+    Cycle2Scenario(
+        "key-window-mismatch",
+        "C9",
+        _scan_key_window_mismatch,
+        "An artifact issued before the key's not_before is blocked even though "
+        "the key is active now (spec Q1, checked against issued_at).",
+    ),
+    Cycle2Scenario(
+        "issuer-record-expired",
+        "C10a",
+        lambda client: _demo_scan(
+            client, {"issuer_record_expires_offset_minutes": -1}
+        ),
+        "An expired issuer record blocks a still-valid artifact.",
+    ),
+    Cycle2Scenario(
+        "issuer-record-not-yet-valid",
+        "C10a",
+        _scan_issuer_record_not_yet_valid,
+        "An issuer record that is not yet in force blocks like an expired one.",
     ),
 )
 
@@ -417,6 +474,10 @@ DIVERGENT: dict[str, str] = {
 
 
 OUT_OF_SCOPE: dict[str, str] = {
+    "C17": (
+        "Blocking a second scan of the same code is not a paper-declared "
+        "mechanism, so the runtime has no counterpart to compare against."
+    ),
     "C0": (
         "The scanner pipeline begins from a decoded qr_payload string; an "
         "undecodable physical artifact never reaches /scanner/decisions."
@@ -500,6 +561,37 @@ def test_runtime_scanner_matches_offline_engine(
         f"{offline_decision['primary_state']!r} "
         f"({offline_decision['attention_level']!r}). {scenario.note}"
     )
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    CYCLE2_TRUST_SCENARIOS,
+    ids=[scenario.cause for scenario in CYCLE2_TRUST_SCENARIOS],
+)
+def test_cycle2_trust_causes_block_with_anchored_attention(
+    scenario: Cycle2Scenario,
+    client: TestClient,
+    offline: dict[str, Any],
+) -> None:
+    payload = scenario.run(client)
+    assert payload["decision_state"] == "blocked", scenario.note
+    assert payload["residual_vector"]["issuer_chain"] == {
+        "tier": "revoked-issuer",
+        "cause": scenario.cause,
+    }, scenario.note
+
+    anchor = offline["decisions"][scenario.anchor_case_id]
+    assert anchor["primary_state"] == "blocked"
+    assert runtime_attention(payload) == anchor["attention_level"], scenario.note
+
+
+def test_cycle2_causes_are_the_closed_cycle2_vocabulary() -> None:
+    assert {scenario.cause for scenario in CYCLE2_TRUST_SCENARIOS} == {
+        "issuer-record-expired",
+        "issuer-record-not-yet-valid",
+        "key-revoked",
+        "key-window-mismatch",
+    }
 
 
 def test_c15a_unsigned_runtime_block_diverges(

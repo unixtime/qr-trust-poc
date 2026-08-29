@@ -55,7 +55,6 @@ const TRUST_STATUS_TONES: Record<string, TrustTone> = {
   failed: "red", // issuer_legitimacy — signature verification failed
   mismatch: "red",
   redirect_mismatch: "red",
-  replay_blocked: "red",
   revoked: "red",
   profile_revoked: "red",
   expired: "red",

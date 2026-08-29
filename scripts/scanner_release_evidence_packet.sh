@@ -71,8 +71,8 @@ Use the generated provider-profile packet for configuration-state outcomes:
 local/ios-provider-profile-evidence-packet/README.md
 \`\`\`
 
-Use the generated scanner-fleet drill to avoid consuming one-time QR state from
-the wrong surface:
+Use the generated scanner-fleet drill to capture each fixture from the right
+surface, in the right order:
 
 \`\`\`text
 local/scanner-fleet-capture-drill.md
@@ -80,12 +80,12 @@ local/scanner-fleet-capture-drill.md
 
 ## Capture Rule
 
-For one-time QR cases, scan with the native iPhone app before running browser
-or curl checks against the same artifact. Browser preview checks can consume
-one-time state and produce misleading replay evidence.
+Scan with the native iPhone app before running browser or curl checks against
+the same artifact, so the captured decision is the one the phone actually made
+and not a browser-side observation of the same QR.
 
-For reusable public QR cases, repeat scans are expected to stay reusable while
-the issuer, destination-binding, and runtime-safety layers remain valid.
+Repeat scans of the same artifact are expected to reach the same decision while
+the issuer, destination-binding, runtime-safety, and freshness layers hold.
 
 ## Import Sequence
 
@@ -108,7 +108,7 @@ make release-audit-strict
 The combined importer is the easiest path for iPhone app exports: it accepts a
 single folder, imports any scanner-fleet or provider-profile artifacts present,
 skips already imported files, accepts macOS duplicate-export filenames such as
-\`accepted-reusable-public 2.png\`, and prints the remaining capture list.
+\`accepted 2.png\`, and prints the remaining capture list.
 The Downloads status command is read-only and should be run first when you need
 to confirm whether the latest iOS export has synced to this Mac.
 

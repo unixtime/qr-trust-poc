@@ -74,10 +74,10 @@ Completed:
 - [x] added compose-backed workbench smoke coverage for the React shell and lab comparison route
 - [x] expanded the browser lab with camera selection, request tracing, and QR export helpers
 - [x] added an optional Playwright browser regression test for the verifier lab
-- [x] added React workbench browser evidence capture for accepted, replay, and payload-mismatch outcomes
+- [x] added React workbench browser evidence capture for accepted and payload-mismatch outcomes
 - [x] added a native SwiftUI iPhone scanner app for real-device user-facing decisions and immediate feedback
 - [x] added session-backed iPhone demo generation so the phone can publish an exact QR display URL for a second screen
-- [x] documented a deterministic iPhone payload-mismatch drill using timestamped nonces and a shareable display URL
+- [x] documented a deterministic iPhone payload-mismatch drill using a shareable display URL
 - [x] added a public release audit for repo boundary, evidence, docs, and validation hooks
 - [x] added a strict public-release audit gate for the final no-warning cut
 - [x] added a local native iPhone evidence capture packet generator
@@ -542,7 +542,6 @@ Implementation slices:
 
 ## Active Public Files
 
-- `backend/app/services/replay_guard_poc.py`
 - `.github/`
 - `backend/app/services/payload_revalidation_poc.py`
 - `backend/app/services/signed_schema_poc.py`
@@ -552,7 +551,6 @@ Implementation slices:
 - `backend/tests/`
 - `frontend/`
 - `ios/`
-- `backend/scripts/replay_guard_poc_demo.py`
 - `backend/scripts/payload_revalidation_poc_demo.py`
 - `backend/scripts/signed_schema_poc_demo.py`
 - `backend/scripts/narrowed_verifier_poc_demo.py`

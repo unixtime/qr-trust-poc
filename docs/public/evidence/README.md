@@ -8,7 +8,6 @@ evidence that still requires a real iPhone.
 Captured files:
 
 - [browser/accepted.png](./browser/accepted.png)
-- [browser/replay-guard.png](./browser/replay-guard.png)
 - [browser/payload-mismatch.png](./browser/payload-mismatch.png)
 - [browser/runtime-risky.png](./browser/runtime-risky.png)
 - [browser/stale-cache.png](./browser/stale-cache.png)
@@ -26,9 +25,14 @@ make check-browser-evidence
 ```
 
 These screenshots prove the React verifier lab can drive accepted,
-`replay_guard`, `payload_revalidation`, `runtime_safety`, and
-`governance_cache` outcomes against the live verifier and scanner APIs. They do
-not prove native camera behavior.
+`payload_revalidation`, `runtime_safety`, and `governance_cache` outcomes
+against the live verifier and scanner APIs. They do not prove native camera
+behavior.
+
+The scope-honesty pass retired the pre-pass capture that demonstrated
+per-presentation blocking: the verifier keeps no per-presentation state, so
+there is no such outcome to photograph. `make capture-browser-evidence` and
+`make check-browser-evidence` cover the four captures listed above.
 
 ## Native iPhone Evidence
 

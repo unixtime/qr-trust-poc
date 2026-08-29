@@ -88,9 +88,8 @@ capture artifacts are committed.
 
 The reference matrix should include at least:
 
-- green accepted reusable-public QR
-- green accepted one-time QR first pass
-- red one-time replay or expired QR
+- green accepted signed QR inside its validity window
+- red expired QR (`freshness` block, cause `object-expired`)
 - red destination mismatch
 - red resolver final-target mismatch
 - orange plain URL without a recognized trust signal
@@ -155,7 +154,7 @@ outside the user-visible history.
 A scanner fleet is not deployment-ready when:
 
 - green can be produced without an active verifier profile
-- a one-time replay still opens as green
+- an expired envelope still opens as green
 - destination mismatch is hidden behind a generic warning
 - verifier-unavailable scans are reported as safe
 - red decisions can be opened by user action
