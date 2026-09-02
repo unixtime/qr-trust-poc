@@ -7,6 +7,7 @@ from hashlib import sha256
 from typing import Any, Protocol
 
 from backend.app.services.management_auth import ManagementPrincipal
+from backend.app.services.trust_state import bump_trust_state
 
 CONTROL_PLANE_SUBJECT_ROOT = "control-plane"
 
@@ -49,6 +50,7 @@ class GovernanceMutation:
     destination_policy_id: str | None = None
     require_state_rows: bool = False
     precondition_failure_detail: str = "governance mutation precondition failed"
+    trust_state_bump: bool = False
 
 
 @dataclass(frozen=True)
@@ -96,6 +98,8 @@ class ManagementPlaneService:
                     *mutation.state_values,
                 )
                 state_rows = _inserted_count(state_status)
+            if mutation.trust_state_bump:
+                await bump_trust_state(self._connection)
             audit_status = await self._connection.execute(
                 _AUDIT_INSERT,
                 principal.operator_id,
@@ -595,6 +599,7 @@ on conflict (root_program_id, delegated_authority_id, issuer_id) do update set
             "enrollment_status": "pending",
         },
         event_type="issuer.enrollment.requested",
+        trust_state_bump=True,
     )
 
 
@@ -688,6 +693,7 @@ from (
             "evidence_ref": evidence_ref,
         },
         event_type="domain_proof.upserted",
+        trust_state_bump=True,
     )
 
 
@@ -737,6 +743,7 @@ from updated
             "enrollment_status": enrollment_status,
         },
         event_type="issuer.status.changed",
+        trust_state_bump=True,
     )
 
 
@@ -940,44 +947,11 @@ def build_trust_key_upsert_mutation(
     public_key_material_ref: str,
     public_key_material_pem: str | None,
     scope: str,
-    key_status: str,
     not_before: datetime | None,
     not_after: datetime | None,
 ) -> GovernanceMutation:
-    return GovernanceMutation(
-        action="trust_key.upsert",
-        target_type="trust_key",
-        target_id=key_id,
-        root_program_id=root_program_id,
-        delegated_authority_id=delegated_authority_id,
-        issuer_id=None,
-        state_sql="""
-insert into qr_trust.trust_keys (
-  key_id,
-  root_program_id,
-  delegated_authority_id,
-  signer_id,
-  algorithm_id,
-  public_key_material_ref,
-  public_key_material_pem,
-  scope,
-  key_status,
-  not_before,
-  not_after
-) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz, $11::timestamptz)
-on conflict (key_id) do update set
-  root_program_id = excluded.root_program_id,
-  delegated_authority_id = excluded.delegated_authority_id,
-  signer_id = excluded.signer_id,
-  algorithm_id = excluded.algorithm_id,
-  public_key_material_ref = excluded.public_key_material_ref,
-  public_key_material_pem = excluded.public_key_material_pem,
-  scope = excluded.scope,
-  key_status = excluded.key_status,
-  not_before = excluded.not_before,
-  not_after = excluded.not_after
-""".strip(),
-        state_values=(
+    state_sql = """
+        insert into qr_trust.trust_keys (
             key_id,
             root_program_id,
             delegated_authority_id,
@@ -987,6 +961,28 @@ on conflict (key_id) do update set
             public_key_material_pem,
             scope,
             key_status,
+            not_before,
+            not_after
+        )
+        values ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9::timestamptz, $10::timestamptz)
+    """.strip()
+    return GovernanceMutation(
+        action="trust_key.upsert",
+        target_type="trust_key",
+        target_id=key_id,
+        root_program_id=root_program_id,
+        delegated_authority_id=delegated_authority_id,
+        issuer_id=None,
+        state_sql=state_sql,
+        state_values=(
+            key_id,
+            root_program_id,
+            delegated_authority_id,
+            signer_id,
+            algorithm_id,
+            public_key_material_ref,
+            public_key_material_pem,
+            scope,
             not_before,
             not_after,
         ),
@@ -999,11 +995,106 @@ on conflict (key_id) do update set
             "public_key_material_ref": public_key_material_ref,
             "public_key_material_pem": public_key_material_pem,
             "scope": scope,
-            "key_status": key_status,
-            "not_before": not_before.isoformat() if not_before is not None else None,
-            "not_after": not_after.isoformat() if not_after is not None else None,
+            "key_status": "active",
+            "not_before": not_before.isoformat() if not_before else None,
+            "not_after": not_after.isoformat() if not_after else None,
         },
         event_type="trust_key.upserted",
+        trust_state_bump=True,
+    )
+
+
+def build_issuer_certificate_enroll_mutation(
+    *,
+    certificate_id: str,
+    issuer_id: str,
+    root_program_id: str,
+    delegated_authority_id: str,
+    algorithm_id: str,
+    public_key_ref: str,
+    public_key_material_pem: str,
+    not_before: datetime,
+    not_after: datetime | None,
+) -> GovernanceMutation:
+    return GovernanceMutation(
+        action="issuer_certificate.enrolled",
+        target_type="issuer_certificate",
+        target_id=certificate_id,
+        root_program_id=root_program_id,
+        delegated_authority_id=delegated_authority_id,
+        issuer_id=issuer_id,
+        state_sql=(
+            "insert into qr_trust.issuer_certificates ("
+            " certificate_id, root_program_id, delegated_authority_id, issuer_id,"
+            " algorithm_id, public_key_ref, public_key_material_pem, key_status,"
+            " not_before, not_after"
+            ") values ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9)"
+        ),
+        state_values=(
+            certificate_id,
+            root_program_id,
+            delegated_authority_id,
+            issuer_id,
+            algorithm_id,
+            public_key_ref,
+            public_key_material_pem,
+            not_before,
+            not_after,
+        ),
+        after_json={
+            "certificate_id": certificate_id,
+            "issuer_id": issuer_id,
+            "root_program_id": root_program_id,
+            "delegated_authority_id": delegated_authority_id,
+            "algorithm_id": algorithm_id,
+            "public_key_ref": public_key_ref,
+            "key_status": "active",
+            "not_before": not_before.isoformat(),
+            "not_after": not_after.isoformat() if not_after is not None else None,
+        },
+        event_type="issuer_certificate.enrolled",
+        trust_state_bump=True,
+    )
+
+
+def build_issuer_certificate_status_mutation(
+    *,
+    certificate_id: str,
+    root_program_id: str,
+    delegated_authority_id: str,
+    issuer_id: str,
+    key_status: str,
+    revocation_reason: str | None,
+) -> GovernanceMutation:
+    if key_status == "revoked":
+        state_sql = (
+            "update qr_trust.issuer_certificates set key_status = $2,"
+            " revoked_at = now(), revocation_reason = $3"
+            " where certificate_id = $1"
+        )
+        state_values = (certificate_id, key_status, revocation_reason)
+    else:
+        state_sql = (
+            "update qr_trust.issuer_certificates set key_status = $2"
+            " where certificate_id = $1"
+        )
+        state_values = (certificate_id, key_status)
+    return GovernanceMutation(
+        action="issuer_certificate.status.changed",
+        target_type="issuer_certificate",
+        target_id=certificate_id,
+        root_program_id=root_program_id,
+        delegated_authority_id=delegated_authority_id,
+        issuer_id=issuer_id,
+        state_sql=state_sql,
+        state_values=state_values,
+        after_json={
+            "certificate_id": certificate_id,
+            "key_status": key_status,
+            "revocation_reason": revocation_reason,
+        },
+        event_type="issuer_certificate.status.changed",
+        trust_state_bump=True,
     )
 
 
@@ -1042,6 +1133,7 @@ from updated
             "key_status": key_status,
         },
         event_type="trust_key.status.changed",
+        trust_state_bump=True,
     )
 
 

@@ -668,6 +668,11 @@ export type ResidualCause =
   | "no-signed-envelope"
   | "unsupported-envelope"
   | "unsupported-claims-version"
+  | "key-suspended"
+  | "trust-state-unavailable"
+  | "redirect-unobserved"
+  | "destination-invalid"
+  | "policy-invalid"
 
 export type ResidualEntry = {
   tier: ResidualTier

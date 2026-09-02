@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any
@@ -16,6 +17,8 @@ from backend.app.services.management_plane import (
     build_destination_policy_status_update_mutation,
     build_destination_policy_upsert_mutation,
     build_domain_proof_upsert_mutation,
+    build_issuer_certificate_enroll_mutation,
+    build_issuer_certificate_status_mutation,
     build_issuer_enrollment_mutation,
     build_issuer_status_update_mutation,
     build_nats_subscriber_authorization_mutation,
@@ -23,6 +26,12 @@ from backend.app.services.management_plane import (
     build_runtime_safety_provider_upsert_mutation,
     build_trust_key_status_update_mutation,
     build_trust_key_upsert_mutation,
+)
+from backend.app.services.trust_state import (
+    TRUST_STATE_BUMP_SQL,
+    TrustStateToken,
+    bump_trust_state,
+    probe_trust_state,
 )
 
 
@@ -39,6 +48,10 @@ class FakeManagementConnection:
         self.completed_idempotency_hash: str | None = None
         self.transaction_committed = False
         self.transaction_rolled_back = False
+        self.governance_version_row: dict[str, Any] = {
+            "epoch": "11111111-2222-3333-4444-555555555555",
+            "version": 1,
+        }
 
     def transaction(self) -> "FakeManagementTransaction":
         return FakeManagementTransaction(self)
@@ -53,6 +66,8 @@ class FakeManagementConnection:
 
     async def fetchrow(self, *args: Any) -> dict[str, Any] | None:
         self.fetchrow_calls.append(args)
+        if "qr_trust.governance_versions" in str(args[0]):
+            return self.governance_version_row
         if self._fetchrow_result is not None:
             return self._fetchrow_result
         return {
@@ -239,7 +254,6 @@ async def test_trust_key_upsert_mutation_writes_state_audit_and_outbox() -> None
             public_key_material_ref="managed://qrtrust/authority/public/v1",
             public_key_material_pem=None,
             scope="delegated_authority",
-            key_status="active",
             not_before=None,
             not_after=None,
         ),
@@ -250,8 +264,9 @@ async def test_trust_key_upsert_mutation_writes_state_audit_and_outbox() -> None
     assert result.state_rows == 1
     assert result.audit_rows == 1
     assert result.outbox_rows == 1
-    assert "qr_trust.trust_keys" in connection.execute_calls[0][0]
-    assert connection.execute_calls[0][1:10] == (
+    assert "on conflict" not in connection.execute_calls[0][0]
+    assert "'active'" in connection.execute_calls[0][0]
+    assert connection.execute_calls[0][1:9] == (
         "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
         "root:qrtrust-demo:2026",
         "authority:qrtrust-demo:merchant-web",
@@ -260,7 +275,6 @@ async def test_trust_key_upsert_mutation_writes_state_audit_and_outbox() -> None
         "managed://qrtrust/authority/public/v1",
         None,
         "delegated_authority",
-        "active",
     )
     assert connection.execute_calls[1][3] == "trust_key.upsert"
     assert connection.execute_calls[1][4] == "trust_key"
@@ -784,3 +798,298 @@ def test_build_nats_subscriber_authorization_mutation_uses_active_subjects() -> 
         "qrtrust.*.issuer.>",
         "qrtrust.*.destination.>",
     ]
+
+
+class _TokenConnection:
+    def __init__(self, row):
+        self.row = row
+        self.calls = []
+
+    async def fetchrow(self, sql, *args):
+        self.calls.append((sql, args))
+        return self.row
+
+
+def test_bump_trust_state_returns_token():
+    conn = _TokenConnection({"epoch": "e-1", "version": 3})
+    token = asyncio.run(bump_trust_state(conn))
+    assert token == TrustStateToken(epoch="e-1", version=3)
+    assert conn.calls[0][1] == ("trust_state",)
+    assert "on conflict (name)" in conn.calls[0][0]
+
+
+def test_probe_trust_state_none_on_missing_row():
+    conn = _TokenConnection(None)
+    assert asyncio.run(probe_trust_state(conn)) is None
+
+
+def test_probe_trust_state_none_on_error():
+    class _Boom:
+        async def fetchrow(self, sql, *args):
+            raise RuntimeError("db down")
+
+    assert asyncio.run(probe_trust_state(_Boom())) is None
+
+
+@pytest.mark.asyncio
+async def test_mutation_with_bump_flag_executes_bump_sql():
+    connection = FakeManagementConnection()
+    service = ManagementPlaneService(connection)
+    principal = ManagementPrincipal(
+        key_id="mgmt_test",
+        operator_id="00000000-0000-0000-0000-000000000001",
+        scopes=frozenset({"issuer:write"}),
+    )
+
+    await service.record_governance_mutation(
+        principal=principal,
+        mutation=GovernanceMutation(
+            action="issuer.enroll",
+            target_type="issuer",
+            target_id="issuer:acme-demo",
+            root_program_id="root:qrtrust-demo:2026",
+            delegated_authority_id="authority:qrtrust-demo:merchant-web",
+            issuer_id="issuer:acme-demo",
+            state_sql=(
+                "insert into qr_trust.issuers (root_program_id, "
+                "delegated_authority_id, issuer_id, display_name, "
+                "issuer_class, assurance_tier, enrollment_status) "
+                "values ($1, $2, $3, $4, 'business', "
+                "'domain_controlled', 'pending')"
+            ),
+            state_values=(
+                "root:qrtrust-demo:2026",
+                "authority:qrtrust-demo:merchant-web",
+                "issuer:acme-demo",
+                "ACME Demo",
+            ),
+            after_json={"issuer_id": "issuer:acme-demo", "status": "pending"},
+            event_type="issuer.enrollment.requested",
+            trust_state_bump=True,
+        ),
+        request_id="req_test",
+        idempotency_key=None,
+    )
+
+    # Check that the bump SQL was called
+    assert any(sql == TRUST_STATE_BUMP_SQL for sql, *_ in connection.fetchrow_calls)
+    # Verify the bump was called with the default name
+    bump_call = next(call for call in connection.fetchrow_calls if call[0] == TRUST_STATE_BUMP_SQL)
+    assert bump_call[1:] == ("trust_state",)
+    # Verify audit insert is also present
+    assert any("governance_audit_log" in sql for sql, *_ in connection.execute_calls)
+
+
+@pytest.mark.asyncio
+async def test_mutation_without_bump_flag_skips_bump_sql():
+    connection = FakeManagementConnection()
+    service = ManagementPlaneService(connection)
+    principal = ManagementPrincipal(
+        key_id="mgmt_test",
+        operator_id="00000000-0000-0000-0000-000000000001",
+        scopes=frozenset({"issuer:write"}),
+    )
+
+    await service.record_governance_mutation(
+        principal=principal,
+        mutation=GovernanceMutation(
+            action="issuer.enroll",
+            target_type="issuer",
+            target_id="issuer:acme-demo",
+            root_program_id="root:qrtrust-demo:2026",
+            delegated_authority_id="authority:qrtrust-demo:merchant-web",
+            issuer_id="issuer:acme-demo",
+            state_sql=(
+                "insert into qr_trust.issuers (root_program_id, "
+                "delegated_authority_id, issuer_id, display_name, "
+                "issuer_class, assurance_tier, enrollment_status) "
+                "values ($1, $2, $3, $4, 'business', "
+                "'domain_controlled', 'pending')"
+            ),
+            state_values=(
+                "root:qrtrust-demo:2026",
+                "authority:qrtrust-demo:merchant-web",
+                "issuer:acme-demo",
+                "ACME Demo",
+            ),
+            after_json={"issuer_id": "issuer:acme-demo", "status": "pending"},
+            event_type="issuer.enrollment.requested",
+        ),
+        request_id="req_test",
+        idempotency_key=None,
+    )
+
+    recorded = [sql for sql, _ in connection.fetchrow_calls]
+    assert all(sql != TRUST_STATE_BUMP_SQL for sql in recorded)
+
+
+def test_build_issuer_enrollment_mutation_sets_trust_state_bump():
+    mutation = build_issuer_enrollment_mutation(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        display_name="ACME Demo",
+        issuer_class="business",
+        assurance_tier="domain_controlled",
+    )
+
+    assert mutation.trust_state_bump is True
+
+
+def test_build_issuer_status_update_mutation_sets_trust_state_bump():
+    mutation = build_issuer_status_update_mutation(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        enrollment_status="active",
+    )
+
+    assert mutation.trust_state_bump is True
+
+
+def test_build_trust_key_upsert_mutation_sets_trust_state_bump():
+    mutation = build_trust_key_upsert_mutation(
+        key_id="key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        signer_id="authority:qrtrust-demo:merchant-web",
+        algorithm_id="ed25519",
+        public_key_material_ref="managed://qrtrust/authority/public/v1",
+        public_key_material_pem=None,
+        scope="delegated_authority",
+        not_before=None,
+        not_after=None,
+    )
+
+    assert mutation.trust_state_bump is True
+
+
+def test_build_trust_key_status_update_mutation_sets_trust_state_bump():
+    mutation = build_trust_key_status_update_mutation(
+        root_program_id="root:qrtrust-demo:2026",
+        key_id="key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        key_status="revoked",
+    )
+
+    assert mutation.trust_state_bump is True
+
+
+def test_build_domain_proof_upsert_mutation_sets_trust_state_bump():
+    mutation = build_domain_proof_upsert_mutation(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        domain="acme.example",
+        proof_method="manual_review",
+        verification_status="verified",
+        expires_at=datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
+        evidence_ref="operator://manual-review/acme.example",
+    )
+
+    assert mutation.trust_state_bump is True
+
+
+def test_build_issuer_certificate_enroll_mutation_inserts_active_row() -> None:
+    mutation = build_issuer_certificate_enroll_mutation(
+        certificate_id="cert:acme-demo:2026-09",
+        issuer_id="issuer:acme-demo",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        algorithm_id="ed25519",
+        public_key_ref="managed://qrtrust/issuer/public/2026-09",
+        public_key_material_pem=(
+            "-----BEGIN PUBLIC KEY-----\ndemo\n-----END PUBLIC KEY-----\n"
+        ),
+        not_before=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        not_after=datetime(2026, 12, 1, tzinfo=timezone.utc),
+    )
+    assert mutation.action == "issuer_certificate.enrolled"
+    assert mutation.event_type == "issuer_certificate.enrolled"
+    assert mutation.target_type == "issuer_certificate"
+    assert mutation.target_id == "cert:acme-demo:2026-09"
+    assert "'active'" in mutation.state_sql
+    assert "on conflict" not in mutation.state_sql
+    assert mutation.trust_state_bump is True
+    assert mutation.state_values[6] == (
+        "-----BEGIN PUBLIC KEY-----\ndemo\n-----END PUBLIC KEY-----\n"
+    )
+
+
+def test_build_issuer_certificate_enroll_mutation_keeps_pem_out_of_audit() -> None:
+    mutation = build_issuer_certificate_enroll_mutation(
+        certificate_id="cert:acme-demo:2026-09",
+        issuer_id="issuer:acme-demo",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        algorithm_id="ed25519",
+        public_key_ref="managed://qrtrust/issuer/public/2026-09",
+        public_key_material_pem=(
+            "-----BEGIN PUBLIC KEY-----\ndemo\n-----END PUBLIC KEY-----\n"
+        ),
+        not_before=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        not_after=datetime(2026, 12, 1, tzinfo=timezone.utc),
+    )
+    assert "public_key_material_pem" not in mutation.after_json
+    assert all(
+        "BEGIN PUBLIC KEY" not in str(value)
+        for value in mutation.after_json.values()
+    )
+    assert mutation.after_json["not_after"] == "2026-12-01T00:00:00+00:00"
+
+
+def test_issuer_certificate_status_mutation_revoked_sets_revocation_columns() -> None:
+    mutation = build_issuer_certificate_status_mutation(
+        certificate_id="cert:acme-demo:2026-09",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        key_status="revoked",
+        revocation_reason="compromised in tabletop drill",
+    )
+    assert "revoked_at = now()" in mutation.state_sql
+    assert "revocation_reason = $3" in mutation.state_sql
+    assert mutation.state_values == (
+        "cert:acme-demo:2026-09",
+        "revoked",
+        "compromised in tabletop drill",
+    )
+    assert mutation.action == "issuer_certificate.status.changed"
+    assert mutation.event_type == "issuer_certificate.status.changed"
+    assert mutation.trust_state_bump is True
+
+
+def test_issuer_certificate_status_mutation_non_revoked_is_plain_update() -> None:
+    mutation = build_issuer_certificate_status_mutation(
+        certificate_id="cert:acme-demo:2026-09",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        key_status="suspended",
+        revocation_reason=None,
+    )
+    assert "revoked_at" not in mutation.state_sql
+    assert mutation.state_values == ("cert:acme-demo:2026-09", "suspended")
+    assert mutation.after_json["key_status"] == "suspended"
+    assert mutation.after_json["revocation_reason"] is None
+    assert mutation.trust_state_bump is True
+
+
+def test_trust_key_upsert_mutation_is_insert_only_with_server_owned_status() -> None:
+    mutation = build_trust_key_upsert_mutation(
+        key_id="key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        signer_id="authority:qrtrust-demo:merchant-web",
+        algorithm_id="ed25519",
+        public_key_material_ref="managed://qrtrust/authority/public/v1",
+        public_key_material_pem=None,
+        scope="delegated_authority",
+        not_before=None,
+        not_after=None,
+    )
+    assert "on conflict" not in mutation.state_sql
+    assert "'active'" in mutation.state_sql
+    assert len(mutation.state_values) == 10
+    assert mutation.after_json["key_status"] == "active"
+    assert mutation.event_type == "trust_key.upserted"
+    assert mutation.trust_state_bump is True

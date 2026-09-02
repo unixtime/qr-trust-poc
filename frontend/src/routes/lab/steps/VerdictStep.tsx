@@ -186,6 +186,11 @@ const knownCauses = new Set([
   "no-signed-envelope",
   "unsupported-envelope",
   "unsupported-claims-version",
+  "key-suspended",
+  "trust-state-unavailable",
+  "redirect-unobserved",
+  "destination-invalid",
+  "policy-invalid",
 ])
 
 // The gates ring is drawn on a 232-unit viewBox so the stroke geometry can be

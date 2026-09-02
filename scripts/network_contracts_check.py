@@ -91,6 +91,7 @@ SCHEMA_EXAMPLE_MAP = {
 EXPECTED_SQL_TABLES = [
     "root_programs",
     "delegated_authorities",
+    "governance_versions",
     "trust_keys",
     "issuers",
     "issuer_domain_proofs",

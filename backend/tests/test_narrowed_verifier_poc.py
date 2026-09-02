@@ -26,7 +26,7 @@ def _trust_issuer(**overrides) -> IssuerRecord:
         "status": "active",
         "issued_at": TRUST_NOW - timedelta(days=30),
         "expires_at": TRUST_NOW + timedelta(days=30),
-        "verified_domains": ("acme.example",),
+        "verified_domains": {"acme.example": None},
         "allow_subdomains": False,
     }
     base.update(overrides)
@@ -76,6 +76,7 @@ async def test_service_accepts_an_artifact_inside_every_window():
     assert result.stage == "accepted"
     assert result.cause is None
     assert result.reason == ACCEPTED_REASON
+    assert result.matched_domain == "acme.example"
 
 
 @pytest.mark.asyncio
@@ -199,3 +200,63 @@ async def test_service_still_blocks_a_destination_outside_the_verified_domains()
     assert result.allowed is False
     assert result.stage == "payload_revalidation"
     assert result.cause is None
+
+
+@pytest.mark.asyncio
+async def test_blocking_states_precede_signature_check_on_revoked_key_with_no_material():
+    """When a key is revoked with no stored material, report key-revoked, not signature failure."""
+    certificate, private_key_pem = build_demo_certificate()
+    claims = SignedQRCodeClaims(
+        version="2",
+        certificate_ref=certificate.certificate_ref,
+        issued_at="2026-03-01T11:55:00Z",
+        expires_at="2026-03-01T12:05:00Z",
+        payload="https://acme.example/pay",
+    )
+    envelope = create_signed_envelope(claims, private_key_pem)
+    service = NarrowedVerifierService(now_fn=lambda: TRUST_NOW)
+    trust = _trust_context(
+        certificate.certificate_ref,
+        key=_trust_key(certificate.certificate_ref, state="revoked", public_key_pem=None),
+    )
+
+    result = await service.verify_presented_code(envelope, certificate, trust)
+
+    assert result.allowed is False
+    assert result.cause == "key-revoked"
+    assert "signature" not in result.reason.lower()
+
+
+@pytest.mark.asyncio
+async def test_material_check_fails_closed_for_active_key_with_no_material():
+    """When an active key has no stored material, fail closed with trust-state-unavailable."""
+    from backend.app.services.signed_schema_poc import CertificateAuthorityRecord
+
+    certificate, private_key_pem = build_demo_certificate()
+    claims = SignedQRCodeClaims(
+        version="2",
+        certificate_ref=certificate.certificate_ref,
+        issued_at="2026-03-01T11:55:00Z",
+        expires_at="2026-03-01T12:05:00Z",
+        payload="https://acme.example/pay",
+    )
+    envelope = create_signed_envelope(claims, private_key_pem)
+    service = NarrowedVerifierService(now_fn=lambda: TRUST_NOW)
+    # Create certificate record with None material
+    cert_with_no_material = CertificateAuthorityRecord(
+        certificate_ref=certificate.certificate_ref,
+        issuer_name=certificate.issuer_name,
+        algorithm_id=certificate.algorithm_id,
+        public_key_pem=None,
+    )
+    trust = _trust_context(
+        certificate.certificate_ref,
+        key=_trust_key(certificate.certificate_ref, state="active", public_key_pem=None),
+    )
+
+    result = await service.verify_presented_code(envelope, cert_with_no_material, trust)
+
+    assert result.allowed is False
+    assert result.cause == "trust-state-unavailable"
+    assert result.stage == "key_status"
+    assert result.reason == "Signing key has no public material available for verification"

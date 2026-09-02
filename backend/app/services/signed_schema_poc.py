@@ -41,7 +41,7 @@ class CertificateAuthorityRecord:
     certificate_ref: str
     issuer_name: str
     algorithm_id: str
-    public_key_pem: str
+    public_key_pem: str | None
 
 
 @dataclass(frozen=True)

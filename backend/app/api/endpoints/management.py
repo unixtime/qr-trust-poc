@@ -22,6 +22,9 @@ from backend.app.schemas.management import (
     DestinationPolicyUpsertResponse,
     DomainProofUpsertRequest,
     DomainProofUpsertResponse,
+    IssuerCertificateEnrollRequest,
+    IssuerCertificateMutationResponse,
+    IssuerCertificateStatusRequest,
     IssuerEnrollmentRequest,
     IssuerEnrollmentResponse,
     IssuerStatusUpdateRequest,
@@ -48,6 +51,7 @@ from backend.app.schemas.management import (
     OperatorRoleAssignmentRecord,
     OperatorRoleAssignmentUpsertRequest,
     OperatorUpsertRequest,
+    ResourceAuthzReadinessResponse,
     RootProgramUpsertRequest,
     RootProgramUpsertResponse,
     RuntimeProviderListResponse,
@@ -76,6 +80,8 @@ from backend.app.services.management_auth import (
     ManagementUnauthorized,
     hash_management_key,
     load_management_principal,
+    record_resource_authz_audit,
+    require_issuer_resource,
     require_scope,
 )
 from backend.app.services.management_plane import (
@@ -87,6 +93,8 @@ from backend.app.services.management_plane import (
     build_destination_policy_status_update_mutation,
     build_destination_policy_upsert_mutation,
     build_domain_proof_upsert_mutation,
+    build_issuer_certificate_enroll_mutation,
+    build_issuer_certificate_status_mutation,
     build_issuer_enrollment_mutation,
     build_issuer_status_update_mutation,
     build_nats_subscriber_authorization_mutation,
@@ -95,6 +103,7 @@ from backend.app.services.management_plane import (
     build_trust_key_status_update_mutation,
     build_trust_key_upsert_mutation,
 )
+from backend.app.services.trust_transitions import CERTIFICATE_TRANSITIONS, TRUST_KEY_TRANSITIONS, check_transition
 
 
 router = APIRouter()
@@ -326,6 +335,7 @@ async def upsert_operator(
                 email,
                 display_name,
                 request.status,
+                request.operator_type,
             )
             record = _operator_record_from_row(row)
             await _insert_management_audit(
@@ -378,6 +388,56 @@ async def list_operators(
 
     return OperatorListResponse(
         records=[_operator_record_from_row(row) for row in rows],
+    )
+
+
+@router.get(
+    "/resource-authz/readiness", response_model=ResourceAuthzReadinessResponse
+)
+async def resource_authz_readiness(
+    window_minutes: int = Query(default=60, ge=1, le=10080),
+    admin_token: str = Depends(require_management_credential),
+) -> ResourceAuthzReadinessResponse:
+    connection: asyncpg.Connection | None = None
+    try:
+        connection = await asyncpg.connect(
+            _asyncpg_dsn(_management_database_url()),
+            timeout=1.5,
+            command_timeout=2.0,
+        )
+        await _management_principal(connection, admin_token, "audit:read")
+        row = await connection.fetchrow(_RESOURCE_AUTHZ_READINESS_SQL, window_minutes)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="management persistence unavailable",
+        ) from exc
+    finally:
+        if connection is not None:
+            await connection.close()
+
+    from backend.app.api.endpoints.verifier import _scanner_trust_store
+
+    defects = _scanner_trust_store.projection_defects
+    projected_blocking_rows = sum(
+        1
+        for defect in defects
+        if getattr(defect, "defect_class", None) == "projected-blocking-row"
+    )
+    excluded_verifying_rows = sum(
+        1
+        for defect in defects
+        if getattr(defect, "defect_class", None) == "excluded-verifying-row"
+    )
+    return ResourceAuthzReadinessResponse(
+        window_minutes=window_minutes,
+        would_block_events=int(row["would_block_events"]),
+        principals_lacking_coverage=int(row["principals_lacking_coverage"]),
+        keys_without_operator=int(row["keys_without_operator"]),
+        projected_blocking_rows=projected_blocking_rows,
+        excluded_verifying_rows=excluded_verifying_rows,
     )
 
 
@@ -673,15 +733,42 @@ async def upsert_trust_key(
     public_key_material_pem = _optional_clean_text(request.public_key_material_pem)
     try:
         connection = await asyncpg.connect(
-            _asyncpg_dsn(_management_database_url()),
-            timeout=1.5,
-            command_timeout=2.0,
+            _asyncpg_dsn(_management_database_url()), timeout=1.5, command_timeout=2.0
         )
         principal = await _management_principal(
-            connection,
-            admin_token,
-            "trust_keys:write",
+            connection, admin_token, "trust_keys:write"
         )
+        existing = await connection.fetchrow(_TRUST_KEY_REPLAY_LOOKUP, key_id)
+        if existing is not None:
+            existing_identity = (
+                existing["root_program_id"],
+                existing["delegated_authority_id"],
+                existing["signer_id"],
+                existing["algorithm_id"],
+                existing["public_key_material_ref"],
+                existing["scope"],
+            )
+            requested_identity = (
+                root_program_id,
+                delegated_authority_id,
+                signer_id,
+                algorithm_id,
+                public_key_material_ref,
+                request.scope,
+            )
+            if existing_identity != requested_identity:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"trust key '{key_id}' already enrolled with a different"
+                        " identity"
+                    ),
+                )
+            return TrustKeyMutationResponse(
+                key_id=key_id,
+                key_status=str(existing["key_status"]),
+                event_type="trust_key.replayed",
+            )
         service = ManagementPlaneService(connection)
         await service.record_governance_mutation(
             principal=principal,
@@ -694,7 +781,6 @@ async def upsert_trust_key(
                 public_key_material_ref=public_key_material_ref,
                 public_key_material_pem=public_key_material_pem,
                 scope=request.scope,
-                key_status=request.key_status,
                 not_before=request.not_before,
                 not_after=request.not_after,
             ),
@@ -703,8 +789,7 @@ async def upsert_trust_key(
         )
     except (IdempotencyConflictError, IdempotencyInProgressError) as exc:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
     except HTTPException:
         raise
@@ -716,11 +801,318 @@ async def upsert_trust_key(
     finally:
         if connection is not None:
             await connection.close()
-
     return TrustKeyMutationResponse(
-        key_id=key_id,
+        key_id=key_id, key_status="active", event_type="trust_key.upserted"
+    )
+
+
+_ISSUER_CERTIFICATE_REPLAY_LOOKUP = (
+    "select certificate_id, issuer_id, root_program_id, delegated_authority_id,"
+    " algorithm_id, public_key_ref, key_status"
+    " from qr_trust.issuer_certificates where certificate_id = $1"
+)
+
+
+_ISSUER_CERTIFICATE_STATUS_LOOKUP = (
+    "select certificate_id, root_program_id, delegated_authority_id, issuer_id,"
+    " key_status, public_key_material_pem"
+    " from qr_trust.issuer_certificates where certificate_id = $1 for update"
+)
+
+_TRUST_KEY_REPLAY_LOOKUP = (
+    "select key_id, root_program_id, delegated_authority_id, signer_id,"
+    " algorithm_id, public_key_material_ref, scope, key_status"
+    " from qr_trust.trust_keys where key_id = $1"
+)
+
+_TRUST_KEY_STATUS_LOOKUP = (
+    "select key_id, key_status from qr_trust.trust_keys"
+    " where root_program_id = $1 and key_id = $2 for update"
+)
+
+
+@router.post("/issuer-certificates", response_model=IssuerCertificateMutationResponse)
+async def enroll_issuer_certificate(
+    request: IssuerCertificateEnrollRequest,
+    http_request: Request,
+    admin_token: str = Depends(require_management_credential),
+) -> IssuerCertificateMutationResponse:
+    certificate_id = _normalize_required_text(
+        request.certificate_id, "certificate_id is required"
+    )
+    issuer_id = _normalize_required_text(request.issuer_id, "issuer_id is required")
+    root_program_id = _normalize_required_text(
+        request.root_program_id, "root_program_id is required"
+    )
+    delegated_authority_id = _normalize_required_text(
+        request.delegated_authority_id, "delegated_authority_id is required"
+    )
+    algorithm_id = _normalize_required_text(
+        request.algorithm_id, "algorithm_id is required"
+    )
+    public_key_ref = _normalize_required_text(
+        request.public_key_ref, "public_key_ref is required"
+    )
+    public_key_material_pem = _normalize_required_text(
+        request.public_key_material_pem, "public_key_material_pem is required"
+    )
+
+    if not certificate_id.startswith("cert:acme-demo:"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="certificate id must use the 'cert:acme-demo:' demo prefix",
+        )
+    if issuer_id != "issuer:acme-demo":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "certificate enrollment is scoped to issuer 'issuer:acme-demo'"
+                " in this POC"
+            ),
+        )
+    if request.not_after is None and not config.QR_TRUST_ALLOW_OPEN_ENDED_ENROLLMENT:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "open-ended certificates are disabled; provide not_after or enable"
+                " QR_TRUST_ALLOW_OPEN_ENDED_ENROLLMENT"
+            ),
+        )
+    if request.not_after is not None:
+        if request.not_after <= request.not_before:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="not_after must fall after not_before",
+            )
+        if (request.not_after - request.not_before) > timedelta(
+            days=config.QR_TRUST_MAX_CERT_VALIDITY_DAYS
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "validity window exceeds QR_TRUST_MAX_CERT_VALIDITY_DAYS"
+                    f" ({config.QR_TRUST_MAX_CERT_VALIDITY_DAYS} days)"
+                ),
+            )
+
+    connection: asyncpg.Connection | None = None
+    try:
+        connection = await asyncpg.connect(
+            _asyncpg_dsn(_management_database_url()), timeout=1.5, command_timeout=2.0
+        )
+        principal = await _management_principal(connection, admin_token, "issuer:write")
+        decision = require_issuer_resource(
+            principal,
+            "issuer:write",
+            root_program_id=root_program_id,
+            delegated_authority_id=delegated_authority_id,
+            issuer_id=issuer_id,
+            mode=config.QR_TRUST_RESOURCE_AUTHZ_MODE,
+        )
+        if decision.would_block:
+            await record_resource_authz_audit(
+                connection,
+                principal,
+                "issuer:write",
+                target_id=certificate_id,
+                root_program_id=root_program_id,
+                delegated_authority_id=delegated_authority_id,
+                issuer_id=issuer_id,
+                request_id=getattr(http_request.state, "request_id", "management"),
+                detail=decision.detail,
+            )
+        existing = await connection.fetchrow(
+            _ISSUER_CERTIFICATE_REPLAY_LOOKUP, certificate_id
+        )
+        if existing is not None:
+            existing_identity = (
+                str(existing["issuer_id"]),
+                str(existing["root_program_id"]),
+                str(existing["delegated_authority_id"]),
+                str(existing["algorithm_id"]),
+                str(existing["public_key_ref"]),
+            )
+            requested_identity = (
+                issuer_id,
+                root_program_id,
+                delegated_authority_id,
+                algorithm_id,
+                public_key_ref,
+            )
+            if existing_identity != requested_identity:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"certificate '{certificate_id}' already enrolled with a"
+                        " different identity"
+                    ),
+                )
+            return IssuerCertificateMutationResponse(
+                certificate_id=certificate_id,
+                issuer_id=issuer_id,
+                key_status=str(existing["key_status"]),
+                event_type="issuer_certificate.replayed",
+            )
+        service = ManagementPlaneService(connection)
+        await service.record_governance_mutation(
+            principal=principal,
+            mutation=build_issuer_certificate_enroll_mutation(
+                certificate_id=certificate_id,
+                issuer_id=issuer_id,
+                root_program_id=root_program_id,
+                delegated_authority_id=delegated_authority_id,
+                algorithm_id=algorithm_id,
+                public_key_ref=public_key_ref,
+                public_key_material_pem=public_key_material_pem,
+                not_before=request.not_before,
+                not_after=request.not_after,
+            ),
+            request_id=getattr(http_request.state, "request_id", "management"),
+            idempotency_key=http_request.headers.get("Idempotency-Key"),
+        )
+    except (IdempotencyConflictError, IdempotencyInProgressError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except HTTPException:
+        raise
+    except ManagementUnauthorized as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="management persistence unavailable",
+        ) from exc
+    finally:
+        if connection is not None:
+            await connection.close()
+    return IssuerCertificateMutationResponse(
+        certificate_id=certificate_id,
+        issuer_id=issuer_id,
+        key_status="active",
+        event_type="issuer_certificate.enrolled",
+    )
+
+
+@router.post(
+    "/issuer-certificates/status", response_model=IssuerCertificateMutationResponse
+)
+async def update_issuer_certificate_status(
+    request: IssuerCertificateStatusRequest,
+    http_request: Request,
+    admin_token: str = Depends(require_management_credential),
+) -> IssuerCertificateMutationResponse:
+    connection: asyncpg.Connection | None = None
+    certificate_id = _normalize_required_text(
+        request.certificate_id, "certificate_id is required"
+    )
+    try:
+        connection = await asyncpg.connect(
+            _asyncpg_dsn(_management_database_url()), timeout=1.5, command_timeout=2.0
+        )
+        principal = await _management_principal(connection, admin_token, "issuer:write")
+        async with connection.transaction():
+            row = await connection.fetchrow(
+                _ISSUER_CERTIFICATE_STATUS_LOOKUP, certificate_id
+            )
+            if row is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"certificate '{certificate_id}' not found",
+                )
+            issuer_id = str(row["issuer_id"])
+            decision = require_issuer_resource(
+                principal,
+                "issuer:write",
+                root_program_id=str(row["root_program_id"]),
+                delegated_authority_id=str(row["delegated_authority_id"]),
+                issuer_id=issuer_id,
+                mode=config.QR_TRUST_RESOURCE_AUTHZ_MODE,
+            )
+            if decision.would_block:
+                await record_resource_authz_audit(
+                    connection,
+                    principal,
+                    "issuer:write",
+                    target_id=certificate_id,
+                    root_program_id=str(row["root_program_id"]),
+                    delegated_authority_id=str(row["delegated_authority_id"]),
+                    issuer_id=issuer_id,
+                    request_id=getattr(http_request.state, "request_id", "management"),
+                    detail=decision.detail,
+                )
+            current_status = str(row["key_status"])
+            check = check_transition(
+                CERTIFICATE_TRANSITIONS, current_status, request.key_status
+            )
+            if check.kind == "noop":
+                return IssuerCertificateMutationResponse(
+                    certificate_id=certificate_id,
+                    issuer_id=issuer_id,
+                    key_status=current_status,
+                    event_type="issuer_certificate.status.unchanged",
+                )
+            if check.kind == "terminal":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="revocation is terminal",
+                )
+            if check.kind == "disallowed":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=check.detail
+                )
+            if (
+                request.key_status in ("active", "rotated")
+                and row["public_key_material_pem"] is None
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"certificate '{certificate_id}' has no usable material;"
+                        " revoke and re-enroll"
+                    ),
+                )
+            service = ManagementPlaneService(connection)
+            await service.record_governance_mutation(
+                principal=principal,
+                mutation=build_issuer_certificate_status_mutation(
+                    certificate_id=certificate_id,
+                    root_program_id=str(row["root_program_id"]),
+                    delegated_authority_id=str(row["delegated_authority_id"]),
+                    issuer_id=issuer_id,
+                    key_status=request.key_status,
+                    revocation_reason=request.revocation_reason,
+                ),
+                request_id=getattr(http_request.state, "request_id", "management"),
+                idempotency_key=http_request.headers.get("Idempotency-Key"),
+            )
+    except (IdempotencyConflictError, IdempotencyInProgressError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except HTTPException:
+        raise
+    except ManagementUnauthorized as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="management persistence unavailable",
+        ) from exc
+    finally:
+        if connection is not None:
+            await connection.close()
+    return IssuerCertificateMutationResponse(
+        certificate_id=certificate_id,
+        issuer_id=issuer_id,
         key_status=request.key_status,
-        event_type="trust_key.upserted",
+        event_type="issuer_certificate.status.changed",
     )
 
 
@@ -738,35 +1130,60 @@ async def update_trust_key_status(
     key_id = _normalize_required_text(request.key_id, "trust key id is required")
     try:
         connection = await asyncpg.connect(
-            _asyncpg_dsn(_management_database_url()),
-            timeout=1.5,
-            command_timeout=2.0,
+            _asyncpg_dsn(_management_database_url()), timeout=1.5, command_timeout=2.0
         )
         principal = await _management_principal(
-            connection,
-            admin_token,
-            "trust_keys:write",
+            connection, admin_token, "trust_keys:write"
         )
-        service = ManagementPlaneService(connection)
-        await service.record_governance_mutation(
-            principal=principal,
-            mutation=build_trust_key_status_update_mutation(
-                root_program_id=root_program_id,
-                key_id=key_id,
-                key_status=request.key_status,
-            ),
-            request_id=getattr(http_request.state, "request_id", "management"),
-            idempotency_key=http_request.headers.get("Idempotency-Key"),
-        )
+        async with connection.transaction():
+            row = await connection.fetchrow(
+                _TRUST_KEY_STATUS_LOOKUP, root_program_id, key_id
+            )
+            if row is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=(
+                        f"trust key '{key_id}' not found for root program"
+                        f" '{root_program_id}'"
+                    ),
+                )
+            current_status = str(row["key_status"])
+            check = check_transition(
+                TRUST_KEY_TRANSITIONS, current_status, request.key_status
+            )
+            if check.kind == "noop":
+                return TrustKeyMutationResponse(
+                    key_id=key_id,
+                    key_status=current_status,
+                    event_type="trust_key.status.unchanged",
+                )
+            if check.kind == "terminal":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="revocation is terminal",
+                )
+            if check.kind == "disallowed":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=check.detail
+                )
+            service = ManagementPlaneService(connection)
+            await service.record_governance_mutation(
+                principal=principal,
+                mutation=build_trust_key_status_update_mutation(
+                    root_program_id=root_program_id,
+                    key_id=key_id,
+                    key_status=request.key_status,
+                ),
+                request_id=getattr(http_request.state, "request_id", "management"),
+                idempotency_key=http_request.headers.get("Idempotency-Key"),
+            )
     except (IdempotencyConflictError, IdempotencyInProgressError) as exc:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
     except GovernancePreconditionFailedError as exc:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
+            status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
     except HTTPException:
         raise
@@ -778,7 +1195,6 @@ async def update_trust_key_status(
     finally:
         if connection is not None:
             await connection.close()
-
     return TrustKeyMutationResponse(
         key_id=key_id,
         key_status=request.key_status,
@@ -949,6 +1365,26 @@ async def enroll_issuer(
             command_timeout=2.0,
         )
         principal = await _management_principal(connection, admin_token, "issuer:write")
+        decision = require_issuer_resource(
+            principal,
+            "issuer:write",
+            root_program_id=request.root_program_id,
+            delegated_authority_id=request.delegated_authority_id,
+            issuer_id=request.issuer_id,
+            mode=config.QR_TRUST_RESOURCE_AUTHZ_MODE,
+        )
+        if decision.would_block:
+            await record_resource_authz_audit(
+                connection,
+                principal,
+                "issuer:write",
+                target_id=request.issuer_id,
+                root_program_id=request.root_program_id,
+                delegated_authority_id=request.delegated_authority_id,
+                issuer_id=request.issuer_id,
+                request_id=getattr(http_request.state, "request_id", "management"),
+                detail=decision.detail,
+            )
         service = ManagementPlaneService(connection)
         await service.record_governance_mutation(
             principal=principal,
@@ -970,6 +1406,11 @@ async def enroll_issuer(
         ) from exc
     except HTTPException:
         raise
+    except ManagementUnauthorized as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1000,6 +1441,26 @@ async def update_issuer_status(
             command_timeout=2.0,
         )
         principal = await _management_principal(connection, admin_token, "issuer:write")
+        decision = require_issuer_resource(
+            principal,
+            "issuer:write",
+            root_program_id=request.root_program_id,
+            delegated_authority_id=request.delegated_authority_id,
+            issuer_id=request.issuer_id,
+            mode=config.QR_TRUST_RESOURCE_AUTHZ_MODE,
+        )
+        if decision.would_block:
+            await record_resource_authz_audit(
+                connection,
+                principal,
+                "issuer:write",
+                target_id=request.issuer_id,
+                root_program_id=request.root_program_id,
+                delegated_authority_id=request.delegated_authority_id,
+                issuer_id=request.issuer_id,
+                request_id=getattr(http_request.state, "request_id", "management"),
+                detail=decision.detail,
+            )
         service = ManagementPlaneService(connection)
         await service.record_governance_mutation(
             principal=principal,
@@ -1024,6 +1485,11 @@ async def update_issuer_status(
         ) from exc
     except HTTPException:
         raise
+    except ManagementUnauthorized as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1055,6 +1521,26 @@ async def upsert_domain_proof(
             command_timeout=2.0,
         )
         principal = await _management_principal(connection, admin_token, "issuer:write")
+        decision = require_issuer_resource(
+            principal,
+            "issuer:write",
+            root_program_id=request.root_program_id,
+            delegated_authority_id=request.delegated_authority_id,
+            issuer_id=request.issuer_id,
+            mode=config.QR_TRUST_RESOURCE_AUTHZ_MODE,
+        )
+        if decision.would_block:
+            await record_resource_authz_audit(
+                connection,
+                principal,
+                "issuer:write",
+                target_id=request.issuer_id,
+                root_program_id=request.root_program_id,
+                delegated_authority_id=request.delegated_authority_id,
+                issuer_id=request.issuer_id,
+                request_id=getattr(http_request.state, "request_id", "management"),
+                detail=decision.detail,
+            )
         service = ManagementPlaneService(connection)
         await service.record_governance_mutation(
             principal=principal,
@@ -1078,6 +1564,11 @@ async def upsert_domain_proof(
         ) from exc
     except HTTPException:
         raise
+    except ManagementUnauthorized as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1802,6 +2293,7 @@ def _operator_record_from_row(row: Any) -> OperatorRecord:
         email=str(row["email"]),
         display_name=str(row["display_name"]),
         status=str(row["status"]),
+        operator_type=str(row["operator_type"]),
         created_at=_iso_timestamp(row["created_at"]),
         updated_at=_iso_timestamp(row["updated_at"]),
     )
@@ -2321,17 +2813,20 @@ _OPERATOR_UPSERT_QUERY = """
 insert into qr_trust.operators (
   email,
   display_name,
-  status
-) values ($1, $2, $3)
+  status,
+  operator_type
+) values ($1, $2, $3, $4)
 on conflict (email) do update set
   display_name = excluded.display_name,
   status = excluded.status,
+  operator_type = excluded.operator_type,
   updated_at = now()
 returning
   operator_id::text as operator_id,
   email,
   display_name,
   status,
+  operator_type,
   created_at,
   updated_at
 """.strip()
@@ -2342,12 +2837,26 @@ select
   email,
   display_name,
   status,
+  operator_type,
   created_at,
   updated_at
 from qr_trust.operators
 order by created_at desc, email
 limit $1::integer
 """.strip()
+
+_RESOURCE_AUTHZ_READINESS_SQL = (
+    "select"
+    " (select count(*)::integer from qr_trust.governance_audit_log"
+    "  where action = 'resource_authz.would_block'"
+    "  and created_at >= now() - make_interval(mins => $1)) as would_block_events,"
+    " (select count(distinct coalesce(actor_key_id, actor_operator_id::text))::integer"
+    "  from qr_trust.governance_audit_log"
+    "  where action = 'resource_authz.would_block'"
+    "  and created_at >= now() - make_interval(mins => $1)) as principals_lacking_coverage,"
+    " (select count(*)::integer from qr_trust.management_api_keys"
+    "  where operator_id is null) as keys_without_operator"
+)
 
 _OPERATOR_ROLE_ASSIGNMENT_UPSERT_QUERY = """
 with existing as (

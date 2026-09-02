@@ -64,6 +64,7 @@ class FakeManagementConnection:
             "email": "professor@example.edu",
             "display_name": "Professor Example",
             "status": "active",
+            "operator_type": "person",
             "created_at": datetime(2026, 5, 25, 10, 8, tzinfo=timezone.utc),
             "updated_at": datetime(2026, 5, 25, 10, 8, tzinfo=timezone.utc),
         }
@@ -183,6 +184,17 @@ class FakeManagementConnection:
                 "created_at": datetime(2026, 5, 25, 10, 1, tzinfo=timezone.utc),
             },
         ]
+        self.governance_version_row: dict[str, Any] = {
+            "epoch": "11111111-2222-3333-4444-555555555555",
+            "version": 1,
+        }
+        self.issuer_certificate_row: dict[str, Any] | None = None
+        self.trust_key_row: dict[str, Any] | None = None
+        self.readiness_row: dict[str, Any] = {
+            "would_block_events": 0,
+            "principals_lacking_coverage": 0,
+            "keys_without_operator": 0,
+        }
 
     def transaction(self) -> "FakeManagementTransaction":
         return FakeManagementTransaction(self)
@@ -205,6 +217,8 @@ class FakeManagementConnection:
             if "and scopes @> array['verifier:client']" in str(args[0]):
                 return self.verifier_client_key_revoke_row
             return self.management_key_revoke_row
+        if "keys_without_operator" in str(args[0]):
+            return self.readiness_row
         if "from qr_trust.management_api_keys" in str(args[0]):
             return self.management_key_row
         if "update qr_trust.event_outbox" in str(args[0]):
@@ -213,6 +227,12 @@ class FakeManagementConnection:
             if self.outbox_remediation_existing_status is None:
                 return None
             return {"publish_status": self.outbox_remediation_existing_status}
+        if "from qr_trust.trust_keys" in str(args[0]):
+            return self.trust_key_row
+        if "qr_trust.governance_versions" in str(args[0]):
+            return self.governance_version_row
+        if "from qr_trust.issuer_certificates" in str(args[0]):
+            return self.issuer_certificate_row
         return {"changed_rows": self._changed_rows}
 
     async def fetch(self, *args: Any) -> list[dict[str, Any]]:
@@ -254,6 +274,68 @@ class FakeManagementTransaction:
     async def __aexit__(self, exc_type: Any, *_args: Any) -> None:
         if exc_type is None:
             self.connection.transaction_committed = True
+
+
+def _issuer_certificate_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "algorithm_id": "ed25519",
+        "public_key_ref": "managed://qrtrust/issuer/public/2026-09",
+        "public_key_material_pem": (
+            "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA\n-----END PUBLIC KEY-----\n"
+        ),
+        "not_before": "2026-09-01T00:00:00Z",
+        "not_after": "2026-12-01T00:00:00Z",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _issuer_certificate_status_row(**overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "issuer_id": "issuer:acme-demo",
+        "key_status": "active",
+        "public_key_material_pem": (
+            "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA\n-----END PUBLIC KEY-----\n"
+        ),
+    }
+    row.update(overrides)
+    return row
+
+
+def _trust_key_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "signer_id": "authority:qrtrust-demo:merchant-web",
+        "algorithm_id": "ed25519",
+        "public_key_material_ref": "managed://qrtrust/authority/public/v1",
+        "scope": "delegated_authority",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def _trust_key_row(**overrides: Any) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "signer_id": "authority:qrtrust-demo:merchant-web",
+        "algorithm_id": "ed25519",
+        "public_key_material_ref": "managed://qrtrust/authority/public/v1",
+        "scope": "delegated_authority",
+        "key_status": "active",
+    }
+    row.update(overrides)
+    return row
 
 
 def test_management_health_requires_management_key(client: TestClient) -> None:
@@ -679,18 +761,64 @@ def test_upsert_operator_accepts_scoped_management_key_and_audits(
         "email": "professor@example.edu",
         "display_name": "Professor Example",
         "status": "active",
+        "operator_type": "person",
         "created_at": "2026-05-25T10:08:00Z",
         "updated_at": "2026-05-25T10:08:00Z",
     }
-    assert connection.fetchrow_calls[1][1:4] == (
+    assert connection.fetchrow_calls[1][1:5] == (
         "professor@example.edu",
         "Professor Example",
         "active",
+        "person",
     )
     audit_call = connection.execute_calls[0]
     assert audit_call[3] == "operator.upsert"
     assert audit_call[4] == "operator"
     assert audit_call[5] == "66666666-6666-4666-8666-666666666666"
+
+
+def test_upsert_operator_service_type_is_persisted(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.operator_upsert_row = {
+        **connection.operator_upsert_row,
+        "email": "relay@example.edu",
+        "display_name": "Outbox Relay",
+        "operator_type": "service",
+    }
+
+    async def _fake_connect(*_args: object, **_kwargs: object) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/operators",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "email": "relay@example.edu",
+            "display_name": "Outbox Relay",
+            "status": "active",
+            "operator_type": "service",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["operator_type"] == "service"
+    upsert_call = next(
+        call
+        for call in connection.fetchrow_calls
+        if "insert into qr_trust.operators" in str(call[0])
+    )
+    assert upsert_call[1:5] == ("relay@example.edu", "Outbox Relay", "active", "service")
 
 
 def test_list_operators_requires_operator_read_scope(
@@ -1059,7 +1187,6 @@ def test_upsert_trust_key_uses_management_service_and_outbox(
             "algorithm_id": "ed25519",
             "public_key_material_ref": " managed://qrtrust/authority/public/v1 ",
             "scope": "delegated_authority",
-            "key_status": "active",
         },
     )
 
@@ -1162,6 +1289,7 @@ def test_update_trust_key_status_requires_trust_key_scope(
         "operator_id": None,
         "scopes": ["trust_keys:write"],
     }
+    connection.trust_key_row = _trust_key_row()
 
     async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
         return connection
@@ -1190,7 +1318,10 @@ def test_update_trust_key_status_requires_trust_key_scope(
         "key_status": "revoked",
         "event_type": "trust_key.status.changed",
     }
-    assert "update qr_trust.trust_keys" in connection.fetchrow_calls[1][0]
+    assert any(
+        "update qr_trust.trust_keys" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
 
 
 def test_list_trust_keys_filters_root_and_authority(
@@ -1532,7 +1663,11 @@ def test_enroll_issuer_accepts_db_management_key(
     assert response.status_code == 200
     assert connection.closed is True
     assert connection.fetchrow_calls[0][1] == hash_management_key("mgmt_plaintext")
-    assert connection.execute_calls[1][2] == "mgmt_admin"
+    assert connection.execute_calls[2][2] == "mgmt_admin"
+    assert any(
+        "resource_authz.would_block" in str(call[0])
+        for call in connection.execute_calls
+    )
 
 
 def test_enroll_issuer_rejects_db_management_key_without_scope(
@@ -1577,6 +1712,50 @@ def test_enroll_issuer_rejects_db_management_key_without_scope(
     assert response.json()["detail"] == "missing required scope: issuer:write"
     assert connection.closed is True
     assert len(connection.execute_calls) == 0
+
+
+def test_enroll_issuer_enforce_mode_returns_403(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.management_key_row = {
+        "key_id": "mgmt_issuer_writer",
+        "operator_id": None,
+        "scopes": ["issuer:write"],
+    }
+
+    async def _fake_connect(*_args: object, **_kwargs: object) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", [])
+    monkeypatch.setattr(config, "QR_TRUST_RESOURCE_AUTHZ_MODE", "enforce")
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuers",
+        headers={"X-Admin-Token": "mgmt_plaintext"},
+        json={
+            "root_program_id": "root:qrtrust-demo:2026",
+            "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+            "issuer_id": "issuer:acme-demo",
+            "display_name": "ACME Demo",
+            "issuer_class": "business",
+            "assurance_tier": "domain_controlled",
+        },
+    )
+
+    assert response.status_code == 403
+    assert not any(
+        "issuer_enrollments" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert connection.closed is True
 
 
 def test_operator_role_allows_matching_route_with_limited_admin_key(
@@ -1658,6 +1837,94 @@ def test_operator_role_blocks_unrelated_route_even_with_admin_key(
     assert response.json()["detail"] == "missing required scope: issuer:write"
     assert "from qr_trust.operator_role_assignments" in connection.fetch_calls[0][0]
     assert len(connection.execute_calls) == 0
+
+
+def test_resource_authz_readiness_reports_counters(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.api.endpoints import verifier as verifier_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.readiness_row = {
+        "would_block_events": 2,
+        "principals_lacking_coverage": 1,
+        "keys_without_operator": 3,
+    }
+
+    class _Defect:
+        def __init__(self, defect_class: str) -> None:
+            self.defect_class = defect_class
+
+    monkeypatch.setattr(
+        verifier_endpoint._scanner_trust_store,
+        "projection_defects",
+        (
+            _Defect("projected-blocking-row"),
+            _Defect("excluded-verifying-row"),
+            _Defect("excluded-verifying-row"),
+        ),
+    )
+
+    async def _fake_connect(*_args: object, **_kwargs: object) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.get(
+        "/admin/resource-authz/readiness?window_minutes=120",
+        headers={"X-Admin-Token": "local-lab-admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "window_minutes": 120,
+        "would_block_events": 2,
+        "principals_lacking_coverage": 1,
+        "keys_without_operator": 3,
+        "projected_blocking_rows": 1,
+        "excluded_verifying_rows": 2,
+    }
+    readiness_call = next(
+        call
+        for call in connection.fetchrow_calls
+        if "keys_without_operator" in str(call[0])
+    )
+    assert readiness_call[1] == 120
+
+
+def test_resource_authz_readiness_defaults(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: object, **_kwargs: object) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.get(
+        "/admin/resource-authz/readiness",
+        headers={"X-Admin-Token": "local-lab-admin"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["window_minutes"] == 60
+    assert body["projected_blocking_rows"] == 0
+    assert body["excluded_verifying_rows"] == 0
 
 
 def test_upsert_domain_proof_accepts_local_admin_token(
@@ -1831,10 +2098,11 @@ def test_update_issuer_status_accepts_local_admin_token(
     }
     assert connection.closed is True
     assert connection.transaction_committed is True
-    assert len(connection.fetchrow_calls) == 1
+    assert len(connection.fetchrow_calls) == 2
     assert len(connection.execute_calls) == 2
     assert "qr_trust.issuers" in connection.fetchrow_calls[0][0]
     assert connection.fetchrow_calls[0][4] == "active"
+    assert "qr_trust.governance_versions" in connection.fetchrow_calls[1][0]
     assert "qr_trust.governance_audit_log" in connection.execute_calls[0][0]
     assert "qr_trust.event_outbox" in connection.execute_calls[1][0]
 
@@ -3186,3 +3454,720 @@ def test_scan_accounting_accepts_local_admin_token(
 def test_scan_accounting_requires_credential(client: TestClient) -> None:
     response = client.get("/admin/scan-accounting")
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("overrides", "detail_fragment"),
+    [
+        ({"certificate_id": "cert:other:2026-09"}, "demo prefix"),
+        ({"issuer_id": "issuer:someone-else"}, "issuer 'issuer:acme-demo'"),
+        ({"not_after": None}, "open-ended certificates are disabled"),
+        ({"not_after": "2026-08-01T00:00:00Z"}, "after not_before"),
+        ({"not_after": "2027-06-01T00:00:00Z"}, "validity window exceeds"),
+    ],
+)
+def test_enroll_issuer_certificate_pre_database_validation(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, Any],
+    detail_fragment: str,
+) -> None:
+    from backend.app.core.config import config
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(**overrides),
+    )
+
+    assert response.status_code == 422
+    assert detail_fragment in str(response.json())
+
+
+def test_enroll_issuer_certificate_records_mutation_and_bumps_trust_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config,
+        "QRTRUST_NETWORK_DATABASE_URL",
+        "postgresql://user:pass@db/qr",
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "key_status": "active",
+        "event_type": "issuer_certificate.enrolled",
+    }
+    assert any(
+        "insert into qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    for call in connection.execute_calls:
+        if "insert into qr_trust.issuer_certificates" in str(call[0]):
+            continue
+        assert "BEGIN PUBLIC KEY" not in str(call)
+    assert connection.closed is True
+
+
+def test_enroll_issuer_certificate_replay_returns_existing_status(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "algorithm_id": "ed25519",
+        "public_key_ref": "managed://qrtrust/issuer/public/2026-09",
+        "key_status": "suspended",
+    }
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config,
+        "QRTRUST_NETWORK_DATABASE_URL",
+        "postgresql://user:pass@db/qr",
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["key_status"] == "suspended"
+    assert body["event_type"] == "issuer_certificate.replayed"
+    assert not any(
+        "insert into qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed is True
+
+
+def test_enroll_issuer_certificate_conflicting_identity_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "root_program_id": "root:qrtrust-demo:2026",
+        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+        "algorithm_id": "p256",
+        "public_key_ref": "managed://qrtrust/issuer/public/2026-09",
+        "key_status": "active",
+    }
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config,
+        "QRTRUST_NETWORK_DATABASE_URL",
+        "postgresql://user:pass@db/qr",
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 409
+    assert "already enrolled with a different identity" in str(response.json())
+
+
+def test_enroll_issuer_certificate_audit_mode_records_would_block(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.management_key_row = {
+        "key_id": "mgmt_cert_writer",
+        "operator_id": None,
+        "scopes": ["issuer:write"],
+    }
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", [])
+    monkeypatch.setattr(
+        config,
+        "QRTRUST_NETWORK_DATABASE_URL",
+        "postgresql://user:pass@db/qr",
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "mgmt_plaintext"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["event_type"] == "issuer_certificate.enrolled"
+    would_block_calls = [
+        call
+        for call in connection.execute_calls
+        if "resource_authz.would_block" in str(call[0])
+    ]
+    assert len(would_block_calls) == 1
+    assert "no resource assignment covers" in str(would_block_calls[0])
+
+
+def test_enroll_issuer_certificate_enforce_mode_returns_403(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.management_key_row = {
+        "key_id": "mgmt_cert_writer",
+        "operator_id": None,
+        "scopes": ["issuer:write"],
+    }
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", [])
+    monkeypatch.setattr(config, "QR_TRUST_RESOURCE_AUTHZ_MODE", "enforce")
+    monkeypatch.setattr(
+        config,
+        "QRTRUST_NETWORK_DATABASE_URL",
+        "postgresql://user:pass@db/qr",
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "mgmt_plaintext"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 403
+    assert not any(
+        "insert into qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed is True
+
+
+def test_update_issuer_certificate_status_enforce_mode_returns_403(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.management_key_row = {
+        "key_id": "mgmt_cert_writer",
+        "operator_id": None,
+        "scopes": ["issuer:write"],
+    }
+    connection.issuer_certificate_row = _issuer_certificate_status_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", [])
+    monkeypatch.setattr(config, "QR_TRUST_RESOURCE_AUTHZ_MODE", "enforce")
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "mgmt_plaintext"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "suspended"},
+    )
+
+    assert response.status_code == 403
+    assert not any(
+        "update qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed is True
+
+
+def test_update_issuer_certificate_status_unknown_certificate_is_404(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "suspended"},
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"]
+
+
+def test_update_issuer_certificate_status_noop_returns_without_mutation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_status_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "active"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "key_status": "active",
+        "event_type": "issuer_certificate.status.unchanged",
+    }
+    assert not any(
+        "update qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+
+
+def test_update_issuer_certificate_status_terminal_revocation_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_status_row(
+        key_status="revoked"
+    )
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "active"},
+    )
+
+    assert response.status_code == 409
+    assert "revocation is terminal" in response.json()["detail"]
+
+
+def test_update_issuer_certificate_status_reactivation_without_material_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_status_row(
+        key_status="suspended", public_key_material_pem=None
+    )
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "active"},
+    )
+
+    assert response.status_code == 409
+    assert "no usable material" in response.json()["detail"]
+
+
+def test_update_issuer_certificate_status_suspend_records_mutation_and_bump(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_status_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={"certificate_id": "cert:acme-demo:2026-09", "key_status": "suspended"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "key_status": "suspended",
+        "event_type": "issuer_certificate.status.changed",
+    }
+    assert any(
+        "update qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed
+
+
+def test_upsert_trust_key_ignores_client_key_status(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    payload = _trust_key_payload()
+    payload["key_status"] = "suspended"
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "key_status": "active",
+        "event_type": "trust_key.upserted",
+    }
+    assert any(
+        "insert into qr_trust.trust_keys" in str(call[0])
+        for call in connection.execute_calls
+    )
+
+
+def test_upsert_trust_key_replays_existing_identity(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row(key_status="suspended")
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_trust_key_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "key_status": "suspended",
+        "event_type": "trust_key.replayed",
+    }
+    assert not any(
+        "insert into qr_trust.trust_keys" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+
+
+def test_upsert_trust_key_conflicting_identity_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row(algorithm_id="p256")
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_trust_key_payload(),
+    )
+
+    assert response.status_code == 409
+    assert "already enrolled with a different identity" in response.json()["detail"]
+
+
+def test_update_trust_key_status_unknown_key_is_404(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "root_program_id": "root:qrtrust-demo:2026",
+            "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+            "key_status": "suspended",
+        },
+    )
+
+    assert response.status_code == 404
+    assert "not found for root program" in response.json()["detail"]
+
+
+def test_update_trust_key_status_noop_returns_unchanged(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "root_program_id": "root:qrtrust-demo:2026",
+            "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+            "key_status": "active",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "key_status": "active",
+        "event_type": "trust_key.status.unchanged",
+    }
+    assert not any(
+        "update qr_trust.trust_keys" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+
+
+def test_update_trust_key_status_terminal_revocation_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row(key_status="revoked")
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "root_program_id": "root:qrtrust-demo:2026",
+            "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+            "key_status": "active",
+        },
+    )
+
+    assert response.status_code == 409
+    assert "revocation is terminal" in response.json()["detail"]
+
+
+def test_update_trust_key_status_allowed_transition_records_mutation(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "root_program_id": "root:qrtrust-demo:2026",
+            "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+            "key_status": "suspended",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
+        "key_status": "suspended",
+        "event_type": "trust_key.status.changed",
+    }
+    assert any(
+        "update qr_trust.trust_keys" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed

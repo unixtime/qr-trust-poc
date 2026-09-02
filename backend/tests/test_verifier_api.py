@@ -2960,7 +2960,7 @@ def test_scanner_trust_survives_a_second_issuance_under_a_new_key() -> None:
         status="active",
         issued_at=now - timedelta(days=1),
         expires_at=None,
-        verified_domains=("acme.example",),
+        verified_domains={"acme.example": None},
         allow_subdomains=False,
     )
     verifier_endpoint._scanner_trust_store.put_issuer(issuer)
@@ -3029,7 +3029,7 @@ def test_scanner_record_round_trips_the_issuer_state_the_rules_need() -> None:
     record = verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01")
 
     assert record is not None
-    assert record.issuer_state.verified_domains == ["acme.example"]
+    assert record.issuer_state.verified_domains == {"acme.example": None}
     assert record.issuer_state.allow_subdomains is True
     assert record.issuer_state.key_state == "retired"
     assert record.issuer_state.key_not_before is not None
@@ -3056,6 +3056,14 @@ def test_unregister_scanner_trust_removes_only_that_key() -> None:
 
     assert verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01") is None
     assert verifier_endpoint._scanner_record_for("cert:acme-demo:2026-01-r1") is not None
+
+
+def test_issuer_verification_state_input_coerces_a_legacy_domain_list() -> None:
+    from backend.app.schemas.poc import IssuerVerificationStateInput
+
+    state = IssuerVerificationStateInput(verified_domains=["acme.example"])
+
+    assert state.verified_domains == {"acme.example": None}
 
 
 def test_demo_materials_reuse_one_key_across_issuances(client: TestClient) -> None:

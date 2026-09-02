@@ -88,6 +88,7 @@ class Settings(BaseSettings):
     VERIFIER_PROVIDER_PROFILE_STATE: str = "active"
     VERIFIER_PUBLIC_BASE_URL: Optional[str] = None
     QRTRUST_NETWORK_DATABASE_URL: Optional[str] = None
+    TRUST_STATE_MAX_STALENESS_SECONDS: int = 30
     QRTRUST_SCANNER_VERIFIER_ID: str = "verifier:reference-http-runtime"
 
     # PoC guardrails
@@ -128,6 +129,11 @@ class Settings(BaseSettings):
     # uvicorn reads the same variable for --forwarded-allow-ips; empty means the
     # loopback-only default, so X-Forwarded-For from a real proxy is ignored.
     FORWARDED_ALLOW_IPS: str = ""
+
+    # Trust projection
+    QR_TRUST_RESOURCE_AUTHZ_MODE: str = "audit"
+    QR_TRUST_MAX_CERT_VALIDITY_DAYS: int = 200
+    QR_TRUST_ALLOW_OPEN_ENDED_ENROLLMENT: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

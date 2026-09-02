@@ -150,7 +150,7 @@ second-verifier behavior.
 | Unit and integration tests | Implemented behavior under tested inputs | Universal correctness or production resilience |
 | 37-case residual corpus | Conformance to specified expected outcomes | Field detection accuracy or prevalence estimates |
 | Browser screenshots | Rendered states in the recorded browser flows | Cross-browser universality or user comprehension |
-| iPhone artifacts | Deterministic ios-reference reviewer exports of the native decision surfaces and accessibility output | Physical-device capture evidence, App Store readiness, or population-level usability |
+| iPhone artifacts | Deterministic ios-reference reviewer exports of the native decision surfaces and accessibility output, plus one live-scan export for the accepted fixture | Raw screen recordings, App Store readiness, or population-level usability |
 | Network smoke drills | Contract and local propagation behavior | Multi-operator governance legitimacy or internet-scale capacity |
 
 For the underlying conceptual argument, read and cite the

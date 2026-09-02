@@ -100,6 +100,8 @@ create table if not exists qr_trust.issuers (
       )
     ),
   assurance_evidence jsonb not null default '{}'::jsonb,
+  allow_subdomains boolean not null default false,
+  expires_at timestamptz,
   enrollment_status text not null default 'pending'
     check (enrollment_status in ('pending', 'active', 'suspended', 'revoked', 'expired')),
   created_at timestamptz not null default now(),
@@ -160,7 +162,10 @@ create table if not exists qr_trust.issuer_certificates (
   key_status text not null default 'active'
     check (key_status in ('active', 'rotated', 'suspended', 'revoked', 'expired')),
   not_before timestamptz not null,
-  not_after timestamptz not null,
+  not_after timestamptz,
+  public_key_material_pem text,
+  revoked_at timestamptz,
+  revocation_reason text,
   created_at timestamptz not null default now(),
   foreign key (root_program_id, delegated_authority_id, issuer_id)
     references qr_trust.issuers(root_program_id, delegated_authority_id, issuer_id)
@@ -496,3 +501,13 @@ create index if not exists event_outbox_pending_idx
 
 create index if not exists event_outbox_artifact_idx
   on qr_trust.event_outbox (artifact_id);
+
+-- Governance version tokens: the verifier's trust projection reloads when the
+-- (epoch, version) pair for 'trust_state' changes. Terminal revocation is
+-- enforced by database triggers on issuer_certificates and trust_keys.
+create table if not exists qr_trust.governance_versions (
+    name text primary key,
+    epoch uuid not null default gen_random_uuid(),
+    version bigint not null default 1,
+    updated_at timestamptz not null default now()
+);

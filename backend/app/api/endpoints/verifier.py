@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from collections import deque
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -83,11 +84,18 @@ from backend.app.services.narrowed_verifier_poc import (
     NarrowedVerifierService,
     TrustContext,
 )
+from backend.app.services.payload_revalidation_poc import (
+    PolicyResolution,
+    load_destination_policy_resolution,
+    normalized_verified_domains,
+)
 from backend.app.services.scanner_trust_store import (
     IssuerRecord,
     KeyEntry,
     ScannerTrustStore,
 )
+from backend.app.services.trust_state import TrustStateToken
+from backend.app.services.trust_projection import TrustProjectionManager
 from backend.app.services.governance_fixture_store import (
     GovernanceTrustProjection,
     load_governance_projection,
@@ -171,6 +179,27 @@ class ScannerTrustRecord:
 # two issuances under different keys of the same issuer coexist — the old dict was
 # keyed by certificate_ref and each demo call silently evicted the previous QR.
 _scanner_trust_store = ScannerTrustStore()
+
+_trust_projection_manager = TrustProjectionManager(
+    max_staleness_seconds=config.TRUST_STATE_MAX_STALENESS_SECONDS
+)
+
+
+async def _ensure_trust_projection() -> str:
+    dsn = _management_database_url()
+    if dsn is None:
+        connect = None
+    else:
+        resolved = _asyncpg_dsn(dsn)
+
+        async def connect() -> asyncpg.Connection:
+            return await asyncpg.connect(resolved, timeout=2.0)
+
+    return await _trust_projection_manager.ensure_fresh(
+        store=_scanner_trust_store,
+        connect=connect,
+        now=datetime.now(timezone.utc),
+    )
 
 
 @dataclass(frozen=True)
@@ -594,30 +623,67 @@ def _issuer_budget_key(certificate_ref: str) -> str:
 _VERDICT_SOURCE_HEADER = "X-QR-Trust-Verdict"
 
 
-def _verdict_cache_key(request: NarrowedVerifierRequest, fingerprint: str) -> str:
+def _verdict_cache_key(
+    request: NarrowedVerifierRequest,
+    fingerprint: str,
+    *,
+    token: TrustStateToken | None,
+    resolution: PolicyResolution | None,
+) -> str:
     """``(envelope_fingerprint, request_hash)``: the hash covers the whole
-    request, so a tampered signature, a different certificate, or a revoked
-    issuer state is a miss rather than a stale hit."""
-    material = request.model_dump_json()
+    request plus the governance identity the verdict was computed under —
+    the trust_state token (epoch AND version: a healed row restarting at
+    version 1 must not collide with the old epoch's version 1) and the
+    identity of the destination policy actually evaluated. Hashing the
+    validated model dump means normalization runs before hashing, so the
+    legacy list spelling and the map spelling of ``verified_domains``
+    share one entry."""
+    token_part = "ephemeral" if token is None else f"{token.epoch}:{token.version}"
+    policy_part = (
+        "no-policy"
+        if resolution is None
+        else f"{resolution.source}:{resolution.name}:{resolution.digest}"
+    )
+    material = "\n".join((request.model_dump_json(), token_part, policy_part))
     return f"{fingerprint}:{sha256(material.encode('utf-8')).hexdigest()[:32]}"
 
 
-def _verdict_cache_ttl_seconds(expires_at: str | None) -> int:
-    """min(configured TTL, seconds until the claims expire); 0 means do not cache."""
+def _verdict_cache_ttl_seconds(
+    expires_at: str | None,
+    *,
+    consulted_boundaries: Iterable[datetime | None] = (),
+) -> int:
+    """min(configured TTL, seconds until the claims expire, seconds until
+    each consulted trust boundary passes); 0 means do not cache. A boundary
+    already in the past never enters the min(): the serve-time rule folded
+    it into the verdict, and that verdict stays correct until a row change
+    bumps the trust_state token that keys the cache."""
     ttl = config.VERIFIER_VERDICT_CACHE_TTL_SECONDS
     if ttl <= 0:
         return 0
-    if expires_at is None:
-        # Open-ended claims never expire, so nothing shortens the configured TTL.
-        return ttl
-    try:
-        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-    except ValueError:
-        return 0
-    if expiry.tzinfo is None:
-        expiry = expiry.replace(tzinfo=timezone.utc)
-    until_expiry = int((expiry - datetime.now(timezone.utc)).total_seconds())
-    return max(0, min(ttl, until_expiry))
+    now = datetime.now(timezone.utc)
+    if expires_at is not None:
+        # Open-ended claims never expire, so nothing shortens the configured
+        # TTL on their account.
+        try:
+            expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+        except ValueError:
+            return 0
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        until_expiry = int((expiry - now).total_seconds())
+        if until_expiry <= 0:
+            return 0
+        ttl = min(ttl, until_expiry)
+    for boundary in consulted_boundaries:
+        if boundary is None:
+            continue
+        if boundary.tzinfo is None:
+            boundary = boundary.replace(tzinfo=timezone.utc)
+        remaining = int((boundary - now).total_seconds())
+        if remaining > 0:
+            ttl = min(ttl, remaining)
+    return ttl
 
 
 def _set_verdict_source_header(response: Response, source: str) -> None:
@@ -814,7 +880,7 @@ def _register_scanner_trust(
             expires_at=_optional_trust_timestamp(
                 "issuer_record_expires_at", issuer_state.issuer_record_expires_at
             ),
-            verified_domains=tuple(issuer_state.verified_domains),
+            verified_domains=dict(issuer_state.verified_domains),
             allow_subdomains=issuer_state.allow_subdomains,
         )
     )
@@ -856,7 +922,7 @@ def _scanner_record_for(key_ref: str) -> ScannerTrustRecord | None:
             public_key_pem=key.public_key_pem,
         ),
         issuer_state=IssuerVerificationStateInput(
-            verified_domains=list(issuer.verified_domains),
+            verified_domains=dict(issuer.verified_domains),
             allow_subdomains=issuer.allow_subdomains,
             certificate_active=issuer.status == "active",
             certificate_revoked=issuer.status == "revoked",
@@ -1719,6 +1785,8 @@ def _scanner_primary_message(
     artifact_analysis: QRArtifactAnalysis | None = None,
 ) -> str:
     if result.allowed:
+        if redirect_verdict and redirect_verdict.is_redirect_flow and redirect_verdict.state == "unknown":
+            return "Resolver unresolved. The final destination of the redirect flow was not observed."
         if redirect_verdict and redirect_verdict.is_redirect_flow and redirect_verdict.is_blocked:
             return "Resolver mismatch. The final destination is not approved by the issuer."
         if runtime_verdict and runtime_verdict.state == "risky":
@@ -2181,9 +2249,12 @@ def _residual_vector_for_result(
         family, tier = _FAILED_STAGE_RESIDUALS[result.stage]
         residuals[family] = _entry(tier, _stage_cause(result))
     if redirect_verdict is not None and redirect_verdict.is_redirect_flow:
-        residuals["redirect_flow"] = (
-            _entry("fail", "redirect-policy-blocked") if redirect_verdict.is_blocked else _entry("pass")
-        )
+        if redirect_verdict.state == "unknown":
+            residuals["redirect_flow"] = _entry("fail", "redirect-unobserved")
+        elif redirect_verdict.is_blocked:
+            residuals["redirect_flow"] = _entry("fail", "redirect-policy-blocked")
+        else:
+            residuals["redirect_flow"] = _entry("pass")
     if runtime_verdict is not None:
         tier = _RUNTIME_SAFETY_RESIDUAL_TIERS.get(runtime_verdict.state, runtime_verdict.state)
         # A clean verdict is evidence of safety, not a cause to display.
@@ -2320,6 +2391,19 @@ def _scanner_decision_from_result(
             "Verification evidence is incomplete for this QR code. "
             "Proceed only with caution."
         )
+    issuer_status = (
+        "recognized" if result.stage not in _TRUST_FAILURE_STAGES else "revoked"
+    )
+    if result.cause == "trust-state-unavailable":
+        # Spec 2.5: an outage past the staleness budget is an unknown verdict,
+        # not a judgment about the issuer or key.
+        decision_state = "unknown"
+        open_allowed = False
+        issuer_status = "unknown"
+        primary_message = (
+            "The verifier cannot confirm issuer and key status right now. "
+            "Do not open this destination until verification is available."
+        )
     entries, model = _residual_payload(residual_vector, model_decision)
     return ScannerDecisionResponse(
         decision_state=decision_state,
@@ -2331,7 +2415,7 @@ def _scanner_decision_from_result(
         issuer=ScannerDecisionIssuer(
             name=record.certificate.issuer_name,
             tier=record.governance.assurance_tier if record.governance else "demo",
-            status="recognized" if result.stage not in _TRUST_FAILURE_STAGES else "revoked",
+            status=issuer_status,
         ),
         destination=_scanner_destination(
             effective_destination,
@@ -2404,6 +2488,11 @@ async def _run_scanner_decision(
             extra_reason_codes=extra_reason_codes,
         )
 
+    # Ensure the projection is fresh before resolving the record from it:
+    # _run_narrowed_verifier repeats this call (cheaply reused when nothing
+    # changed), but resolving the record first would let a scan judge an
+    # issuer against a store that governance has already moved past.
+    await _ensure_trust_projection()
     record = _scanner_record_for(envelope.claims.certificate_ref)
     if record is None:
         return _signed_unknown_issuer_decision(envelope, request_id=request_id)
@@ -2506,7 +2595,7 @@ def _trust_context_from_state(
         status=_legacy_issuer_status(state),
         issued_at=issuer_issued_at,
         expires_at=issuer_expires_at,
-        verified_domains=tuple(state.verified_domains),
+        verified_domains=dict(state.verified_domains),
         allow_subdomains=state.allow_subdomains,
     )
     key = KeyEntry(
@@ -2527,6 +2616,21 @@ async def _run_narrowed_verifier(
     *,
     count_cache_hit: bool = True,
 ) -> NarrowedVerifierResponse:
+    projection_state = await _ensure_trust_projection()
+    if projection_state == "unavailable":
+        cause = "trust-state-unavailable"
+        return NarrowedVerifierResponse(
+            allowed=False,
+            stage="key_status",
+            reason=(
+                "trust state unavailable: the verifier cannot confirm "
+                "issuer and key status"
+            ),
+            canonical_claims_sha256=None,
+            matched_rule=None,
+            cause=cause,
+        )
+
     try:
         claims = parse_claims_mapping(request.envelope.claims.model_dump())
     except SignedSchemaError as exc:
@@ -2556,7 +2660,12 @@ async def _run_narrowed_verifier(
     if cache_ttl > 0:
         # Cache first: a crowd scanning one poster gets the verdict computed
         # moments ago without a signature check, a budget spend, or a row.
-        cache_key = _verdict_cache_key(request, fingerprint)
+        cache_key = _verdict_cache_key(
+            request,
+            fingerprint,
+            token=_trust_projection_manager.token,
+            resolution=load_destination_policy_resolution(),
+        )
         cached = await _verdict_cache.get(cache_key)
         if cached is not None:
             cached_response = NarrowedVerifierResponse.model_validate(
@@ -2604,7 +2713,28 @@ async def _run_narrowed_verifier(
     if cache_key is not None and result.stage != "signed_schema":
         # Never cache a forgery verdict: the next forged envelope hashes
         # differently anyway, and a real one must be checked, not remembered.
-        await _verdict_cache.set(cache_key, response.model_dump(), cache_ttl)
+        # The write-time TTL re-clamps to every boundary this verdict
+        # consulted: the issuer record's expiry always (over-clamping an
+        # early-stage deny only shortens an entry), and the matched
+        # domain's proof expiry exactly when the decision relied on
+        # domain verification.
+        boundaries: list[datetime | None] = [
+            _optional_trust_timestamp(
+                "issuer_record_expires_at",
+                request.issuer_state.issuer_record_expires_at,
+            )
+        ]
+        if result.matched_domain is not None:
+            boundaries.append(
+                normalized_verified_domains(request.issuer_state.verified_domains).get(
+                    result.matched_domain
+                )
+            )
+        write_ttl = _verdict_cache_ttl_seconds(
+            claims.expires_at, consulted_boundaries=boundaries
+        )
+        if write_ttl > 0:
+            await _verdict_cache.set(cache_key, response.model_dump(), write_ttl)
     return response
 
 

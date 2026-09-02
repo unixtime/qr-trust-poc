@@ -50,12 +50,14 @@ end-user decision contract, that the simulator app builds, that the ignored
 local provider profile is valid, and that the current Mac/iPhone setup is ready
 for physical capture.
 
-The tracked scanner-fleet and provider-profile artifacts under
+Most tracked scanner-fleet and provider-profile artifacts under
 [iphone/](./iphone/) are deterministic ios-reference reviewer exports written
 by the native app's evidence exporter. They document how the app surfaces each
 scanner and provider-profile decision, but they do not constitute
-physical-device capture evidence. Physical-device screenshots or recordings
-are still pending. Use
+physical-device capture evidence. The `green_verified_issuer` set is the
+exception: the native app exported it after a live scan on 2026-09-02, and its
+trace carries the verifier envelope id and check time. Raw screen recordings
+are not tracked. Use
 [iphone/README.md](./iphone/README.md)
 and [IPHONE_TEST_PLAN.md](../IPHONE_TEST_PLAN.md)
 for the manual capture plan.

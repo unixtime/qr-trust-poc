@@ -11,8 +11,10 @@ either one re-deriving it.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
+from typing import Any, Iterable
 
 from backend.app.services.governance_fixture_store import GovernanceTrustProjection
 from backend.app.services.signed_schema_poc import (
@@ -20,8 +22,8 @@ from backend.app.services.signed_schema_poc import (
     parse_claim_timestamp,
 )
 
-ISSUER_STATUSES: tuple[str, ...] = ("active", "suspended", "revoked")
-KEY_STATES: tuple[str, ...] = ("active", "retired", "revoked")
+ISSUER_STATUSES: tuple[str, ...] = ("active", "suspended", "revoked", "expired")
+KEY_STATES: tuple[str, ...] = ("active", "retired", "revoked", "suspended")
 
 
 @dataclass(frozen=True)
@@ -32,8 +34,9 @@ class IssuerRecord:
     status: str
     issued_at: datetime
     expires_at: datetime | None
-    verified_domains: tuple[str, ...]
+    verified_domains: Mapping[str, datetime | None]
     allow_subdomains: bool
+    source: str = "ephemeral"
 
 
 @dataclass(frozen=True)
@@ -41,12 +44,13 @@ class KeyEntry:
     key_ref: str
     issuer_id: str
     algorithm_id: str
-    public_key_pem: str
+    public_key_pem: str | None
     state: str
     not_before: datetime
     not_after: datetime | None
     revoked_at: datetime | None = None
     revocation_reason: str | None = None
+    source: str = "ephemeral"
 
 
 @dataclass(frozen=True)
@@ -65,24 +69,20 @@ _ACCEPTED = TrustRuleResult(
 )
 
 
-def evaluate_trust_window(
-    *,
-    now: datetime,
-    claims: SignedQRCodeClaims,
-    key: KeyEntry,
-    issuer: IssuerRecord,
-    skew_seconds: int,
-) -> TrustRuleResult:
-    """Return the first rule this artifact fails, or an accepting result.
+def evaluate_blocking_states(
+    *, key: KeyEntry, issuer: IssuerRecord
+) -> TrustRuleResult | None:
+    """Status-based blocks that apply regardless of clocks and windows.
 
-    Order matters and is deliberate: authority state (is this issuer trusted at
-    all?) outranks key state, which outranks the artifact's own validity window.
-    A scanner that reported "expired" for a code signed by a revoked issuer
-    would be telling the truth about the least important failure.
+    Returns None if no blocking state is present, or a TrustRuleResult
+    if a blocking state (issuer or key) is detected.
     """
     if issuer.status == "revoked":
         return TrustRuleResult(False, "issuer_status", "issuer-revoked",
                                "Issuer record is revoked")
+    if issuer.status == "expired":
+        return TrustRuleResult(False, "issuer_status", "issuer-record-expired",
+                               "Issuer record is expired")
     if issuer.status != "active":
         return TrustRuleResult(False, "issuer_status", "issuer-inactive",
                                f"Issuer record is {issuer.status}, not active")
@@ -91,7 +91,30 @@ def evaluate_trust_window(
         detail = f": {key.revocation_reason}" if key.revocation_reason else ""
         return TrustRuleResult(False, "key_status", "key-revoked",
                                f"Signing key {key.key_ref} is revoked{detail}")
+    if key.state == "suspended":
+        return TrustRuleResult(
+            False,
+            "key_status",
+            "key-suspended",
+            f"Signing key {key.key_ref} is suspended by its issuing authority",
+        )
 
+    return None
+
+
+def evaluate_time_windows(
+    *,
+    now: datetime,
+    claims: SignedQRCodeClaims,
+    key: KeyEntry,
+    issuer: IssuerRecord,
+    skew_seconds: int,
+) -> TrustRuleResult:
+    """Time-window checks for issuer, key, and artifact validity.
+
+    Assumes blocking states have already been evaluated. Returns the first
+    failing rule or an accepting result.
+    """
     if now < issuer.issued_at:
         return TrustRuleResult(False, "issuer_status", "issuer-record-not-yet-valid",
                                "Issuer record is not yet in force")
@@ -120,6 +143,29 @@ def evaluate_trust_window(
     return _ACCEPTED
 
 
+def evaluate_trust_window(
+    *,
+    now: datetime,
+    claims: SignedQRCodeClaims,
+    key: KeyEntry,
+    issuer: IssuerRecord,
+    skew_seconds: int,
+) -> TrustRuleResult:
+    """Return the first rule this artifact fails, or an accepting result.
+
+    Order matters and is deliberate: authority state (is this issuer trusted at
+    all?) outranks key state, which outranks the artifact's own validity window.
+    A scanner that reported "expired" for a code signed by a revoked issuer
+    would be telling the truth about the least important failure.
+    """
+    blocking = evaluate_blocking_states(key=key, issuer=issuer)
+    if blocking is not None:
+        return blocking
+    return evaluate_time_windows(
+        now=now, claims=claims, key=key, issuer=issuer, skew_seconds=skew_seconds
+    )
+
+
 class ScannerTrustStore:
     """In-memory issuer/key registry. Process-lifetime only, like the rest of the PoC.
 
@@ -136,6 +182,7 @@ class ScannerTrustStore:
         self._issuers: dict[str, IssuerRecord] = {}
         self._keys: dict[str, KeyEntry] = {}
         self._governance: dict[str, GovernanceTrustProjection] = {}
+        self.projection_defects: tuple[Any, ...] = ()
 
     def put_issuer(self, record: IssuerRecord) -> None:
         self._issuers[record.issuer_id] = record
@@ -151,6 +198,10 @@ class ScannerTrustStore:
         existing = self._keys.get(entry.key_ref)
         if existing is not None and existing.state == "revoked" and entry.state != "revoked":
             raise ValueError(f"key {entry.key_ref!r} is revoked; revocation is terminal")
+        if entry.state in ("active", "retired") and entry.public_key_pem is None:
+            raise ValueError(
+                f"key {entry.key_ref!r} is {entry.state} but has no public key material"
+            )
         self._keys[entry.key_ref] = entry
 
     def set_governance(self, issuer_id: str, projection: GovernanceTrustProjection) -> None:
@@ -178,6 +229,36 @@ class ScannerTrustStore:
             if key.state != "active":
                 continue
             self._keys[key_ref] = replace(key, state="retired", not_after=now)
+
+    def replace_projection(
+        self,
+        *,
+        issuers: Iterable[IssuerRecord],
+        keys: Iterable[KeyEntry],
+        defects: tuple[Any, ...] = (),
+    ) -> None:
+        """Swap in a fresh durable projection, keeping ephemeral entries.
+
+        Deliberately bypasses put_key: the database trigger owns terminal
+        enforcement for projected rows, and a reload must DROP entries the
+        durable source no longer holds. No await happens between the reads
+        and writes below, so the swap is atomic on the event loop.
+        """
+        self._issuers = {
+            issuer_id: record
+            for issuer_id, record in self._issuers.items()
+            if record.source != "projection"
+        }
+        self._keys = {
+            key_ref: entry
+            for key_ref, entry in self._keys.items()
+            if entry.source != "projection"
+        }
+        for record in issuers:
+            self._issuers[record.issuer_id] = record
+        for entry in keys:
+            self._keys[entry.key_ref] = entry
+        self.projection_defects = defects
 
     def remove_key(self, key_ref: str) -> None:
         self._keys.pop(key_ref, None)

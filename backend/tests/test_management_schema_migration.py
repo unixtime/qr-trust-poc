@@ -246,3 +246,64 @@ def test_envelope_fingerprint_migration_renames_column_and_index() -> None:
         "create table if not exists qr_trust.scanner_decisions"
     )[1].split("create table if not exists qr_trust.event_outbox")[0]
     assert "nonce" not in scanner_decisions_block
+
+
+_MIGRATIONS_DIR = Path(__file__).resolve().parents[1] / "migrations" / "versions"
+
+
+def _read_migration_0009() -> str:
+    matches = sorted(_MIGRATIONS_DIR.glob("20260901_0009_*.py"))
+    assert len(matches) == 1, f"expected exactly one 0009 migration, found {matches}"
+    return matches[0].read_text(encoding="utf-8")
+
+
+def test_migration_0009_chains_from_0008():
+    text = _read_migration_0009()
+    assert 'revision: str = "20260901_0009"' in text
+    assert '"20260826_0008"' in text
+
+
+def test_migration_0009_creates_and_seeds_governance_versions():
+    text = _read_migration_0009()
+    assert "create table qr_trust.governance_versions" in text
+    assert "epoch uuid not null default gen_random_uuid()" in text
+    assert "version bigint not null default 1" in text
+    assert (
+        "insert into qr_trust.governance_versions (name) values ('trust_state')"
+        in text
+    )
+
+
+def test_migration_0009_installs_terminal_revocation_triggers():
+    text = _read_migration_0009()
+    assert "enforce_terminal_key_status" in text
+    assert "issuer_certificates_terminal_status" in text
+    assert "trust_keys_terminal_status" in text
+    assert "revocation is terminal" in text
+
+
+def test_migration_0009_adds_projection_columns():
+    text = _read_migration_0009()
+    for needle in (
+        "public_key_material_pem text",
+        "revoked_at timestamptz",
+        "revocation_reason text",
+        "not_after drop not null",
+        "allow_subdomains boolean not null default false",
+        "expires_at timestamptz",
+        "operator_type text not null default 'person'",
+        "root_program_id text",
+        "delegated_authority_id text",
+    ):
+        assert needle in text, f"missing {needle!r}"
+
+
+def test_reference_schema_lists_governance_versions():
+    schema_path = (
+        Path(__file__).resolve().parents[2]
+        / "docs/public/network-contracts/reference-postgres-schema.sql"
+    )
+    text = schema_path.read_text(encoding="utf-8")
+    assert "governance_versions" in text
+    assert "public_key_material_pem" in text
+    assert "allow_subdomains" in text

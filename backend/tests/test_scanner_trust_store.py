@@ -6,6 +6,7 @@ from backend.app.services.scanner_trust_store import (
     IssuerRecord,
     KeyEntry,
     ScannerTrustStore,
+    evaluate_blocking_states,
     evaluate_trust_window,
 )
 from backend.app.services.signed_schema_poc import SignedQRCodeClaims
@@ -21,7 +22,7 @@ def _issuer(**overrides) -> IssuerRecord:
         "status": "active",
         "issued_at": NOW - timedelta(days=30),
         "expires_at": NOW + timedelta(days=30),
-        "verified_domains": ("acme.example",),
+        "verified_domains": {"acme.example": None},
         "allow_subdomains": False,
     }
     return IssuerRecord(**{**base, **overrides})
@@ -98,6 +99,8 @@ def _claims(*, issued_at: datetime = NOW, expires_at: datetime | None = None) ->
             "time_window",
             "object-expired",
         ),
+        ({"status": "expired"}, {}, {}, "issuer_status", "issuer-record-expired"),
+        ({}, {"state": "suspended"}, {}, "key_status", "key-suspended"),
     ],
 )
 def test_first_failing_rule_only(issuer_kwargs, key_kwargs, claim_kwargs, expected_stage, expected_cause):
@@ -289,3 +292,77 @@ def test_put_key_allows_an_idempotent_re_put_of_a_revoked_key():
     entry, _ = store.resolve("cert:acme-demo:2026-01")
     assert entry.state == "revoked"
     assert entry.revocation_reason == "key compromise"
+
+
+def test_open_ended_key_window_accepts():
+    result = evaluate_trust_window(
+        now=NOW,
+        claims=_claims(),
+        key=_key(not_after=None),
+        issuer=_issuer(),
+        skew_seconds=60,
+    )
+    assert result.allowed is True
+
+
+def test_open_ended_issuer_window_accepts():
+    result = evaluate_trust_window(
+        now=NOW,
+        claims=_claims(),
+        key=_key(),
+        issuer=_issuer(expires_at=None),
+        skew_seconds=60,
+    )
+    assert result.allowed is True
+
+
+def test_put_key_requires_material_for_verifying_states():
+    store = ScannerTrustStore()
+    store.put_issuer(_issuer())
+    with pytest.raises(ValueError):
+        store.put_key(_key(public_key_pem=None))
+    with pytest.raises(ValueError):
+        store.put_key(_key(state="retired", public_key_pem=None))
+    store.put_key(_key(state="revoked", public_key_pem=None))
+
+
+def test_replace_projection_swaps_projected_and_keeps_ephemeral():
+    store = ScannerTrustStore()
+    store.put_issuer(_issuer())
+    store.put_key(_key())
+    projected_issuer = _issuer(issuer_id="beta-demo", source="projection")
+    projected_key = _key(
+        key_ref="cert:beta-demo:2026-01", issuer_id="beta-demo", source="projection"
+    )
+    store.replace_projection(
+        issuers=(projected_issuer,), keys=(projected_key,), defects=("d1",)
+    )
+    assert store.projection_defects == ("d1",)
+    assert "beta-demo" in store._issuers
+    assert "acme-demo" in store._issuers
+    store.replace_projection(issuers=(), keys=())
+    assert "beta-demo" not in store._issuers
+    assert "acme-demo" in store._issuers
+    assert "cert:beta-demo:2026-01" not in store._keys
+    assert "cert:acme-demo:2026-01" in store._keys
+    assert store.projection_defects == ()
+
+
+def test_evaluate_blocking_states_returns_none_when_clear():
+    assert evaluate_blocking_states(key=_key(), issuer=_issuer()) is None
+
+
+def test_blocking_states_precede_time_windows():
+    result = evaluate_trust_window(
+        now=NOW,
+        claims=_claims(),
+        key=_key(
+            state="revoked",
+            public_key_pem=None,
+            not_after=NOW - timedelta(days=20),
+        ),
+        issuer=_issuer(),
+        skew_seconds=60,
+    )
+    assert result.cause == "key-revoked"
+    assert result.stage == "key_status"

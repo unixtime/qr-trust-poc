@@ -240,6 +240,8 @@ OperatorStatus: TypeAlias = Literal[
     "retired",
 ]
 
+OperatorType: TypeAlias = Literal["person", "service"]
+
 OPERATOR_ROLE_CHOICES = (
     "root_admin",
     "authority_admin",

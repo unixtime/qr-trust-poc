@@ -1,12 +1,20 @@
 # Native iPhone Evidence
 
-Status: deterministic ios-reference reviewer exports tracked; physical-device
-capture pending.
+Status: scanner-fleet packet complete (24/24 artifacts tracked). One fixture,
+`green_verified_issuer`, is a live-scan export from the native app captured on
+2026-09-02; the remaining artifacts are deterministic ios-reference reviewer
+exports.
 
-The scanner-fleet and provider-profile artifacts currently tracked in this
-folder are deterministic reviewer-reference exports written by the native app's
-evidence exporter. They document the app's user-facing decision surfaces, but
-they do not constitute physical-device capture evidence.
+Most scanner-fleet and provider-profile artifacts tracked in this folder are
+deterministic reviewer-reference exports written by the native app's evidence
+exporter. They document the app's user-facing decision surfaces, but they do
+not constitute physical-device capture evidence. The exception is the
+`green_verified_issuer` set (`accepted.png`, `history-accepted.png`,
+`accessibility-accepted.txt`): the native app exported it after a live scan
+against the demo verifier, and the trace records the verifier envelope id and
+check time (`2026-09-02T11:00:15Z`). The exporter renders the decision card
+from the scan result rather than grabbing the raw screen, so read it as an
+app-rendered export of a live scan, not as a screen recording.
 
 This folder is reserved for real iPhone screenshots, history-entry screenshots,
 and accessibility text traces from the native end-user scanner.
@@ -25,8 +33,9 @@ verifier-unavailable, stale profile, and revoked profile cases.
 The scope-honesty pass collapsed the pre-pass presentation-mode fixtures into a
 single accepted fixture (`green_verified_issuer`), because the verifier keeps no
 per-presentation state and every presentation of one envelope is evaluated the
-same way. That merged fixture has not been re-captured on a physical device yet,
-and the pre-pass captures it replaces were retired rather than re-shot.
+same way. The pre-pass captures it replaces were retired rather than re-shot;
+the merged fixture was exported from a live native-app scan on 2026-09-02 and
+is the set described in the status note above.
 
 Seven accessibility traces still tracked here also predate that pass:
 `accessibility-expired.txt`, `accessibility-payload-mismatch.txt`,

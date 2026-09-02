@@ -46,7 +46,13 @@ def test_live_http_verifier_flow(
         headers={"X-API-Key": issued_key},
     )
     assert verify_response.status_code == 200
-    assert verify_response.json()["stage"] == "accepted"
+    verify_payload = verify_response.json()
+    # This server's management DSN points at a closed port (see the
+    # live_verifier_server fixture): trust state is unavailable, so the
+    # verifier fails closed instead of accepting on unconfirmed knowledge.
+    assert verify_payload["stage"] == "key_status"
+    assert verify_payload["cause"] == "trust-state-unavailable"
+    assert verify_payload["allowed"] is False
 
     repeat_response = live_http_client.post(
         "/verifier/verify-scanned",
@@ -58,4 +64,9 @@ def test_live_http_verifier_flow(
         headers={"X-API-Key": issued_key},
     )
     assert repeat_response.status_code == 200
-    assert repeat_response.json()["stage"] == "accepted"
+    repeat_payload = repeat_response.json()
+    # Fail-closed verdicts are never cached: the repeat scan re-evaluates
+    # and fails closed again rather than replaying a cached acceptance.
+    assert repeat_payload["stage"] == "key_status"
+    assert repeat_payload["cause"] == "trust-state-unavailable"
+    assert repeat_payload["allowed"] is False

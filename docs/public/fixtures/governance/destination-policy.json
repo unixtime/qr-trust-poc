@@ -14,6 +14,8 @@
         "acme.example"
       ],
       "allow_subdomains": false,
+      "allowed_schemes": ["https"],
+      "allowed_ports": [443],
       "path_prefixes": [
         "/pay"
       ],
@@ -26,6 +28,8 @@
         "acme.example"
       ],
       "allow_subdomains": true,
+      "allowed_schemes": ["https"],
+      "allowed_ports": [443],
       "path_prefixes": [
         "/pay"
       ],

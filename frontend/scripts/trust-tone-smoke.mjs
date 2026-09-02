@@ -176,6 +176,7 @@ const pinnedDecisionTones = {
   verified_issuer_destination_risky: "amber", // issuer is fine; only the destination warrants care
   signed_unknown_issuer: "amber",
   unverified: "amber",
+  unknown: "amber", // verifier could not classify the artifact; never a pass
   profile_revoked: "red",
   blocked: "red",
 }

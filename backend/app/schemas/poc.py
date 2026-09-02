@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Whether a verdict was computed for this request or served from the
 # short-lived verdict cache that reusable codes share (see verdict_cache.py).
@@ -39,11 +40,11 @@ class CertificateRecordInput(BaseModel):
     certificate_ref: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     issuer_name: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     algorithm_id: str = Field(min_length=1, max_length=64)
-    public_key_pem: str = Field(min_length=1, max_length=8192)
+    public_key_pem: str | None = Field(default=None, min_length=1, max_length=8192)
 
 
 class IssuerVerificationStateInput(BaseModel):
-    verified_domains: list[str] = Field(default_factory=list)
+    verified_domains: dict[str, datetime | None] = Field(default_factory=dict)
     allow_subdomains: bool = False
     # Legacy shape. Still accepted, still the default for callers that predate the
     # trust store; folded onto issuer_status by the verify endpoint's adapter.
@@ -54,15 +55,22 @@ class IssuerVerificationStateInput(BaseModel):
     )
     # Trust-store shape. Every field is optional: absent windows are unbounded and
     # absent states are active, so a legacy request verifies exactly as it did.
-    issuer_status: Literal["active", "suspended", "revoked"] | None = None
+    issuer_status: Literal["active", "suspended", "revoked", "expired"] | None = None
     issuer_record_issued_at: str | None = Field(default=None, max_length=64)
     issuer_record_expires_at: str | None = Field(default=None, max_length=64)
-    key_state: Literal["active", "retired", "revoked"] | None = None
+    key_state: Literal["active", "retired", "revoked", "suspended"] | None = None
     key_not_before: str | None = Field(default=None, max_length=64)
     key_not_after: str | None = Field(default=None, max_length=64)
     key_revocation_reason: str | None = Field(
         default=None, max_length=TRUST_REASON_MAX_LENGTH
     )
+
+    @field_validator("verified_domains", mode="before")
+    @classmethod
+    def _coerce_verified_domains(cls, value):
+        if isinstance(value, list):
+            return {domain: None for domain in value}
+        return value
 
 
 class NarrowedVerifierRequest(BaseModel):
@@ -299,7 +307,7 @@ class TrustStoreIssuerResponse(BaseModel):
     issuer_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     issuer_name: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     root_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
-    status: Literal["active", "suspended", "revoked"]
+    status: Literal["active", "suspended", "revoked", "expired"]
     issued_at: str = Field(min_length=1, max_length=64)
     expires_at: str | None = Field(default=None, max_length=64)
     verified_domains: list[str] = Field(default_factory=list)
@@ -310,7 +318,7 @@ class TrustStoreKeyResponse(BaseModel):
     key_ref: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     issuer_id: str = Field(min_length=1, max_length=TRUST_REF_MAX_LENGTH)
     algorithm_id: str = Field(min_length=1, max_length=64)
-    state: Literal["active", "retired", "revoked"]
+    state: Literal["active", "retired", "revoked", "suspended"]
     not_before: str = Field(min_length=1, max_length=64)
     not_after: str | None = Field(default=None, max_length=64)
     revoked_at: str | None = Field(default=None, max_length=64)
@@ -381,7 +389,7 @@ class DemoMaterialsRequest(BaseModel):
     # expiry is checked. The 30-day cap only bounds a value that exists.
     expires_offset_minutes: int | None = Field(default=5, le=30 * 24 * 60)
     issuer_record_expires_offset_minutes: int | None = None
-    key_state: Literal["active", "retired", "revoked"] | None = None
+    key_state: Literal["active", "retired", "revoked", "suspended"] | None = None
     # Mints a fresh demo keypair. Retiring the previous key is part of trust
     # enrollment, not of minting, so `rotate_key=True` together with
     # `register_scanner_trust=False` signs under a new ref but retires nothing

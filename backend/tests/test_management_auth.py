@@ -7,7 +7,10 @@ import pytest
 from backend.app.services.management_auth import (
     ManagementPrincipal,
     ManagementUnauthorized,
+    ResourceAssignment,
     load_management_principal,
+    record_resource_authz_audit,
+    require_issuer_resource,
     require_scope,
 )
 
@@ -168,3 +171,154 @@ def test_require_scope_rejects_missing_scope() -> None:
 
     with pytest.raises(ManagementUnauthorized, match="missing required scope"):
         require_scope(principal, "issuer:write")
+
+
+_RESOURCE_TARGET = {
+    "root_program_id": "root:qrtrust-demo:2026",
+    "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
+    "issuer_id": "issuer:acme-demo",
+}
+
+
+def _scoped_principal(
+    assignments: tuple[ResourceAssignment, ...] = (),
+) -> ManagementPrincipal:
+    return ManagementPrincipal(
+        key_id="mkey_resource_test",
+        operator_id="11111111-1111-1111-1111-111111111111",
+        scopes=frozenset({"issuer:write"}),
+        resource_assignments=assignments,
+    )
+
+
+def test_resource_assignment_authority_level_covers_nested_issuer() -> None:
+    assignment = ResourceAssignment(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id=None,
+    )
+    assert assignment.covers(**_RESOURCE_TARGET) is True
+
+
+def test_resource_assignment_all_none_covers_nothing() -> None:
+    assignment = ResourceAssignment(
+        root_program_id=None, delegated_authority_id=None, issuer_id=None
+    )
+    assert assignment.covers(**_RESOURCE_TARGET) is False
+
+
+def test_resource_assignment_mismatched_issuer_does_not_cover() -> None:
+    assignment = ResourceAssignment(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:someone-else",
+    )
+    assert assignment.covers(**_RESOURCE_TARGET) is False
+
+
+def test_require_issuer_resource_bootstrap_principal_bypasses_enforce() -> None:
+    principal = ManagementPrincipal(
+        key_id=None, operator_id=None, scopes=frozenset({"admin:*"})
+    )
+    decision = require_issuer_resource(
+        principal, "issuer:write", mode="enforce", **_RESOURCE_TARGET
+    )
+    assert decision.permitted is True
+    assert decision.would_block is False
+
+
+def test_require_issuer_resource_admin_star_key_still_needs_assignment() -> None:
+    principal = ManagementPrincipal(
+        key_id="mkey_root_admin",
+        operator_id=None,
+        scopes=frozenset({"admin:*"}),
+    )
+    with pytest.raises(ManagementUnauthorized):
+        require_issuer_resource(
+            principal, "issuer:write", mode="enforce", **_RESOURCE_TARGET
+        )
+
+
+def test_require_issuer_resource_audit_mode_permits_and_flags() -> None:
+    decision = require_issuer_resource(
+        _scoped_principal(), "issuer:write", mode="audit", **_RESOURCE_TARGET
+    )
+    assert decision.permitted is True
+    assert decision.would_block is True
+    assert "no resource assignment covers" in decision.detail
+
+
+def test_require_issuer_resource_covering_assignment_passes_enforce() -> None:
+    assignment = ResourceAssignment(
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id=None,
+        issuer_id=None,
+    )
+    decision = require_issuer_resource(
+        _scoped_principal((assignment,)),
+        "issuer:write",
+        mode="enforce",
+        **_RESOURCE_TARGET,
+    )
+    assert decision.permitted is True
+    assert decision.would_block is False
+
+
+@pytest.mark.asyncio
+async def test_record_resource_authz_audit_row_shape() -> None:
+    class _RecordingConnection:
+        def __init__(self) -> None:
+            self.calls: list[tuple[Any, ...]] = []
+
+        async def execute(self, sql: str, *args: Any) -> str:
+            self.calls.append((sql, *args))
+            return "INSERT 0 1"
+
+    connection = _RecordingConnection()
+    await record_resource_authz_audit(
+        connection,
+        _scoped_principal(),
+        "issuer:write",
+        target_id="cert:acme-demo:2026-09",
+        root_program_id="root:qrtrust-demo:2026",
+        delegated_authority_id="authority:qrtrust-demo:merchant-web",
+        issuer_id="issuer:acme-demo",
+        request_id="req_resource_authz",
+        detail="no resource assignment covers this write",
+    )
+    assert len(connection.calls) == 1
+    assert "resource_authz.would_block" in str(connection.calls[0][0])
+    assert connection.calls[0][1:] == (
+        "11111111-1111-1111-1111-111111111111",
+        "mkey_resource_test",
+        "cert:acme-demo:2026-09",
+        "root:qrtrust-demo:2026",
+        "authority:qrtrust-demo:merchant-web",
+        "issuer:acme-demo",
+        "issuer:write",
+        "no resource assignment covers this write",
+        "req_resource_authz",
+    )
+
+
+@pytest.mark.asyncio
+async def test_load_management_principal_collects_resource_assignment() -> None:
+    store = FakeCredentialStore(
+        management_key_row={
+            "key_id": "mkey_scoped",
+            "operator_id": None,
+            "scopes": ["issuer:write"],
+            "root_program_id": "root:qrtrust-demo:2026",
+            "delegated_authority_id": None,
+            "issuer_id": None,
+        }
+    )
+    principal = await load_management_principal(store, "plaintext_key")
+    assert principal is not None
+    assert principal.resource_assignments == (
+        ResourceAssignment(
+            root_program_id="root:qrtrust-demo:2026",
+            delegated_authority_id=None,
+            issuer_id=None,
+        ),
+    )

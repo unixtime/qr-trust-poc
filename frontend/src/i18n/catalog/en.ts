@@ -388,6 +388,11 @@ export const en = {
   "lab.residual.cause.unsupported-envelope": "Envelope could not be decoded",
   "lab.residual.cause.unsupported-claims-version":
     "Claims version is not the one this PoC accepts",
+  "lab.residual.cause.key-suspended": "Signing key suspended by its issuing authority.",
+  "lab.residual.cause.trust-state-unavailable": "Trust state unavailable; verification failed closed.",
+  "lab.residual.cause.redirect-unobserved": "The final destination of the redirect flow was not observed.",
+  "lab.residual.cause.destination-invalid": "The destination URL could not be reduced to a canonical form.",
+  "lab.residual.cause.policy-invalid": "The issuer's destination policy document is invalid.",
 
   // ── Lab: A/B comparison
   "lab.compare.eyebrow": "A/B comparison",

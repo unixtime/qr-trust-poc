@@ -210,26 +210,48 @@ API process.
 
 ## Payload Revalidation Rules
 
-Current normalization rules:
+Destinations and policy rules are both reduced to canonical form (RFC 3986)
+before any comparison:
 
-- trim surrounding whitespace
-- if the payload lacks a scheme, parse it as `https://...`
-- lowercase the host
-- strip a trailing `.`
-- strip leading `www.`
+- trim surrounding whitespace; a payload without a scheme is parsed as
+  `https://...`
+- lowercase the scheme and the host; encode the host as IDNA/punycode
+- strip a single trailing `.` from the host; strip a leading `www.` for
+  host matching
+- fold default ports (`:80` for http, `:443` for https) to absent
+- percent-decode unreserved characters only
+- resolve dot-segments (RFC 3986 section 5.2.4)
+
+A destination that cannot be canonicalized is rejected with cause
+`destination-invalid`: userinfo, a backslash in the authority or path,
+control characters, an empty host, or a non-http(s) scheme.
 
 Current matching rules:
 
 - exact host match is allowed
 - subdomain match is allowed only when `allow_subdomains` is true
-- matching is against the issuer's current verified domain set
+- matching is against the issuer's current verified domain set; a domain
+  whose proof has expired no longer matches
+- the destination scheme must appear in the rule's `allowed_schemes`
+  (absent means `https` only)
+- an explicit non-default port must appear in the rule's `allowed_ports`
+  (absent means the scheme default only)
+- path prefixes match on segment boundaries: a `/pay` prefix matches `/pay`
+  and `/pay/...`, never `/payments`; a `/` prefix matches every path
+- query keys are checked against the rule's `query_policy` and
+  `allowed_query_keys` settings
+- an invalid destination-policy document fails closed with cause
+  `policy-invalid`; a missing policy document falls back to host matching
+  alone
 
 Current PoC intentionally does not define:
 
-- redirect-chain semantics
-- path-based authorization rules
-- query-parameter policy
 - content inspection or reputation scoring
+
+Redirect chains are not observed in this build. A redirecting destination
+is reported `unknown` with cause `redirect-unobserved`. A safe
+redirect-observation service is specified for a later cycle; this profile
+claims no live redirect verification today.
 
 ## Scan Accounting Rules
 

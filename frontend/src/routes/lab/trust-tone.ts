@@ -71,6 +71,7 @@ const DECISION_STATE_TONES: Record<string, TrustTone> = {
   profile_stale: "amber",
   signed_unknown_issuer: "amber",
   unverified: "amber",
+  unknown: "amber", // verifier could not classify the artifact at all
   profile_revoked: "red",
   blocked: "red",
 }

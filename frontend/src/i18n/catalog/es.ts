@@ -299,6 +299,11 @@ export const es: Record<MessageKey, string> = {
   "lab.residual.cause.no-signed-envelope": "El QR no contiene un sobre firmado",
   "lab.residual.cause.unsupported-envelope": "No se pudo decodificar el sobre",
   "lab.residual.cause.unsupported-claims-version": "La versión de las declaraciones no es la que acepta este PoC",
+  "lab.residual.cause.key-suspended": "Clave de firma suspendida por su autoridad emisora.",
+  "lab.residual.cause.trust-state-unavailable": "Estado de confianza no disponible; la verificación se cerró por seguridad.",
+  "lab.residual.cause.redirect-unobserved": "No se observó el destino final del flujo de redirección.",
+  "lab.residual.cause.destination-invalid": "La URL de destino no se pudo reducir a una forma canónica.",
+  "lab.residual.cause.policy-invalid": "El documento de política de destinos del emisor no es válido.",
 
   // ── Lab: A/B comparison
   "lab.compare.eyebrow": "Comparación A/B",

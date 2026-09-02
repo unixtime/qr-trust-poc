@@ -19,7 +19,8 @@ from backend.app.services.payload_revalidation_poc import (
 from backend.app.services.scanner_trust_store import (
     IssuerRecord,
     KeyEntry,
-    evaluate_trust_window,
+    evaluate_blocking_states,
+    evaluate_time_windows,
 )
 from backend.app.services.signed_schema_poc import (
     CertificateAuthorityRecord,
@@ -56,6 +57,7 @@ class NarrowedVerificationResult:
     canonical_claims_sha256: str | None = None
     matched_rule: str | None = None
     cause: str | None = None
+    matched_domain: str | None = None
 
 
 class NarrowedVerifierService:
@@ -79,6 +81,31 @@ class NarrowedVerifierService:
         claims_digest = canonical_claims_sha256(envelope.claims)
         now = self._now_fn()
 
+        # 1. Blocking states (key or issuer revoked/suspended/etc.) take precedence
+        blocking_result = evaluate_blocking_states(key=trust.key, issuer=trust.issuer)
+        if blocking_result is not None:
+            return NarrowedVerificationResult(
+                allowed=False,
+                stage=blocking_result.stage,
+                reason=blocking_result.reason,
+                canonical_claims_sha256=claims_digest,
+                matched_rule=None,
+                cause=blocking_result.cause,
+            )
+
+        # Unreachable once Task 16's projection excludes material-less
+        # verifying keys, but the verifier fails closed regardless.
+        if trust.key.public_key_pem is None:
+            return NarrowedVerificationResult(
+                allowed=False,
+                stage="key_status",
+                reason="Signing key has no public material available for verification",
+                canonical_claims_sha256=claims_digest,
+                matched_rule=None,
+                cause="trust-state-unavailable",
+            )
+
+        # 3. Verify signed schema
         schema_decision = verify_signed_envelope(envelope, certificate)
         if not schema_decision.allowed:
             return NarrowedVerificationResult(
@@ -89,27 +116,30 @@ class NarrowedVerifierService:
                 matched_rule=None,
             )
 
-        trust_result = evaluate_trust_window(
+        # 4. Time-window checks (key and artifact validity windows)
+        time_result = evaluate_time_windows(
             now=now,
             claims=envelope.claims,
             key=trust.key,
             issuer=trust.issuer,
             skew_seconds=trust.skew_seconds,
         )
-        if not trust_result.allowed:
+        if not time_result.allowed:
             return NarrowedVerificationResult(
                 allowed=False,
-                stage=trust_result.stage,
-                reason=trust_result.reason,
+                stage=time_result.stage,
+                reason=time_result.reason,
                 canonical_claims_sha256=claims_digest,
                 matched_rule=None,
-                cause=trust_result.cause,
+                cause=time_result.cause,
             )
 
+        # 5. Payload revalidation against verified domains
         payload_decision = match_payload_to_verified_domains(
             envelope.claims.payload,
-            list(trust.issuer.verified_domains),
+            trust.issuer.verified_domains,
             allow_subdomains=trust.issuer.allow_subdomains,
+            now=now,
         )
         if not payload_decision.allowed:
             return NarrowedVerificationResult(
@@ -118,6 +148,8 @@ class NarrowedVerifierService:
                 reason=payload_decision.reason,
                 canonical_claims_sha256=claims_digest,
                 matched_rule=payload_decision.matched_rule,
+                cause=payload_decision.cause,
+                matched_domain=payload_decision.matched_domain,
             )
 
         return NarrowedVerificationResult(
@@ -126,4 +158,5 @@ class NarrowedVerifierService:
             reason=ACCEPTED_REASON,
             canonical_claims_sha256=claims_digest,
             matched_rule=payload_decision.matched_rule,
+            matched_domain=payload_decision.matched_domain,
         )

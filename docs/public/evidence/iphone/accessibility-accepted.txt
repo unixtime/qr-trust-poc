@@ -1,0 +1,20 @@
+fixture_id: green_verified_issuer
+decision_state: verified_issuer
+decision_color: green
+status: green
+verifier_profile_state: active
+title: Looks safe
+message: This QR matched a recognized issuer and approved destination.
+destination: https://acme.example/pay
+host: acme.example
+envelope_id: ffb3f67e46539541ceca54a7867cae45f7f08353489b817b8b230ff8d1bf734b
+primary_state: verified-issuer
+residual.issuer_chain: pass
+residual.destination_policy: pass
+residual.redirect_flow: not-applicable
+residual.runtime_safety: pass
+residual.freshness: pass
+residual.artifact_integrity: pass
+risk_score: 0
+reason_codes: 
+checked_at: 2026-09-02T11:00:15.607Z

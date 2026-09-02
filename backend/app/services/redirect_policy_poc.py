@@ -27,6 +27,7 @@ class RedirectPolicyVerdict:
     open_allowed: bool
     effective_url: str
     policy_label: str | None = None
+    cause: str | None = None
 
     @property
     def is_redirect_flow(self) -> bool:
@@ -136,8 +137,6 @@ def evaluate_redirect_policy(
     final_url = _first_query_value(payload, "final")
     if final_url:
         final_url = unquote(final_url)
-    elif expected_final_destinations:
-        final_url = expected_final_destinations[0]
 
     max_hops_raw = policy.get("max_redirect_hops")
     max_hops = max_hops_raw if isinstance(max_hops_raw, int) else 1
@@ -185,14 +184,15 @@ def evaluate_redirect_policy(
 
     if final_url is None:
         return RedirectPolicyVerdict(
-            state="blocked",
+            state="unknown",
             resolver_url=resolver_base_url,
             final_url=None,
             hop_count=hop_count,
-            reason="Resolver did not produce a final destination for scanner binding.",
+            reason="Resolver flow completed without an observed final destination.",
             open_allowed=False,
             effective_url=payload,
             policy_label=label,
+            cause="redirect-unobserved",
         )
 
     allowed_hosts = {_host(item) for item in _string_list(policy.get("allowed_redirect_hosts"))}

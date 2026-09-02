@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AfterValidator,
@@ -33,6 +33,7 @@ from backend.app.schemas.management_contracts import (
     OperatorRole,
     OperatorRoleStatus,
     OperatorStatus,
+    OperatorType,
     OutboxEventRemediationAction,
     RuntimeProviderBehavior,
     RuntimeProviderStatus,
@@ -151,6 +152,7 @@ class OperatorUpsertRequest(BaseModel):
     email: str = Field(min_length=1)
     display_name: str = Field(min_length=1)
     status: OperatorStatus = "active"
+    operator_type: OperatorType = "person"
 
 
 class OperatorRecord(BaseModel):
@@ -158,12 +160,22 @@ class OperatorRecord(BaseModel):
     email: str
     display_name: str
     status: str
+    operator_type: str
     created_at: str
     updated_at: str
 
 
 class OperatorListResponse(BaseModel):
     records: list[OperatorRecord]
+
+
+class ResourceAuthzReadinessResponse(BaseModel):
+    window_minutes: int
+    would_block_events: int
+    principals_lacking_coverage: int
+    keys_without_operator: int
+    projected_blocking_rows: int
+    excluded_verifying_rows: int
 
 
 class OperatorRoleAssignmentUpsertRequest(BaseModel):
@@ -376,7 +388,6 @@ class TrustKeyUpsertRequest(BaseModel):
     public_key_material_ref: str = Field(min_length=1)
     public_key_material_pem: str | None = None
     scope: TrustKeyScope
-    key_status: TrustKeyStatus = "active"
     not_before: datetime | None = None
     not_after: datetime | None = None
 
@@ -390,6 +401,31 @@ class TrustKeyUpsertRequest(BaseModel):
             if self.not_before is not None and self.not_after <= self.not_before:
                 raise ValueError("not_after must be later than not_before")
         return self
+
+
+class IssuerCertificateEnrollRequest(BaseModel):
+    certificate_id: str
+    issuer_id: str
+    root_program_id: str
+    delegated_authority_id: str
+    algorithm_id: str
+    public_key_ref: str
+    public_key_material_pem: str
+    not_before: datetime
+    not_after: datetime | None = None
+
+
+class IssuerCertificateMutationResponse(BaseModel):
+    certificate_id: str
+    issuer_id: str
+    key_status: str
+    event_type: str
+
+
+class IssuerCertificateStatusRequest(BaseModel):
+    certificate_id: str
+    key_status: Literal["active", "rotated", "suspended", "revoked", "expired"]
+    revocation_reason: str | None = None
 
 
 class TrustKeyStatusUpdateRequest(BaseModel):

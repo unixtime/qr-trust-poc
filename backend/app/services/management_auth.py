@@ -14,10 +14,49 @@ class ManagementUnauthorized(Exception):
 
 
 @dataclass(frozen=True)
+class ResourceAssignment:
+    root_program_id: str | None
+    delegated_authority_id: str | None
+    issuer_id: str | None
+
+    def covers(
+        self,
+        *,
+        root_program_id: str,
+        delegated_authority_id: str,
+        issuer_id: str,
+    ) -> bool:
+        if (
+            self.root_program_id is None
+            and self.delegated_authority_id is None
+            and self.issuer_id is None
+        ):
+            return False
+        if self.root_program_id is not None and self.root_program_id != root_program_id:
+            return False
+        if (
+            self.delegated_authority_id is not None
+            and self.delegated_authority_id != delegated_authority_id
+        ):
+            return False
+        if self.issuer_id is not None and self.issuer_id != issuer_id:
+            return False
+        return True
+
+
+@dataclass(frozen=True)
+class ResourceAuthzDecision:
+    permitted: bool
+    would_block: bool
+    detail: str
+
+
+@dataclass(frozen=True)
 class ManagementPrincipal:
     key_id: str | None
     operator_id: str | None
     scopes: frozenset[str]
+    resource_assignments: tuple[ResourceAssignment, ...] = ()
 
 
 class ManagementCredentialStore(Protocol):
@@ -54,10 +93,26 @@ async def load_management_principal(
             key_scopes,
             operator_role_scopes,
         )
+    assignment_root = _optional_str(row.get("root_program_id"))
+    assignment_authority = _optional_str(row.get("delegated_authority_id"))
+    assignment_issuer = _optional_str(row.get("issuer_id"))
+    resource_assignments: tuple[ResourceAssignment, ...] = ()
+    if any(
+        value is not None
+        for value in (assignment_root, assignment_authority, assignment_issuer)
+    ):
+        resource_assignments = (
+            ResourceAssignment(
+                root_program_id=assignment_root,
+                delegated_authority_id=assignment_authority,
+                issuer_id=assignment_issuer,
+            ),
+        )
     return ManagementPrincipal(
         key_id=str(row["key_id"]),
         operator_id=operator_id,
         scopes=effective_scopes,
+        resource_assignments=resource_assignments,
     )
 
 
@@ -68,6 +123,42 @@ def require_scope(
     if required_scope in principal.scopes or "admin:*" in principal.scopes:
         return principal
     raise ManagementUnauthorized(f"missing required scope: {required_scope}")
+
+
+def require_issuer_resource(
+    principal: ManagementPrincipal,
+    scope: str,
+    *,
+    root_program_id: str,
+    delegated_authority_id: str,
+    issuer_id: str,
+    mode: str,
+) -> ResourceAuthzDecision:
+    if principal.key_id is None:
+        return ResourceAuthzDecision(
+            permitted=True,
+            would_block=False,
+            detail="bootstrap principal bypasses resource scoping",
+        )
+    for assignment in principal.resource_assignments:
+        if assignment.covers(
+            root_program_id=root_program_id,
+            delegated_authority_id=delegated_authority_id,
+            issuer_id=issuer_id,
+        ):
+            return ResourceAuthzDecision(
+                permitted=True,
+                would_block=False,
+                detail=f"assignment covers issuer '{issuer_id}'",
+            )
+    detail = (
+        f"no resource assignment covers key '{principal.key_id}' "
+        f"for scope '{scope}' on root_program '{root_program_id}', "
+        f"delegated_authority '{delegated_authority_id}', issuer '{issuer_id}'"
+    )
+    if mode == "enforce":
+        raise ManagementUnauthorized(detail)
+    return ResourceAuthzDecision(permitted=True, would_block=True, detail=detail)
 
 
 def _optional_str(value: Any) -> str | None:
@@ -155,7 +246,10 @@ _MANAGEMENT_KEY_LOOKUP = """
 select
   key_id,
   operator_id::text as operator_id,
-  scopes
+  scopes,
+  root_program_id,
+  delegated_authority_id,
+  issuer_id
 from qr_trust.management_api_keys
 where key_hash = $1
   and status = 'active'
@@ -174,3 +268,40 @@ where assignment.operator_id = $1::uuid
   and assignment.status = 'active'
   and operator_record.status = 'active'
 """.strip()
+
+
+_RESOURCE_AUTHZ_AUDIT_INSERT = """
+insert into qr_trust.governance_audit_log (
+    actor_operator_id, actor_key_id, action, target_type, target_id,
+    root_program_id, delegated_authority_id, issuer_id, after_json, request_id
+) values (
+    $1::uuid, $2, 'resource_authz.would_block', 'resource_authz', $3,
+    $4, $5, $6, jsonb_build_object('scope', $7, 'detail', $8), $9
+)
+"""
+
+
+async def record_resource_authz_audit(
+    connection: Any,
+    principal: ManagementPrincipal,
+    scope: str,
+    *,
+    target_id: str,
+    root_program_id: str,
+    delegated_authority_id: str,
+    issuer_id: str,
+    request_id: str,
+    detail: str,
+) -> None:
+    await connection.execute(
+        _RESOURCE_AUTHZ_AUDIT_INSERT,
+        principal.operator_id,
+        principal.key_id,
+        target_id,
+        root_program_id,
+        delegated_authority_id,
+        issuer_id,
+        scope,
+        detail,
+        request_id,
+    )
