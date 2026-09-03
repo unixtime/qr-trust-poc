@@ -42,8 +42,7 @@
         "artifact_integrity": "warn"
       },
       "expected": {
-        "primary_state": "unreadable",
-        "annotations": [],
+        "capture_outcome": "unreadable",
         "residuals": {
           "issuer_chain": "no-issuer",
           "destination_policy": "not-applicable",

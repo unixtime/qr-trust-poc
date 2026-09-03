@@ -745,7 +745,7 @@ export function useLabController() {
 
   function scannerFallbackRisk(decision: ScannerDecisionResponse) {
     if (decision.decision_state === "verified_issuer") return "green"
-    if (decision.decision_state === "blocked") return "red"
+    if (["blocked", "unknown"].includes(decision.decision_state)) return "red"
     return "amber"
   }
 

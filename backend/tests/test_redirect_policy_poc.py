@@ -12,6 +12,7 @@ from backend.app.api.endpoints.verifier import (
 from backend.app.services.redirect_policy_poc import (
     RedirectPolicyVerdict,
     evaluate_redirect_policy,
+    evaluate_unobserved_redirect_policy,
 )
 
 RESOLVER = "https://qr.acme.example/r/pay"
@@ -35,10 +36,25 @@ def _write_policy(tmp_path: Path) -> Path:
 def test_missing_final_is_unknown_and_fails_closed(tmp_path):
     verdict = evaluate_redirect_policy(RESOLVER, fixture_dir=_write_policy(tmp_path))
     assert verdict.state == "unknown"
-    assert verdict.cause == "redirect-unobserved"
+    assert verdict.cause == "resolution-unavailable"
     assert verdict.open_allowed is False
     assert verdict.final_url is None
     assert verdict.is_blocked is True
+
+
+def test_runtime_does_not_treat_payload_query_as_redirect_observation(tmp_path):
+    payload = RESOLVER + "?final=https%3A%2F%2Facme.example%2Fpay&hops=1"
+    verdict = evaluate_unobserved_redirect_policy(
+        payload,
+        fixture_dir=_write_policy(tmp_path),
+    )
+
+    assert verdict.state == "unknown"
+    assert verdict.cause == "resolution-unavailable"
+    assert verdict.open_allowed is False
+    assert verdict.resolver_url == RESOLVER
+    assert verdict.final_url is None
+    assert verdict.hop_count is None
 
 
 def test_observed_final_still_binds(tmp_path):
@@ -55,6 +71,21 @@ def test_off_policy_final_still_blocks(tmp_path):
     verdict = evaluate_redirect_policy(payload, fixture_dir=_write_policy(tmp_path))
     assert verdict.state == "blocked"
     assert verdict.open_allowed is False
+    assert verdict.cause == "resolver-mismatch"
+
+
+def test_redirect_failures_emit_specific_protocol_causes(tmp_path):
+    policy = _write_policy(tmp_path)
+    cases = {
+        RESOLVER + "?hops=invalid": "resolution-unavailable",
+        RESOLVER + "?nested=1": "nested-shortener",
+        RESOLVER + "?hops=3": "depth-exceeded",
+        RESOLVER + "?final=https%3A%2F%2Facme.example%2Fother": "resolver-mismatch",
+    }
+    for payload, expected_cause in cases.items():
+        verdict = evaluate_redirect_policy(payload, fixture_dir=policy)
+        assert verdict.state == "blocked", payload
+        assert verdict.cause == expected_cause, payload
 
 
 def test_non_enrolled_resolver_is_not_applicable(tmp_path):
@@ -86,7 +117,7 @@ def _verdict(state: str, *, open_allowed: bool, cause: str | None = None) -> Red
 def test_primary_message_for_unknown_redirect():
     message = _scanner_primary_message(
         SimpleNamespace(allowed=True),
-        redirect_verdict=_verdict("unknown", open_allowed=False, cause="redirect-unobserved"),
+        redirect_verdict=_verdict("unknown", open_allowed=False, cause="resolution-unavailable"),
     )
     assert message == (
         "Resolver unresolved. The final destination of the redirect flow was not observed."
@@ -104,11 +135,13 @@ def test_residual_vector_redirect_three_way():
             artifact_analysis=None,
         )
 
-    unknown = vector(_verdict("unknown", open_allowed=False, cause="redirect-unobserved"))
-    assert unknown["redirect_flow"] == _entry("fail", "redirect-unobserved")
+    unknown = vector(_verdict("unknown", open_allowed=False, cause="resolution-unavailable"))
+    assert unknown["redirect_flow"] == _entry("unavailable", "resolution-unavailable")
 
-    blocked = vector(_verdict("blocked", open_allowed=False))
-    assert blocked["redirect_flow"] == _entry("fail", "redirect-policy-blocked")
+    blocked = vector(
+        _verdict("blocked", open_allowed=False, cause="resolver-mismatch")
+    )
+    assert blocked["redirect_flow"] == _entry("fail", "resolver-mismatch")
 
     bound = vector(_verdict("bound", open_allowed=True))
     assert bound["redirect_flow"] == _entry("pass")

@@ -61,7 +61,7 @@
     },
     "runtime_safety": {
       "tier": "unavailable",
-      "cause": "runtime-unavailable"
+      "cause": "provider-unavailable"
     },
     "freshness": {
       "tier": "unavailable",

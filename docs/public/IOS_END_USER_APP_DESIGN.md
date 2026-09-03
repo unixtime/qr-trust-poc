@@ -299,6 +299,10 @@ with no friction.
 
 **State 4 — destination changed** (no wire label assigned)
 
+Here "changed" is the product wording for an encoded-URL or issuer-policy
+mismatch. It does not claim that the verifier detected new DNS, hosting, or
+page content behind an otherwise unchanged authorized URL.
+
 ![State 4 of the QR Trust scanner: a red circle with a warning triangle above
 the headline "This code no longer goes where the issuer approved", a card
 contrasting the issuer-approved example-brand.com/spring/offer against the

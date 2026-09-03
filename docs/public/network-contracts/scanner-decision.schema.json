@@ -13,7 +13,8 @@
     "trust_path",
     "hold_to_open",
     "cache_freshness",
-    "residual_vector"
+    "residual_vector",
+    "model_decision"
   ],
   "properties": {
     "decision_id": {
@@ -33,7 +34,18 @@
     },
     "decision_state": {
       "type": "string",
-      "minLength": 1
+      "enum": [
+        "verified_issuer",
+        "verified_issuer_destination_risky",
+        "verified_issuer_runtime_unavailable",
+        "verified_issuer_runtime_blocked",
+        "verified_issuer_cache_stale",
+        "verified_issuer_cache_expired",
+        "verified_issuer_cache_unavailable",
+        "plain_url_unrecognized",
+        "destination_policy_mismatch",
+        "check_unavailable_destination_visible"
+      ]
     },
     "reason_codes": {
       "type": "array",
@@ -190,14 +202,7 @@
       }
     },
     "model_decision": {
-      "oneOf": [
-        {
-          "type": "null"
-        },
-        {
-          "$ref": "#/$defs/model_decision"
-        }
-      ]
+      "$ref": "#/$defs/model_decision"
     }
   },
   "additionalProperties": false,
@@ -271,13 +276,50 @@
           "$ref": "#/$defs/residual_tier"
         },
         "cause": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "maxLength": 64
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/residual_cause"
+            }
+          ]
         }
       }
+    },
+    "residual_cause": {
+      "type": "string",
+      "enum": [
+        "invalid-signature",
+        "issuer-suspended",
+        "issuer-revoked",
+        "record-expired",
+        "record-not-yet-valid",
+        "key-revoked",
+        "key-suspended",
+        "key-window-mismatch",
+        "trust-state-unavailable",
+        "destination-not-authorized",
+        "normalization-failure",
+        "policy-invalid",
+        "object-not-yet-valid",
+        "object-expired",
+        "nested-shortener",
+        "depth-exceeded",
+        "resolver-mismatch",
+        "resolution-unavailable",
+        "verdict-warn",
+        "verdict-block",
+        "verdict-expired",
+        "verdict-stale",
+        "provider-unavailable",
+        "no-trust-claim",
+        "invalid-trust-claim",
+        "overlay-suspected",
+        "conflicting-symbols",
+        "framed-symbol-anomaly",
+        "container-mismatch"
+      ]
     },
     "model_decision": {
       "type": "object",
@@ -291,15 +333,39 @@
       "additionalProperties": false,
       "properties": {
         "profile": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "strict-online",
+            "bounded-online",
+            "bounded-offline",
+            "production-trusted",
+            "reference-testing"
+          ]
         },
         "primary_state": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "unverified",
+            "signed-unaccepted-issuer",
+            "verified-issuer",
+            "verified-issuer-destination-risky",
+            "blocked"
+          ]
         },
         "annotations": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "artifact-warning",
+              "stale-offline-warning",
+              "limited-runtime-safety-visibility",
+              "redirect-variation-warning",
+              "invalid-trust-claim-warning",
+              "policy-profile-warning",
+              "incomplete-verification-warning"
+            ]
           }
         },
         "reason_codes": {

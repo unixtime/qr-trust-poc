@@ -89,6 +89,7 @@ class FakeConnection:
         self.certificate_rows = certificate_rows or []
         self.issuer_rows = issuer_rows or []
         self.proof_rows = proof_rows or []
+        self.fetch_calls: list[tuple[str, tuple[object, ...]]] = []
         self.closed = False
 
     def transaction(self, *args: object, **kwargs: object) -> _FakeTransaction:
@@ -100,6 +101,7 @@ class FakeConnection:
         raise AssertionError(f"unexpected fetchrow: {query}")
 
     async def fetch(self, query: str, *params: object) -> list[dict[str, object]]:
+        self.fetch_calls.append((query, params))
         # Most specific table name first: dispatch is by substring.
         if "qr_trust.issuer_domain_proofs" in query:
             return list(self.proof_rows)
@@ -187,7 +189,7 @@ def test_pending_issuer_is_not_projected() -> None:
 
 def test_issuer_row_projects_with_verified_domains() -> None:
     record = project_issuer_row(
-        _issuer_row(), {"acme.example": None, "pay.acme.example": _NOW}
+        _issuer_row(), {"Acme.Example.": None, "pay.acme.example": _NOW}
     )
     assert record is not None
     assert record.issuer_id == "acme"
@@ -239,6 +241,23 @@ async def test_load_trust_snapshot_assembles_projection() -> None:
     ]
 
 
+async def test_load_trust_snapshot_rejects_canonical_domain_collision() -> None:
+    connection = FakeConnection(
+        governance_row={"epoch": "epoch-a", "version": 7},
+        issuer_rows=[_issuer_row()],
+        proof_rows=[
+            {"issuer_id": "acme", "domain": "Acme.Example.", "expires_at": None},
+            {"issuer_id": "acme", "domain": "acme.example", "expires_at": None},
+        ],
+    )
+
+    with pytest.raises(
+        TrustStateUnavailableError,
+        match="ambiguous verified-domain state",
+    ):
+        await load_trust_snapshot(connection)
+
+
 async def test_load_trust_snapshot_requires_governance_row() -> None:
     connection = FakeConnection(governance_row=None)
     with pytest.raises(TrustStateUnavailableError):
@@ -281,6 +300,7 @@ async def test_manager_hydrates_then_reuses_unchanged_token() -> None:
     )
     assert second == "reused"
     assert len(factory.connections) == 2
+    assert factory.connections[1].fetch_calls == []
     assert all(connection.closed for connection in factory.connections)
 
 
@@ -299,7 +319,14 @@ async def test_manager_serves_stale_within_budget_then_fails_closed() -> None:
     assert stale == "stale-served"
 
     # The degrade path never refreshed last_success, so the budget keeps
-    # draining from the original hydration at _NOW.
+    # draining from the original hydration at _NOW. The +35s probe isolates a
+    # mutant that incorrectly refreshes the degrade clock at the +10s call:
+    # such a mutant would still be inside a false 30-second budget here.
+    exhausted_near_boundary = await manager.ensure_fresh(
+        store=store, connect=_failing_connect, now=_NOW + timedelta(seconds=35)
+    )
+    assert exhausted_near_boundary == "unavailable"
+
     exhausted = await manager.ensure_fresh(
         store=store, connect=_failing_connect, now=_NOW + timedelta(seconds=41)
     )

@@ -11,11 +11,11 @@ implementation with corpus labels derived from it. Keep it that way — an
 import from the decision module would collapse the two encodings back into
 one and silently restore the circularity this module exists to remove.
 
-The comparison surface is (primary state, set of annotations). That is what
-the table's Scanner state column specifies; reason codes are implementation
-rationale for the rule that fired, not part of the formal outcome, and the
-same blocked state can legitimately be attributed to different rules by the
-two encodings without a semantic disagreement.
+The comparison surface is a disjoint union: D0 yields a capture outcome;
+decoded cases yield (primary state, set of annotations). Reason codes are
+implementation rationale for the rule that fired, not part of the formal
+outcome, and the same blocked state can legitimately be attributed to
+different rules by the two encodings without a semantic disagreement.
 """
 
 from __future__ import annotations
@@ -31,6 +31,17 @@ FORMAL_PROFILES: tuple[str, ...] = (
     "production-trusted",
     "reference-testing",
 )
+
+FORMAL_PRIMARY_STATES: frozenset[str] = frozenset(
+    {
+        "unverified",
+        "signed-unaccepted-issuer",
+        "verified-issuer",
+        "verified-issuer-destination-risky",
+        "blocked",
+    }
+)
+FORMAL_CAPTURE_OUTCOMES: frozenset[str] = frozenset({"unreadable"})
 
 # Residual families in the paper's vector order [R_I, R_D, R_R, R_S, R_F, R_A],
 # with the modeled tier vocabulary of each family's residual definition.
@@ -78,6 +89,18 @@ class FormalOutcome(NamedTuple):
     rule: str
 
 
+class FormalCaptureOutcome(NamedTuple):
+    capture_outcome: str
+    rule: str
+
+
+def formal_capture_outcome(*, qr_decodable: bool) -> FormalCaptureOutcome | None:
+    """Evaluate D0 before any trust-decision state or residual is consulted."""
+    if qr_decodable:
+        return None
+    return FormalCaptureOutcome("unreadable", "D0")
+
+
 def _blocked(rule: str) -> FormalOutcome:
     return FormalOutcome("blocked", frozenset(), rule)
 
@@ -93,9 +116,8 @@ def formal_table_decision(
     *,
     profile: str,
     mandatory_residuals: Iterable[str] = (),
-    qr_decodable: bool,
 ) -> FormalOutcome:
-    """Evaluate Delta(R, P) exactly as the manuscript's rule classes order it."""
+    """Evaluate the trust-decision rules after capture and decode succeeded."""
     if profile not in FORMAL_PROFILES:
         raise ValueError(f"unknown policy profile {profile!r}")
     if set(residuals) != set(FORMAL_FAMILIES):
@@ -114,11 +136,8 @@ def formal_table_decision(
     r_f = residuals["freshness"]
     r_a = residuals["artifact_integrity"]
 
-    # Class 1 — capture rule.
-    if not qr_decodable:
-        return FormalOutcome("unreadable", frozenset(), "D0")  # D0
-
-    # Class 2 — mandatory block rules. Every rule in this class emits the bare
+    # Class 2 — mandatory block rules. Class 1 is the separate D0 capture
+    # outcome above. Every rule in this class emits the bare
     # blocked state, so their relative order is not observable in the outcome.
     if r_i == "invalid-managed-claim":
         # D3, with the reference-testing carve-out: under the explicitly

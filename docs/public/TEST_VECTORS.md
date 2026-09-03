@@ -65,7 +65,7 @@ keeps no per-presentation state.
   - `stage = "signed_schema"`
 - the same envelope sent to `POST /scanner/decisions` never reaches the
   verifier: it fails to decode, and the route answers `unverified` with cause
-  `unsupported-claims-version` and reason code `unsupported_claims_version`
+  `invalid-trust-claim` and reason code `unsupported_claims_version`
 
 ### NV-003 Payload mismatch
 
@@ -103,7 +103,7 @@ keeps no per-presentation state.
 - expected:
   - `allowed = false`
   - `stage = "time_window"`
-  - on the scanner decision: cause `not-yet-valid`
+  - on the scanner decision: cause `object-not-yet-valid`
 
 ### NV-007 Revoked certificate
 
@@ -122,7 +122,7 @@ keeps no per-presentation state.
 - expected:
   - `allowed = false`
   - `stage = "issuer_status"`
-  - `cause = "issuer-inactive"`
+  - `cause = "issuer-suspended"`
 
 ## Envelope Identity Vectors
 

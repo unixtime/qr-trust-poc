@@ -36,11 +36,10 @@ preferred-citation:
   doi: "10.2139/ssrn.6577478"
   url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6577478"
 references:
-  # date-published is deliberately absent. Paper 1's value is its SSRN posting
-  # date, not the date the paper carries; Paper 2's posting date is not on the
-  # record yet, and 2026-08-03 -- the date the submitted PDF carries -- would
-  # not mean the same thing. Fill it in from the SSRN record rather than
-  # inferring it.
+  # date-published is deliberately absent. Paper 2 is accepted and publicly
+  # available on SSRN, but the exact SSRN posting date has not been recorded
+  # from the live metadata. 2026-08-03 is the paper/submission date and does
+  # not mean the same thing; do not infer one from the other.
   - type: article
     title: "Trust Residuals for Navigation QR Codes: Decision Semantics for Issuer, Destination, and Runtime Safety State"
     authors:

@@ -59,6 +59,13 @@ for (const id of ["verdict-model-decision", "verdict-residuals", "residual-${fam
 }
 assert.equal(/usagePolicy|usage_policy|nonce/.test(verdictSource), false, "VerdictStep still mentions usage policy or nonce")
 const enCatalog = readFileSync(new URL("../src/i18n/catalog/en.ts", import.meta.url), "utf8")
+const scannerSchema = JSON.parse(
+  readFileSync(
+    new URL("../../docs/public/network-contracts/scanner-decision.schema.json", import.meta.url),
+    "utf8",
+  ),
+)
+const protocolCauses = scannerSchema.$defs.residual_cause.enum
 for (const family of ["issuer_chain", "destination_policy", "redirect_flow", "runtime_safety", "freshness", "artifact_integrity"]) {
   assert.ok(enCatalog.includes(`"lab.residual.family.${family}"`), `missing family label ${family}`)
   assert.ok(enCatalog.includes(`"lab.residual.question.${family}"`), `missing family question ${family}`)
@@ -66,33 +73,13 @@ for (const family of ["issuer_chain", "destination_policy", "redirect_flow", "ru
 for (const tier of ["pass", "not-applicable", "not-checked", "unknown", "unavailable", "stale", "warn", "fail", "unaccepted-issuer", "invalid-managed-claim", "revoked-issuer", "block"]) {
   assert.ok(enCatalog.includes(`"lab.residual.tier.${tier}"`), `missing tier label ${tier}`)
 }
-for (const cause of [
-  "signature-invalid",
-  "issuer-inactive",
-  "issuer-revoked",
-  "issuer-record-expired",
-  "issuer-record-not-yet-valid",
-  "key-revoked",
-  "key-window-mismatch",
-  "destination-mismatch",
-  "not-yet-valid",
-  "object-expired",
-  "redirect-policy-blocked",
-  "runtime-risky",
-  "runtime-blocked",
-  "runtime-expired",
-  "runtime-stale",
-  "runtime-unavailable",
-  "no-signed-envelope",
-  "unsupported-envelope",
-  "unsupported-claims-version",
-]) {
+for (const cause of protocolCauses) {
   assert.ok(enCatalog.includes(`"lab.residual.cause.${cause}"`), `missing cause label ${cause}`)
 }
 
 // The verdict step's known-cause set is what decides between catalogue copy and a
-// raw <code> fallback. Every cycle-2 slug must be in it, or the UI shows the slug.
-for (const cause of ["issuer-record-expired", "issuer-record-not-yet-valid", "key-revoked", "key-window-mismatch"]) {
+// raw <code> fallback. Every protocol cause must be in it, or the UI shows the slug.
+for (const cause of protocolCauses) {
   assert.ok(verdictSource.includes(`"${cause}"`), `VerdictStep knownCauses is missing ${cause}`)
 }
 

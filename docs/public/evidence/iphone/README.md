@@ -48,6 +48,14 @@ lines as an artifact of the older build, not as current app behavior. They are
 not edited or regenerated in place: they are replaced by the physical recapture
 and `make import-iphone-evidence` step described below.
 
+The `resolver-final-target-mismatch` set also predates the redirect-observer
+boundary correction. It records the old deterministic fixture presentation,
+where query-carried `final` and `hops` values were rendered as though observed.
+It is not evidence of a live redirect walk and must not support that claim. A
+current recapture should retain the legacy filenames for packet compatibility
+but show red `unknown`, binding `redirect_unobserved`, cause
+`resolution-unavailable`, and no observed final URL or hop count.
+
 Before recording physical-device evidence, run:
 
 ```bash

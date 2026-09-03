@@ -103,7 +103,7 @@ flowchart TD
     C -- yes --> D{Issuer enrolled?}
     D -- no --> U[Unverified or signed unaccepted issuer]
     D -- yes --> E{Destination still issuer-approved?}
-    E -- no --> V[Destination changed]
+    E -- no --> V[URL or policy mismatch]
     E -- yes --> F{Runtime safety clear?}
     F -- no --> W[Verified issuer, destination risky]
     F -- yes --> Z[Verified issuer]

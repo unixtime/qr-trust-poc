@@ -18,6 +18,10 @@ from typing import Any, Awaitable, Callable, Mapping
 
 from cryptography.hazmat.primitives import serialization
 
+from backend.app.services.destination_canonicalization import (
+    CanonicalizationError,
+    canonicalize_verified_domain_map,
+)
 from backend.app.services.scanner_trust_store import (
     IssuerRecord,
     KeyEntry,
@@ -133,7 +137,7 @@ def project_issuer_row(
         status=status,
         issued_at=row["created_at"],
         expires_at=row["expires_at"],
-        verified_domains=dict(verified_domains),
+        verified_domains=canonicalize_verified_domain_map(verified_domains),
         allow_subdomains=bool(row["allow_subdomains"]),
         source="projection",
     )
@@ -175,6 +179,16 @@ async def load_trust_snapshot(connection: Any) -> TrustSnapshot:
         proofs_by_issuer.setdefault(str(row["issuer_id"]), {})[
             str(row["domain"])
         ] = row["expires_at"]
+    for issuer_id, verified_domains in proofs_by_issuer.items():
+        try:
+            proofs_by_issuer[issuer_id] = canonicalize_verified_domain_map(
+                verified_domains
+            )
+        except CanonicalizationError as exc:
+            raise TrustStateUnavailableError(
+                f"issuer {issuer_id!r} has ambiguous verified-domain state: "
+                f"{exc.reason}"
+            ) from exc
 
     issuers: list[IssuerRecord] = []
     for row in issuer_rows:
@@ -208,6 +222,10 @@ class TrustProjectionManager:
         self._max_staleness_seconds = max_staleness_seconds
         self._token: TrustStateToken | None = None
         self._last_success: datetime | None = None
+        # This lock serializes every refresh for this manager and is intended
+        # for one asyncio event loop. The current app has one process-global
+        # manager; a multi-loop server must instead own one manager per loop or
+        # replace this coordination boundary before load testing.
         self._lock = asyncio.Lock()
 
     @property

@@ -309,6 +309,24 @@ def _issuer_certificate_status_row(**overrides: Any) -> dict[str, Any]:
     return row
 
 
+def _issuer_certificate_replay_row(**overrides: Any) -> dict[str, Any]:
+    payload = _issuer_certificate_payload()
+    row: dict[str, Any] = {
+        "certificate_id": payload["certificate_id"],
+        "issuer_id": payload["issuer_id"],
+        "root_program_id": payload["root_program_id"],
+        "delegated_authority_id": payload["delegated_authority_id"],
+        "algorithm_id": payload["algorithm_id"],
+        "public_key_ref": payload["public_key_ref"],
+        "public_key_material_pem": str(payload["public_key_material_pem"]).strip(),
+        "not_before": datetime(2026, 9, 1, tzinfo=timezone.utc),
+        "not_after": datetime(2026, 12, 1, tzinfo=timezone.utc),
+        "key_status": "active",
+    }
+    row.update(overrides)
+    return row
+
+
 def _trust_key_payload(**overrides: Any) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "key_id": "key:authority:qrtrust-demo:merchant-web:ed25519:v1",
@@ -331,8 +349,11 @@ def _trust_key_row(**overrides: Any) -> dict[str, Any]:
         "signer_id": "authority:qrtrust-demo:merchant-web",
         "algorithm_id": "ed25519",
         "public_key_material_ref": "managed://qrtrust/authority/public/v1",
+        "public_key_material_pem": None,
         "scope": "delegated_authority",
         "key_status": "active",
+        "not_before": None,
+        "not_after": None,
     }
     row.update(overrides)
     return row
@@ -1954,7 +1975,7 @@ def test_upsert_domain_proof_accepts_local_admin_token(
             "root_program_id": "root:qrtrust-demo:2026",
             "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
             "issuer_id": "issuer:acme-demo",
-            "domain": "ACME.EXAMPLE.",
+            "domain": "WWW.ACME.EXAMPLE.",
             "proof_method": "manual_review",
             "verification_status": "verified",
             "expires_at": "2026-12-31T23:59:59Z",
@@ -1967,7 +1988,7 @@ def test_upsert_domain_proof_accepts_local_admin_token(
         "root_program_id": "root:qrtrust-demo:2026",
         "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
         "issuer_id": "issuer:acme-demo",
-        "domain": "acme.example",
+        "domain": "www.acme.example",
         "verification_status": "verified",
         "event_type": "domain_proof.upserted",
     }
@@ -1975,7 +1996,7 @@ def test_upsert_domain_proof_accepts_local_admin_token(
     assert connection.transaction_committed is True
     assert len(connection.execute_calls) == 3
     assert "qr_trust.issuer_domain_proofs" in connection.execute_calls[0][0]
-    assert connection.execute_calls[0][4] == "acme.example"
+    assert connection.execute_calls[0][4] == "www.acme.example"
     assert "qr_trust.governance_audit_log" in connection.execute_calls[1][0]
     assert connection.execute_calls[1][2] is None
     assert "qr_trust.event_outbox" in connection.execute_calls[2][0]
@@ -2181,7 +2202,7 @@ def test_upsert_destination_policy_accepts_local_admin_token(
                     "expected_final_url": "https://acme.example/pay",
                     "allowed_hosts": ["ACME.EXAMPLE."],
                     "allow_subdomains": False,
-                    "path_prefixes": ["/pay"],
+                    "path_prefixes": ["/pay/%2e%2e/pay/"],
                     "query_policy": "allow_known_payment_query",
                 }
             ],
@@ -2214,6 +2235,8 @@ def test_upsert_destination_policy_accepts_local_admin_token(
     assert len(connection.fetchrow_calls) == 1
     assert len(connection.execute_calls) == 2
     assert "qr_trust.destination_policies" in connection.fetchrow_calls[0][0]
+    approved_destinations = json.loads(connection.fetchrow_calls[0][6])
+    assert approved_destinations[0]["path_prefixes"] == ["/pay"]
     assert connection.fetchrow_calls[0][9] == '[{"allow_subdomains":false,"host":"acme.example"}]'
     assert "qr_trust.governance_audit_log" in connection.execute_calls[0][0]
     assert "qr_trust.event_outbox" in connection.execute_calls[1][0]
@@ -2470,9 +2493,22 @@ def test_upsert_destination_policy_rejects_invalid_runtime_policy_ttl(
     assert len(connection.execute_calls) == 0
 
 
-def test_upsert_destination_policy_rejects_relative_path_prefixes(
+@pytest.mark.parametrize(
+    ("path_prefix", "expected_detail"),
+    [
+        ("pay", "path_prefixes must start with /"),
+        (
+            "/pay%2",
+            "path_prefixes contains an invalid prefix: Destination contains a "
+            "truncated or invalid percent escape near index 4",
+        ),
+    ],
+)
+def test_upsert_destination_policy_rejects_invalid_path_prefixes(
     client: TestClient,
     monkeypatch,
+    path_prefix: str,
+    expected_detail: str,
 ) -> None:
     from backend.app.api.endpoints import management as management_endpoint
     from backend.app.core.config import config
@@ -2504,7 +2540,7 @@ def test_upsert_destination_policy_rejects_relative_path_prefixes(
                     "expected_final_url": "https://acme.example/pay",
                     "allowed_hosts": ["acme.example"],
                     "allow_subdomains": False,
-                    "path_prefixes": ["pay"],
+                    "path_prefixes": [path_prefix],
                     "query_policy": "allow_known_payment_query",
                 }
             ],
@@ -2512,7 +2548,7 @@ def test_upsert_destination_policy_rejects_relative_path_prefixes(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "path_prefixes must start with /"
+    assert response.json()["detail"] == expected_detail
     assert connection.closed is False
     assert len(connection.execute_calls) == 0
 
@@ -3486,6 +3522,83 @@ def test_enroll_issuer_certificate_pre_database_validation(
     assert detail_fragment in str(response.json())
 
 
+@pytest.mark.parametrize(
+    ("overrides", "field_name"),
+    [
+        ({"not_before": "2026-09-01T00:00:00"}, "not_before"),
+        ({"not_after": "2026-12-01T00:00:00"}, "not_after"),
+    ],
+)
+def test_enroll_issuer_certificate_rejects_naive_validity_timestamps(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, Any],
+    field_name: str,
+) -> None:
+    from backend.app.core.config import config
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(**overrides),
+    )
+
+    assert response.status_code == 422
+    assert f"{field_name} must include a timezone" in response.text
+
+
+def test_enroll_issuer_certificate_accepts_exact_200_day_window(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(config, "QR_TRUST_MAX_CERT_VALIDITY_DAYS", 200)
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(not_after="2027-03-20T00:00:00Z"),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["event_type"] == "issuer_certificate.enrolled"
+    assert any(
+        "insert into qr_trust.issuer_certificates" in str(call[0])
+        for call in connection.execute_calls
+    )
+
+
+def test_enroll_issuer_certificate_rejects_201_day_window(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.core.config import config
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(config, "QR_TRUST_MAX_CERT_VALIDITY_DAYS", 200)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(not_after="2027-03-21T00:00:00Z"),
+    )
+
+    assert response.status_code == 422
+    assert "validity window exceeds" in response.json()["detail"]
+
+
 def test_enroll_issuer_certificate_records_mutation_and_bumps_trust_state(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3540,15 +3653,9 @@ def test_enroll_issuer_certificate_replay_returns_existing_status(
     from backend.app.core.config import config
 
     connection = FakeManagementConnection()
-    connection.issuer_certificate_row = {
-        "certificate_id": "cert:acme-demo:2026-09",
-        "issuer_id": "issuer:acme-demo",
-        "root_program_id": "root:qrtrust-demo:2026",
-        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
-        "algorithm_id": "ed25519",
-        "public_key_ref": "managed://qrtrust/issuer/public/2026-09",
-        "key_status": "suspended",
-    }
+    connection.issuer_certificate_row = _issuer_certificate_replay_row(
+        key_status="suspended"
+    )
 
     async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
         return connection
@@ -3589,15 +3696,9 @@ def test_enroll_issuer_certificate_conflicting_identity_is_409(
     from backend.app.core.config import config
 
     connection = FakeManagementConnection()
-    connection.issuer_certificate_row = {
-        "certificate_id": "cert:acme-demo:2026-09",
-        "issuer_id": "issuer:acme-demo",
-        "root_program_id": "root:qrtrust-demo:2026",
-        "delegated_authority_id": "authority:qrtrust-demo:merchant-web",
-        "algorithm_id": "p256",
-        "public_key_ref": "managed://qrtrust/issuer/public/2026-09",
-        "key_status": "active",
-    }
+    connection.issuer_certificate_row = _issuer_certificate_replay_row(
+        algorithm_id="p256"
+    )
 
     async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
         return connection
@@ -3618,6 +3719,91 @@ def test_enroll_issuer_certificate_conflicting_identity_is_409(
 
     assert response.status_code == 409
     assert "already enrolled with a different identity" in str(response.json())
+
+
+@pytest.mark.parametrize(
+    "payload_overrides",
+    [
+        {
+            "public_key_material_pem": (
+                "-----BEGIN PUBLIC KEY-----\nDIFFERENT\n-----END PUBLIC KEY-----\n"
+            )
+        },
+        {"not_before": "2026-09-02T00:00:00Z"},
+        {"not_after": "2026-12-02T00:00:00Z"},
+    ],
+)
+def test_enroll_issuer_certificate_replay_compares_material_and_window(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    payload_overrides: dict[str, Any],
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_replay_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(**payload_overrides),
+    )
+
+    assert response.status_code == 409
+    assert "already enrolled with a different identity" in response.json()["detail"]
+
+
+def test_enroll_issuer_certificate_concurrent_insert_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    class _UniqueViolationError(Exception):
+        pass
+
+    connection = FakeManagementConnection()
+
+    async def _race_execute(*args: Any) -> str:
+        connection.execute_calls.append(args)
+        if "insert into qr_trust.issuer_certificates" in str(args[0]):
+            raise _UniqueViolationError("duplicate certificate_id")
+        return "INSERT 0 1"
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+    monkeypatch.setattr(
+        management_endpoint.asyncpg,
+        "UniqueViolationError",
+        _UniqueViolationError,
+    )
+    monkeypatch.setattr(connection, "execute", _race_execute)
+
+    response = client.post(
+        "/admin/issuer-certificates",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_issuer_certificate_payload(),
+    )
+
+    assert response.status_code == 409
+    assert "enrolled concurrently" in response.json()["detail"]
+    assert connection.closed is True
 
 
 def test_enroll_issuer_certificate_audit_mode_records_would_block(
@@ -3916,6 +4102,59 @@ def test_update_issuer_certificate_status_suspend_records_mutation_and_bump(
     assert connection.closed
 
 
+def test_update_issuer_certificate_status_revokes_and_bumps_trust_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.issuer_certificate_row = _issuer_certificate_status_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/issuer-certificates/status",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json={
+            "certificate_id": "cert:acme-demo:2026-09",
+            "key_status": "revoked",
+            "revocation_reason": "confirmed key compromise",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "certificate_id": "cert:acme-demo:2026-09",
+        "issuer_id": "issuer:acme-demo",
+        "key_status": "revoked",
+        "event_type": "issuer_certificate.status.changed",
+    }
+    mutation_call = next(
+        call
+        for call in connection.execute_calls
+        if "update qr_trust.issuer_certificates" in str(call[0])
+    )
+    assert "revoked_at = now()" in str(mutation_call[0])
+    assert mutation_call[1:] == (
+        "cert:acme-demo:2026-09",
+        "revoked",
+        "confirmed key compromise",
+    )
+    assert any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+    assert connection.closed
+
+
 def test_upsert_trust_key_ignores_client_key_status(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3993,6 +4232,59 @@ def test_upsert_trust_key_replays_existing_identity(
     )
 
 
+def test_upsert_root_program_trust_key_replays_none_delegated_authority(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    key_id = "key:root:qrtrust-demo:2026:ed25519:v1"
+    signer_id = "root:qrtrust-demo:2026"
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row(
+        key_id=key_id,
+        delegated_authority_id=None,
+        signer_id=signer_id,
+        scope="root_program",
+        key_status="suspended",
+    )
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_trust_key_payload(
+            key_id=key_id,
+            delegated_authority_id=None,
+            signer_id=signer_id,
+            scope="root_program",
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "key_id": key_id,
+        "key_status": "suspended",
+        "event_type": "trust_key.replayed",
+    }
+    assert not any(
+        "insert into qr_trust.trust_keys" in str(call[0])
+        for call in connection.execute_calls
+    )
+    assert not any(
+        "qr_trust.governance_versions" in str(call[0])
+        for call in connection.fetchrow_calls
+    )
+
+
 def test_upsert_trust_key_conflicting_identity_is_409(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4019,6 +4311,91 @@ def test_upsert_trust_key_conflicting_identity_is_409(
 
     assert response.status_code == 409
     assert "already enrolled with a different identity" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "payload_overrides",
+    [
+        {
+            "public_key_material_pem": (
+                "-----BEGIN PUBLIC KEY-----\nDIFFERENT\n-----END PUBLIC KEY-----\n"
+            )
+        },
+        {"not_before": "2026-09-01T00:00:00Z"},
+        {"not_after": "2027-01-01T00:00:00Z"},
+    ],
+)
+def test_upsert_trust_key_replay_compares_material_and_window(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    payload_overrides: dict[str, Any],
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    connection = FakeManagementConnection()
+    connection.trust_key_row = _trust_key_row()
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_trust_key_payload(**payload_overrides),
+    )
+
+    assert response.status_code == 409
+    assert "already enrolled with a different identity" in response.json()["detail"]
+
+
+def test_upsert_trust_key_concurrent_insert_is_409(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from backend.app.api.endpoints import management as management_endpoint
+    from backend.app.core.config import config
+
+    class _UniqueViolationError(Exception):
+        pass
+
+    connection = FakeManagementConnection()
+
+    async def _race_execute(*args: Any) -> str:
+        connection.execute_calls.append(args)
+        if "insert into qr_trust.trust_keys" in str(args[0]):
+            raise _UniqueViolationError("duplicate key_id")
+        return "INSERT 0 1"
+
+    async def _fake_connect(*_args: Any, **_kwargs: Any) -> FakeManagementConnection:
+        return connection
+
+    monkeypatch.setattr(config, "VERIFIER_ADMIN_TOKENS", ["local-lab-admin"])
+    monkeypatch.setattr(
+        config, "QRTRUST_NETWORK_DATABASE_URL", "postgresql://user:pass@db/qr"
+    )
+    monkeypatch.setattr(management_endpoint.asyncpg, "connect", _fake_connect)
+    monkeypatch.setattr(
+        management_endpoint.asyncpg,
+        "UniqueViolationError",
+        _UniqueViolationError,
+    )
+    monkeypatch.setattr(connection, "execute", _race_execute)
+
+    response = client.post(
+        "/admin/trust-keys",
+        headers={"X-Admin-Token": "local-lab-admin"},
+        json=_trust_key_payload(),
+    )
+
+    assert response.status_code == 409
+    assert "enrolled concurrently" in response.json()["detail"]
+    assert connection.closed is True
 
 
 def test_update_trust_key_status_unknown_key_is_404(

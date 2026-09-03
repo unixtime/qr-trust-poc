@@ -71,10 +71,18 @@ What this layer covers:
 - exact host match
 - issuer-approved destination list
 - policy rules like subdomains
-- post-issuance destination changes
+- changes to the encoded URL or its authorization policy after issuance
 
 What it does not cover:
 - whether the page at that destination is currently safe
+- DNS, hosting-account, or server ownership continuity behind the same URL
+- response-byte or page-content integrity
+- client-side redirects or navigation after the scanner opens the URL
+
+An authorized URL is not an attestation about the resource currently served at
+that URL. A same-URL infrastructure or content change leaves destination
+binding unchanged and belongs to runtime-safety or a separately specified
+resource-integrity mechanism.
 
 ## Layer 5: Runtime Destination Safety
 

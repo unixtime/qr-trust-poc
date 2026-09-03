@@ -75,7 +75,7 @@
     },
     "runtime_safety": {
       "tier": "block",
-      "cause": "runtime-blocked"
+      "cause": "verdict-block"
     },
     "freshness": {
       "tier": "pass",

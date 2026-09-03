@@ -55,6 +55,7 @@ const TRUST_STATUS_TONES: Record<string, TrustTone> = {
   failed: "red", // issuer_legitimacy — signature verification failed
   mismatch: "red",
   redirect_mismatch: "red",
+  redirect_unobserved: "red", // enrolled resolver with no live chain evidence
   revoked: "red",
   profile_revoked: "red",
   expired: "red",
@@ -71,7 +72,7 @@ const DECISION_STATE_TONES: Record<string, TrustTone> = {
   profile_stale: "amber",
   signed_unknown_issuer: "amber",
   unverified: "amber",
-  unknown: "amber", // verifier could not classify the artifact at all
+  unknown: "red", // required trust or redirect evidence is unavailable; opening fails closed
   profile_revoked: "red",
   blocked: "red",
 }

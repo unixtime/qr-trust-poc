@@ -5,12 +5,112 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from backend.app.services.destination_canonicalization import (
+    CanonicalizationError,
+    canonicalize_verified_domain_map,
+)
+
 # Whether a verdict was computed for this request or served from the
 # short-lived verdict cache that reusable codes share (see verdict_cache.py).
 VerdictSource = Literal["computed", "cached"]
 GovernanceCacheProfile = Literal["fresh", "stale", "expired"]
 ArtifactRenderProfile = Literal["clean", "low-quiet-zone", "payload-mismatch"]
 VerifierProfileState = Literal["active", "stale", "revoked"]
+ModelProfile = Literal[
+    "strict-online",
+    "bounded-online",
+    "bounded-offline",
+    "production-trusted",
+    "reference-testing",
+]
+ModelPrimaryState = Literal[
+    "unverified",
+    "signed-unaccepted-issuer",
+    "verified-issuer",
+    "verified-issuer-destination-risky",
+    "blocked",
+]
+ModelAnnotation = Literal[
+    "artifact-warning",
+    "stale-offline-warning",
+    "limited-runtime-safety-visibility",
+    "redirect-variation-warning",
+    "invalid-trust-claim-warning",
+    "policy-profile-warning",
+    "incomplete-verification-warning",
+]
+ResidualTier = Literal[
+    "pass",
+    "not-applicable",
+    "not-checked",
+    "unknown",
+    "unavailable",
+    "stale",
+    "warn",
+    "fail",
+    "unaccepted-issuer",
+    "invalid-managed-claim",
+    "revoked-issuer",
+    "block",
+]
+ResidualCause = Literal[
+    "invalid-signature",
+    "issuer-suspended",
+    "issuer-revoked",
+    "record-expired",
+    "record-not-yet-valid",
+    "key-revoked",
+    "key-suspended",
+    "key-window-mismatch",
+    "trust-state-unavailable",
+    "destination-not-authorized",
+    "normalization-failure",
+    "policy-invalid",
+    "object-not-yet-valid",
+    "object-expired",
+    "nested-shortener",
+    "depth-exceeded",
+    "resolver-mismatch",
+    "resolution-unavailable",
+    "verdict-warn",
+    "verdict-block",
+    "verdict-expired",
+    "verdict-stale",
+    "provider-unavailable",
+    "no-trust-claim",
+    "invalid-trust-claim",
+    "overlay-suspected",
+    "conflicting-symbols",
+    "framed-symbol-anomaly",
+    "container-mismatch",
+]
+ResidualFamily = Literal[
+    "issuer_chain",
+    "destination_policy",
+    "redirect_flow",
+    "runtime_safety",
+    "freshness",
+    "artifact_integrity",
+]
+RESIDUAL_FAMILY_ORDER: tuple[ResidualFamily, ...] = (
+    "issuer_chain",
+    "destination_policy",
+    "redirect_flow",
+    "runtime_safety",
+    "freshness",
+    "artifact_integrity",
+)
+ScannerOperationalState = Literal[
+    "unverified",
+    "signed_unknown_issuer",
+    "verified_issuer",
+    "verified_issuer_destination_risky",
+    "blocked",
+    "stale_trust_state",
+    "profile_stale",
+    "profile_revoked",
+    "unknown",
+]
 
 # One cap per trust-store value, shared by the request models that accept it and
 # the response models that echo it back. They were separate literals once, and
@@ -71,6 +171,16 @@ class IssuerVerificationStateInput(BaseModel):
         if isinstance(value, list):
             return {domain: None for domain in value}
         return value
+
+    @field_validator("verified_domains", mode="after")
+    @classmethod
+    def _normalize_verified_domains(
+        cls, value: dict[str, datetime | None]
+    ) -> dict[str, datetime | None]:
+        try:
+            return canonicalize_verified_domain_map(value)
+        except CanonicalizationError as exc:
+            raise ValueError(exc.reason) from exc
 
 
 class NarrowedVerifierRequest(BaseModel):
@@ -270,7 +380,7 @@ class ScannerDecisionContract(BaseModel):
     decision_id: str = Field(min_length=1, max_length=128)
     decided_at: str = Field(min_length=1, max_length=64)
     decision_color: Literal["green", "orange", "red"]
-    decision_state: str = Field(min_length=1, max_length=64)
+    decision_state: ScannerOperationalState
     reason_codes: list[str] = Field(default_factory=list)
     risk_score: int = Field(ge=0, le=100)
     destination: ScannerDecisionContractDestination
@@ -299,8 +409,8 @@ class ScannerDecisionGovernance(BaseModel):
 
 
 class ResidualEntry(BaseModel):
-    tier: str = Field(min_length=1, max_length=32)
-    cause: str | None = Field(default=None, max_length=64)
+    tier: ResidualTier
+    cause: ResidualCause | None = None
 
 
 class TrustStoreIssuerResponse(BaseModel):
@@ -334,19 +444,29 @@ class TrustStoreResponse(BaseModel):
 
 
 class ModelDecisionResponse(BaseModel):
-    profile: str = Field(min_length=1, max_length=64)
-    primary_state: str = Field(min_length=1, max_length=64)
-    annotations: list[str] = Field(default_factory=list)
+    profile: ModelProfile
+    primary_state: ModelPrimaryState
+    annotations: list[ModelAnnotation] = Field(default_factory=list)
     reason_codes: list[str] = Field(default_factory=list)
     attention_level: Literal["positive", "neutral", "warning", "block"]
 
+    @field_validator("annotations")
+    @classmethod
+    def _annotations_are_unique(
+        cls,
+        value: list[ModelAnnotation],
+    ) -> list[ModelAnnotation]:
+        if len(value) != len(set(value)):
+            raise ValueError("model annotations must not contain duplicates")
+        return value
+
 
 class ScannerDecisionResponse(BaseModel):
-    decision_state: str = Field(min_length=1, max_length=64)
+    decision_state: ScannerOperationalState
     open_allowed: bool
     envelope_id: str | None = Field(default=None, min_length=64, max_length=64)
-    residual_vector: dict[str, ResidualEntry]
-    model_decision: ModelDecisionResponse | None = None
+    residual_vector: dict[ResidualFamily, ResidualEntry]
+    model_decision: ModelDecisionResponse
     primary_message: str = Field(min_length=1, max_length=512)
     issuer: ScannerDecisionIssuer
     destination: ScannerDecisionDestination
@@ -360,6 +480,23 @@ class ScannerDecisionResponse(BaseModel):
     request_id: str | None = Field(default=None, max_length=128)
     verdict_source: VerdictSource = "computed"
 
+    @field_validator("residual_vector")
+    @classmethod
+    def _residual_vector_has_exact_families(
+        cls,
+        value: dict[ResidualFamily, ResidualEntry],
+    ) -> dict[ResidualFamily, ResidualEntry]:
+        expected = set(RESIDUAL_FAMILY_ORDER)
+        actual = set(value)
+        if actual != expected:
+            missing = sorted(expected - actual)
+            extra = sorted(actual - expected)
+            raise ValueError(
+                "residual_vector must contain exactly the six protocol families; "
+                f"missing={missing}, extra={extra}"
+            )
+        return value
+
 
 class NarrowedVerifierResponse(BaseModel):
     allowed: bool
@@ -369,7 +506,7 @@ class NarrowedVerifierResponse(BaseModel):
     matched_rule: str | None
     # Closed-vocabulary slug the residual vector, the frontend catalogues and the
     # iOS app key on. None on an accepting verdict.
-    cause: str | None = None
+    cause: ResidualCause | None = None
     verdict_source: VerdictSource = "computed"
 
 

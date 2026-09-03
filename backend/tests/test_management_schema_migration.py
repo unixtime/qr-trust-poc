@@ -307,3 +307,16 @@ def test_reference_schema_lists_governance_versions():
     assert "governance_versions" in text
     assert "public_key_material_pem" in text
     assert "allow_subdomains" in text
+
+
+def test_reference_schema_installs_terminal_revocation_triggers():
+    schema_path = (
+        Path(__file__).resolve().parents[2]
+        / "docs/public/network-contracts/reference-postgres-schema.sql"
+    )
+    text = schema_path.read_text(encoding="utf-8")
+
+    assert "create or replace function qr_trust.enforce_terminal_key_status()" in text
+    assert "create trigger issuer_certificates_terminal_status" in text
+    assert "create trigger trust_keys_terminal_status" in text
+    assert "revocation is terminal" in text

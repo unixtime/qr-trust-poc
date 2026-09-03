@@ -128,18 +128,18 @@ export const en = {
   "lab.scenario.payloadMismatch.label": "Payload mismatch",
   "lab.scenario.payloadMismatch.note":
     "The envelope is signed correctly, but the payload falls outside the issuer-approved destination set.",
-  "lab.scenario.redirectApproved.label": "Approved resolver flow",
+  "lab.scenario.redirectApproved.label": "Resolver observation unavailable",
   "lab.scenario.redirectApproved.note":
-    "The QR points to an enrolled resolver and the resolved final destination remains issuer-approved.",
-  "lab.scenario.redirectFinalMismatch.label": "Resolver final mismatch",
+    "The QR points to an enrolled resolver, but this build has no live observer to confirm the final destination.",
+  "lab.scenario.redirectFinalMismatch.label": "Asserted final target (unobserved)",
   "lab.scenario.redirectFinalMismatch.note":
-    "The resolver itself is enrolled, but the final destination leaves the issuer-approved redirect policy.",
-  "lab.scenario.redirectTooManyHops.label": "Too many redirect hops",
+    "The URL carries a fixture final-target assertion, but the runtime does not treat that value as redirect evidence.",
+  "lab.scenario.redirectTooManyHops.label": "Asserted hop count (unobserved)",
   "lab.scenario.redirectTooManyHops.note":
-    "The resolver reaches the expected destination, but the redirect chain exceeds the issuer policy.",
-  "lab.scenario.redirectNestedShortener.label": "Nested shortener",
+    "The URL carries a fixture hop-count assertion, but no live redirect chain was observed.",
+  "lab.scenario.redirectNestedShortener.label": "Asserted nested hop (unobserved)",
   "lab.scenario.redirectNestedShortener.note":
-    "The resolver flow includes an intermediate shortener that the issuer policy does not allow.",
+    "The URL carries a fixture nested-hop assertion, but no live redirect chain was observed.",
   "lab.scenario.runtimeRisky.label": "Verified issuer, destination risky",
   "lab.scenario.runtimeRisky.note":
     "Issuer and destination binding pass, then the runtime safety layer downgrades the final scanner state to caution.",
@@ -365,34 +365,36 @@ export const en = {
   "lab.residual.tier.invalid-managed-claim": "Invalid managed claim",
   "lab.residual.tier.revoked-issuer": "Revoked issuer",
   "lab.residual.tier.block": "Block",
-  "lab.residual.cause.signature-invalid": "Signature did not verify",
-  "lab.residual.cause.issuer-inactive": "Issuer certificate is not active",
+  "lab.residual.cause.invalid-signature": "Signature did not verify",
+  "lab.residual.cause.issuer-suspended": "Issuer certificate is suspended",
   "lab.residual.cause.issuer-revoked": "Issuer certificate is revoked",
-  "lab.residual.cause.issuer-record-expired": "Issuer record expired",
-  "lab.residual.cause.issuer-record-not-yet-valid": "Issuer record not yet in force",
+  "lab.residual.cause.record-expired": "Issuer record expired",
+  "lab.residual.cause.record-not-yet-valid": "Issuer record not yet in force",
   "lab.residual.cause.key-revoked": "Signing key revoked",
+  "lab.residual.cause.key-suspended": "Signing key suspended by its issuing authority",
   "lab.residual.cause.key-window-mismatch": "Signed outside the key's validity window",
-  "lab.residual.cause.destination-mismatch":
+  "lab.residual.cause.trust-state-unavailable": "Trust state unavailable; verification failed closed",
+  "lab.residual.cause.destination-not-authorized":
     "Destination is outside the issuer's verified domains",
-  "lab.residual.cause.not-yet-valid": "Validity window has not opened",
+  "lab.residual.cause.normalization-failure": "The destination URL could not be reduced to a canonical form",
+  "lab.residual.cause.policy-invalid": "The issuer's destination policy document is invalid",
+  "lab.residual.cause.object-not-yet-valid": "Validity window has not opened",
   "lab.residual.cause.object-expired": "Validity window has closed",
-  "lab.residual.cause.redirect-policy-blocked":
-    "Redirect leaves the allowed policy",
-  "lab.residual.cause.runtime-risky": "Runtime check flagged risk",
-  "lab.residual.cause.runtime-blocked":
-    "Runtime check blocked the destination",
-  "lab.residual.cause.runtime-expired": "Runtime verdict expired",
-  "lab.residual.cause.runtime-stale": "Runtime verdict is stale",
-  "lab.residual.cause.runtime-unavailable": "Runtime check unavailable",
-  "lab.residual.cause.no-signed-envelope": "No signed envelope in the QR",
-  "lab.residual.cause.unsupported-envelope": "Envelope could not be decoded",
-  "lab.residual.cause.unsupported-claims-version":
-    "Claims version is not the one this PoC accepts",
-  "lab.residual.cause.key-suspended": "Signing key suspended by its issuing authority.",
-  "lab.residual.cause.trust-state-unavailable": "Trust state unavailable; verification failed closed.",
-  "lab.residual.cause.redirect-unobserved": "The final destination of the redirect flow was not observed.",
-  "lab.residual.cause.destination-invalid": "The destination URL could not be reduced to a canonical form.",
-  "lab.residual.cause.policy-invalid": "The issuer's destination policy document is invalid.",
+  "lab.residual.cause.nested-shortener": "Nested shortener is not authorized",
+  "lab.residual.cause.depth-exceeded": "Redirect depth exceeds policy",
+  "lab.residual.cause.resolver-mismatch": "Resolver ended at an unauthorized destination",
+  "lab.residual.cause.resolution-unavailable": "The final redirect destination was not observed",
+  "lab.residual.cause.verdict-warn": "Runtime check flagged risk",
+  "lab.residual.cause.verdict-block": "Runtime check blocked the destination",
+  "lab.residual.cause.verdict-expired": "Runtime verdict expired",
+  "lab.residual.cause.verdict-stale": "Runtime verdict is stale",
+  "lab.residual.cause.provider-unavailable": "Runtime check unavailable",
+  "lab.residual.cause.no-trust-claim": "No managed trust claim in the QR",
+  "lab.residual.cause.invalid-trust-claim": "Managed trust claim is invalid or unsupported",
+  "lab.residual.cause.overlay-suspected": "Possible overlay detected around the QR symbol",
+  "lab.residual.cause.conflicting-symbols": "Conflicting QR symbols were decoded",
+  "lab.residual.cause.framed-symbol-anomaly": "QR framing or geometry is anomalous",
+  "lab.residual.cause.container-mismatch": "Submitted payload does not match the decoded QR artifact",
 
   // ── Lab: A/B comparison
   "lab.compare.eyebrow": "A/B comparison",
@@ -975,6 +977,9 @@ export const en = {
   "lab.reason.redirectChain.label": "Redirect chain",
   "lab.reason.redirectChain.detail":
     "The QR uses more than one redirect hop before the final destination.",
+  "lab.reason.redirectUnobserved.label": "Redirect not observed",
+  "lab.reason.redirectUnobserved.detail":
+    "This build has no live redirect observer, so it cannot confirm the final destination or chain.",
   "lab.reason.redirectPolicyBlock.label": "Redirect policy block",
   "lab.reason.redirectPolicyBlock.detail":
     "The final redirect target is outside the issuer-approved policy.",

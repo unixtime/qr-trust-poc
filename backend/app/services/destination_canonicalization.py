@@ -11,15 +11,19 @@ dot-segments resolved. Prefix matching is segment-boundary aware, so
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import TypeVar
 from urllib.parse import urlsplit
 
 _SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.\-]*:")
+_PORT_AUTHORITY_RE = re.compile(r"^\d{1,5}(?:[/?#]|$)")
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 _UNRESERVED = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
 )
 _HEX = frozenset("0123456789abcdefABCDEF")
+_DomainValue = TypeVar("_DomainValue")
 
 
 class CanonicalizationError(ValueError):
@@ -27,7 +31,7 @@ class CanonicalizationError(ValueError):
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)
-        self.cause = "destination-invalid"
+        self.cause = "normalization-failure"
         self.reason = reason
 
 
@@ -102,6 +106,63 @@ def _canonicalize_host(raw_host: str) -> str:
         ) from exc
 
 
+def canonicalize_verified_domain(raw_domain: str) -> str:
+    """Return the canonical hostname key used by issuer domain proofs.
+
+    Host labels are security-relevant: ``www.example`` and ``example`` remain
+    distinct. Centralizing case, IDNA, and trailing-dot handling here keeps
+    enrollment, projection, and matching on the same exact-host key space.
+    """
+
+    candidate = raw_domain.strip()
+    if (
+        not candidate
+        or "://" in candidate
+        or "/" in candidate
+        or ":" in candidate
+        or any(character.isspace() for character in candidate)
+    ):
+        raise CanonicalizationError("Verified domain must be a hostname, not a URL")
+    host = _canonicalize_host(candidate)
+    labels = host.split(".")
+    if (
+        len(host) > 253
+        or any(not label or len(label) > 63 for label in labels)
+        or any(label.startswith("-") or label.endswith("-") for label in labels)
+        or any(
+            character != "-" and not character.isalnum()
+            for label in labels
+            for character in label
+        )
+    ):
+        raise CanonicalizationError("Verified domain is not a valid DNS hostname")
+    return host
+
+
+def canonicalize_verified_domain_map(
+    verified_domains: Mapping[str, _DomainValue],
+    *,
+    ignore_blank: bool = False,
+) -> dict[str, _DomainValue]:
+    """Canonicalize domain keys and reject ambiguous post-normalization input."""
+
+    normalized: dict[str, _DomainValue] = {}
+    raw_keys: dict[str, str] = {}
+    for raw_domain, value in verified_domains.items():
+        if ignore_blank and not raw_domain.strip():
+            continue
+        domain = canonicalize_verified_domain(raw_domain)
+        if domain in normalized:
+            raise CanonicalizationError(
+                "Verified domain keys "
+                f"{raw_keys[domain]!r} and {raw_domain!r} both normalize to "
+                f"{domain!r}"
+            )
+        normalized[domain] = value
+        raw_keys[domain] = raw_domain
+    return normalized
+
+
 def canonicalize_destination(raw: str) -> CanonicalDestination:
     candidate = raw.strip()
     if not candidate:
@@ -113,7 +174,13 @@ def canonicalize_destination(raw: str) -> CanonicalDestination:
     scheme_match = _SCHEME_RE.match(candidate)
     if scheme_match:
         declared = scheme_match.group(0)[:-1].lower()
-        if declared not in ("http", "https"):
+        suffix = candidate[scheme_match.end() :]
+        if declared not in ("http", "https") and _PORT_AUTHORITY_RE.match(suffix):
+            # RFC scheme syntax and a schemeless host:port authority are
+            # lexically ambiguous. A numeric port makes the caller's URL intent
+            # explicit enough to apply the same HTTPS default as host/path.
+            candidate = f"https://{candidate}"
+        elif declared not in ("http", "https"):
             raise CanonicalizationError(
                 f"Destination scheme {declared!r} is not supported"
             )

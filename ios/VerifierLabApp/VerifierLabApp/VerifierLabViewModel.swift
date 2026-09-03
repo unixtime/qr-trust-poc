@@ -1021,7 +1021,9 @@ final class VerifierLabViewModel: ObservableObject {
 
     private func destinationLayerState(for decision: ScannerDecisionResponse) -> String {
         if decision.verifierStage == "redirect_policy" {
-            return String(localized: "Redirect mismatch")
+            return decision.destination.binding == "redirect_unobserved"
+                ? String(localized: "Redirect not observed")
+                : String(localized: "Redirect mismatch")
         }
         if decision.verifierStage == "payload_revalidation" {
             return String(localized: "Mismatch")
@@ -1211,6 +1213,9 @@ final class VerifierLabViewModel: ObservableObject {
                 return cautionDestinationMessage(for: decision, viaResolver: true)
                     ?? String(localized: "The QR uses a resolver, but the app lacks a recognized issuer signal for it.")
             case .blocked:
+                if decision.destination.binding == "redirect_unobserved" {
+                    return String(localized: "The resolver is enrolled, but this build did not observe its redirect chain or final destination.")
+                }
                 return String(localized: "The resolver flow does not match the issuer-approved final destination.")
             default:
                 return String(localized: "Resolver and final destination binding were evaluated before showing the result.")
@@ -1249,7 +1254,9 @@ final class VerifierLabViewModel: ObservableObject {
         case "payload_revalidation":
             return String(localized: "Policy mismatch")
         case "redirect_policy":
-            return String(localized: "Redirect blocked")
+            return decision.destination.binding == "redirect_unobserved"
+                ? String(localized: "Redirect not observed")
+                : String(localized: "Redirect blocked")
         case "certificate_status":
             return String(localized: "Issuer blocked")
         default:

@@ -43,6 +43,7 @@ class FakeManagementConnection:
     ) -> None:
         self.execute_calls: list[tuple[Any, ...]] = []
         self.fetchrow_calls: list[tuple[Any, ...]] = []
+        self.operations: list[tuple[str, tuple[Any, ...]]] = []
         self._execute_statuses = execute_statuses or []
         self._fetchrow_result = fetchrow_result
         self.completed_idempotency_hash: str | None = None
@@ -58,6 +59,7 @@ class FakeManagementConnection:
 
     async def execute(self, *args: Any) -> str:
         self.execute_calls.append(args)
+        self.operations.append(("execute", args))
         if "qr_trust.idempotency_keys" in str(args[0]) and len(args) > 2:
             self.completed_idempotency_hash = str(args[2])
         if self._execute_statuses:
@@ -66,6 +68,7 @@ class FakeManagementConnection:
 
     async def fetchrow(self, *args: Any) -> dict[str, Any] | None:
         self.fetchrow_calls.append(args)
+        self.operations.append(("fetchrow", args))
         if "qr_trust.governance_versions" in str(args[0]):
             return self.governance_version_row
         if self._fetchrow_result is not None:
@@ -878,6 +881,27 @@ async def test_mutation_with_bump_flag_executes_bump_sql():
     assert bump_call[1:] == ("trust_state",)
     # Verify audit insert is also present
     assert any("governance_audit_log" in sql for sql, *_ in connection.execute_calls)
+    state_index = next(
+        index
+        for index, (operation, call) in enumerate(connection.operations)
+        if operation == "execute" and "qr_trust.issuers" in str(call[0])
+    )
+    bump_index = next(
+        index
+        for index, (operation, call) in enumerate(connection.operations)
+        if operation == "fetchrow" and call[0] == TRUST_STATE_BUMP_SQL
+    )
+    audit_index = next(
+        index
+        for index, (operation, call) in enumerate(connection.operations)
+        if operation == "execute" and "governance_audit_log" in str(call[0])
+    )
+    outbox_index = next(
+        index
+        for index, (operation, call) in enumerate(connection.operations)
+        if operation == "execute" and "event_outbox" in str(call[0])
+    )
+    assert state_index < bump_index < audit_index < outbox_index
 
 
 @pytest.mark.asyncio

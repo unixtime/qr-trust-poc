@@ -587,7 +587,7 @@ export type ScannerDecisionContract = {
   decision_id: string
   decided_at: string
   decision_color: "green" | "orange" | "red"
-  decision_state: string
+  decision_state: ScannerOperationalState
   reason_codes: string[]
   risk_score: number
   destination: {
@@ -649,30 +649,35 @@ export type ResidualTier =
  * slug here fails the same guard from the other side.
  */
 export type ResidualCause =
-  | "signature-invalid"
-  | "issuer-inactive"
+  | "invalid-signature"
+  | "issuer-suspended"
   | "issuer-revoked"
-  | "issuer-record-expired"
-  | "issuer-record-not-yet-valid"
+  | "record-expired"
+  | "record-not-yet-valid"
   | "key-revoked"
-  | "key-window-mismatch"
-  | "destination-mismatch"
-  | "not-yet-valid"
-  | "object-expired"
-  | "redirect-policy-blocked"
-  | "runtime-risky"
-  | "runtime-blocked"
-  | "runtime-expired"
-  | "runtime-stale"
-  | "runtime-unavailable"
-  | "no-signed-envelope"
-  | "unsupported-envelope"
-  | "unsupported-claims-version"
   | "key-suspended"
+  | "key-window-mismatch"
   | "trust-state-unavailable"
-  | "redirect-unobserved"
-  | "destination-invalid"
+  | "destination-not-authorized"
+  | "normalization-failure"
   | "policy-invalid"
+  | "object-not-yet-valid"
+  | "object-expired"
+  | "nested-shortener"
+  | "depth-exceeded"
+  | "resolver-mismatch"
+  | "resolution-unavailable"
+  | "verdict-warn"
+  | "verdict-block"
+  | "verdict-expired"
+  | "verdict-stale"
+  | "provider-unavailable"
+  | "no-trust-claim"
+  | "invalid-trust-claim"
+  | "overlay-suspected"
+  | "conflicting-symbols"
+  | "framed-symbol-anomaly"
+  | "container-mismatch"
 
 export type ResidualEntry = {
   tier: ResidualTier
@@ -681,21 +686,55 @@ export type ResidualEntry = {
 
 export type ResidualVector = Record<ResidualFamily, ResidualEntry>
 
+export type ModelProfile =
+  | "strict-online"
+  | "bounded-online"
+  | "bounded-offline"
+  | "production-trusted"
+  | "reference-testing"
+
+export type ModelPrimaryState =
+  | "unverified"
+  | "signed-unaccepted-issuer"
+  | "verified-issuer"
+  | "verified-issuer-destination-risky"
+  | "blocked"
+
+export type ModelAnnotation =
+  | "artifact-warning"
+  | "stale-offline-warning"
+  | "limited-runtime-safety-visibility"
+  | "redirect-variation-warning"
+  | "invalid-trust-claim-warning"
+  | "policy-profile-warning"
+  | "incomplete-verification-warning"
+
+export type ScannerOperationalState =
+  | "unverified"
+  | "signed_unknown_issuer"
+  | "verified_issuer"
+  | "verified_issuer_destination_risky"
+  | "blocked"
+  | "stale_trust_state"
+  | "profile_stale"
+  | "profile_revoked"
+  | "unknown"
+
 export type ModelDecision = {
-  profile: string
-  primary_state: string
-  annotations: string[]
+  profile: ModelProfile
+  primary_state: ModelPrimaryState
+  annotations: ModelAnnotation[]
   reason_codes: string[]
   attention_level: "positive" | "neutral" | "warning" | "block"
 }
 
 export type ScannerDecisionResponse = {
-  decision_state: string
+  decision_state: ScannerOperationalState
   open_allowed: boolean
   /** sha256 over the canonical claims and the signature; 64 hex chars. */
   envelope_id: string | null
   residual_vector: ResidualVector
-  model_decision: ModelDecision | null
+  model_decision: ModelDecision
   primary_message: string
   issuer: ScannerDecisionIssuer
   destination: ScannerDecisionDestination

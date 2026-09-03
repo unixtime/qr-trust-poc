@@ -126,6 +126,35 @@ def test_ttl_naive_boundary_treated_as_utc(monkeypatch):
     assert 0 < ttl <= 45
 
 
+def test_lookup_ttl_call_does_not_receive_consulted_boundaries(client, monkeypatch):
+    missing = object()
+    calls: list[object] = []
+
+    def _recording_ttl(expires_at, *, consulted_boundaries=missing):
+        calls.append(consulted_boundaries)
+        if consulted_boundaries is missing:
+            return _verdict_cache_ttl_seconds(expires_at)
+        return _verdict_cache_ttl_seconds(
+            expires_at,
+            consulted_boundaries=consulted_boundaries,
+        )
+
+    monkeypatch.setattr(verifier_module, "_verdict_cache_ttl_seconds", _recording_ttl)
+    raw = _demo_request_dict(client)
+
+    first = client.post("/verifier/verify", json=raw)
+    second = client.post("/verifier/verify", json=raw)
+
+    assert first.status_code == 200
+    assert first.headers["X-QR-Trust-Verdict"] == "computed"
+    assert second.status_code == 200
+    assert second.headers["X-QR-Trust-Verdict"] == "cached"
+    assert len(calls) == 3
+    assert calls[0] is missing
+    assert calls[1] is not missing
+    assert calls[2] is missing
+
+
 def _capture_writes(monkeypatch) -> list[tuple[str, int]]:
     captured: list[tuple[str, int]] = []
 

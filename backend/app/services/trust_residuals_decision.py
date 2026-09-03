@@ -6,22 +6,36 @@ positive-eligibility sets, the attention lattice, and the decision function
 shared by the offline corpus evaluation (scripts/trust_residuals_evaluation.py)
 and the runtime scanner decision path. It is deliberately stdlib-only so both
 callers can import it without pulling backend service dependencies.
+
+Capture and decode precede Δ. An unreadable artifact is represented by the
+separate CaptureOutcome type and never by Decision.primary_state.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Literal, Mapping
+from typing import Any, Iterable, Literal, Mapping, TypeAlias
 
 
-PRIMARY_STATES = {
-    "unreadable",
+PrimaryState = Literal[
     "unverified",
     "signed-unaccepted-issuer",
     "verified-issuer",
     "verified-issuer-destination-risky",
     "blocked",
-}
+]
+CaptureOutcomeKind = Literal["unreadable"]
+
+PRIMARY_STATES: frozenset[str] = frozenset(
+    {
+        "unverified",
+        "signed-unaccepted-issuer",
+        "verified-issuer",
+        "verified-issuer-destination-risky",
+        "blocked",
+    }
+)
+CAPTURE_OUTCOMES: frozenset[str] = frozenset({"unreadable"})
 
 ANNOTATIONS = {
     "artifact-warning",
@@ -89,9 +103,16 @@ AttentionLevel = Literal["positive", "neutral", "warning", "block"]
 
 @dataclass(frozen=True)
 class Decision:
-    primary_state: str
+    primary_state: PrimaryState
     annotations: tuple[str, ...] = ()
     reason_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.primary_state not in PRIMARY_STATES:
+            raise ValueError(
+                f"unknown primary state {self.primary_state!r}; expected one of "
+                f"{sorted(PRIMARY_STATES)}"
+            )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -100,6 +121,36 @@ class Decision:
             "reason_codes": list(self.reason_codes),
             "attention_level": attention_level(self),
         }
+
+
+@dataclass(frozen=True)
+class CaptureOutcome:
+    capture_outcome: CaptureOutcomeKind
+    reason_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.capture_outcome not in CAPTURE_OUTCOMES:
+            raise ValueError(
+                f"unknown capture outcome {self.capture_outcome!r}; expected one of "
+                f"{sorted(CAPTURE_OUTCOMES)}"
+            )
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "capture_outcome": self.capture_outcome,
+            "capture_action": "re-capture",
+            "reason_codes": list(self.reason_codes),
+        }
+
+
+EvaluationOutcome: TypeAlias = Decision | CaptureOutcome
+
+
+def evaluate_capture(*, qr_decodable: bool) -> CaptureOutcome | None:
+    """Return D0 before the trust-decision function is eligible to run."""
+    if qr_decodable:
+        return None
+    return CaptureOutcome("unreadable", reason_codes=("qr-undecodable",))
 
 
 class ResidualEvidenceError(ValueError):
@@ -217,7 +268,6 @@ def decide(
     *,
     profile: str,
     mandatory_residuals: Iterable[str] = (),
-    qr_decodable: bool,
 ) -> Decision:
     if profile not in KNOWN_PROFILES:
         raise UnknownProfileError(
@@ -237,17 +287,16 @@ def decide(
     annotations: list[str] = []
     reasons: list[str] = []
 
-    # Evaluation order follows the paper's rule classes: capture (D0), the
-    # mandatory block class (D3, D6-D8, D10, strict-D9, mandatory-D11), the
+    # Evaluation order starts after successful capture and decode. D0 is a
+    # separate CaptureOutcome and never enters this trust-decision function.
+    # The remaining order follows the mandatory block class (D3, D6-D8, D10,
+    # strict-D9, mandatory-D11), the
     # downgrade/annotation class (D11, D13, then the neutral capture D1/D2,
     # then D14 and D5 with annotations), the totality default (D15), and the
     # positive terminal (D4). Adverse tiers (fail/block) preempt neutral
     # capture; insufficiency tiers (stale, unavailable, not-checked) gate only
     # paths that could otherwise turn positive, because requiredness under D14
     # protects positive trust and a neutral-capped path grants none.
-    if not qr_decodable:
-        return Decision("unreadable", reason_codes=("qr-undecodable",))
-
     if residuals["issuer_chain"] == "invalid-managed-claim":
         if profile == "reference-testing":
             return Decision(
@@ -447,7 +496,7 @@ def attention_level(decision: Decision) -> AttentionLevel:
         or decision.annotations
     ):
         return "warning"
-    if decision.primary_state in {"unreadable", "unverified"}:
+    if decision.primary_state == "unverified":
         return "neutral"
     return "positive"
 

@@ -36,22 +36,30 @@ else:
 
 from backend.app.services.trust_residuals_decision import (  # noqa: E402
     ANNOTATIONS,
+    CAPTURE_OUTCOMES,
     KNOWN_PROFILES,
     PRIMARY_STATES,
     RESIDUAL_FAMILIES,
+    CaptureOutcome,
     Decision,
+    EvaluationOutcome,
     ResidualEvidenceError,
     attention_level,  # re-exported for the test suite's module-namespace access
     attention_rank,
     compute_residuals,
     decide as decide_residual_vector,
+    evaluate_capture,
     is_attention_undercut,
     is_unsafe_positive,
 )
 from scripts.trust_residuals_formal_table import (  # noqa: E402
+    FORMAL_CAPTURE_OUTCOMES,
     FORMAL_PROFILES,
+    FORMAL_PRIMARY_STATES,
     FORMAL_TIERS,
+    FormalCaptureOutcome,
     FormalOutcome,
+    formal_capture_outcome,
     formal_table_decision,
 )
 
@@ -142,18 +150,51 @@ def validate_corpus(corpus: dict[str, Any]) -> None:
             )
         evidence = require_dict(case, "evidence", case_id)
         expected = require_dict(case, "expected", case_id)
-        primary_state = require_string(expected, "primary_state", f"{case_id}.expected")
-        if primary_state not in PRIMARY_STATES:
-            raise CorpusError(f"{case_id} expected unknown primary_state: {primary_state}")
-
-        annotations = expected.get("annotations", [])
-        if not isinstance(annotations, list):
-            raise CorpusError(f"{case_id} expected.annotations must be a list.")
-        unknown_annotations = sorted(set(annotations) - ANNOTATIONS)
-        if unknown_annotations:
+        has_primary_state = "primary_state" in expected
+        has_capture_outcome = "capture_outcome" in expected
+        if has_primary_state == has_capture_outcome:
             raise CorpusError(
-                f"{case_id} expected unknown annotations: {', '.join(unknown_annotations)}"
+                f"{case_id}.expected must carry exactly one of primary_state "
+                "or capture_outcome"
             )
+        if evidence.get("qr_decodable") is False:
+            if not has_capture_outcome:
+                raise CorpusError(
+                    f"{case_id} undecodable capture must use expected.capture_outcome"
+                )
+            capture_outcome = require_string(
+                expected, "capture_outcome", f"{case_id}.expected"
+            )
+            if capture_outcome not in CAPTURE_OUTCOMES:
+                raise CorpusError(
+                    f"{case_id} expected unknown capture_outcome: {capture_outcome}"
+                )
+            if "annotations" in expected:
+                raise CorpusError(
+                    f"{case_id} capture outcome must not carry model annotations"
+                )
+        else:
+            if not has_primary_state:
+                raise CorpusError(
+                    f"{case_id} decoded artifact must use expected.primary_state"
+                )
+            primary_state = require_string(
+                expected, "primary_state", f"{case_id}.expected"
+            )
+            if primary_state not in PRIMARY_STATES:
+                raise CorpusError(
+                    f"{case_id} expected unknown primary_state: {primary_state}"
+                )
+
+            annotations = expected.get("annotations", [])
+            if not isinstance(annotations, list):
+                raise CorpusError(f"{case_id} expected.annotations must be a list.")
+            unknown_annotations = sorted(set(annotations) - ANNOTATIONS)
+            if unknown_annotations:
+                raise CorpusError(
+                    f"{case_id} expected unknown annotations: "
+                    f"{', '.join(unknown_annotations)}"
+                )
 
         expected_residuals = require_dict(expected, "residuals", f"{case_id}.expected")
         missing_residuals = sorted(set(RESIDUAL_FAMILIES) - set(expected_residuals))
@@ -196,7 +237,14 @@ def require_string(parent: dict[str, Any], key: str, context: str) -> str:
     return value
 
 
-def decide(case: dict[str, Any]) -> Decision:
+def decide(case: dict[str, Any]) -> EvaluationOutcome:
+    # Capture failure terminates before the trust-decision core. Keeping that
+    # result in a separate type prevents `unreadable` from entering the closed
+    # model_decision.primary_state vocabulary.
+    capture = evaluate_capture(qr_decodable=case["evidence"]["qr_decodable"])
+    if capture is not None:
+        return capture
+
     # Corpus-shaped adapter over the shared decision core Δ = decide(R⃗, P).
     # compute_residuals must resolve through this module's globals so tests can
     # substitute the evidence→tier mapping without touching the shared core.
@@ -204,16 +252,16 @@ def decide(case: dict[str, Any]) -> Decision:
         compute_residuals(case),
         profile=case["policy_bundle"]["profile"],
         mandatory_residuals=case["policy_bundle"].get("mandatory_residuals", ()),
-        qr_decodable=case["evidence"]["qr_decodable"],
     )
 
 
-def baseline_decision(case: dict[str, Any], baseline: str) -> Decision:
+def baseline_decision(case: dict[str, Any], baseline: str) -> EvaluationOutcome:
     evidence = case["evidence"]
-    if not evidence["qr_decodable"]:
+    capture = evaluate_capture(qr_decodable=evidence["qr_decodable"])
+    if capture is not None:
         # Decoding is a precondition of every scanner, not a trust signal;
         # no baseline may assert a state about a payload it cannot read.
-        return Decision("unreadable", reason_codes=("qr-undecodable",))
+        return capture
 
     parsed = urlparse(case["decoded_payload"])
 
@@ -246,6 +294,69 @@ def baseline_decision(case: dict[str, Any], baseline: str) -> Decision:
         return Decision("verified-issuer", reason_codes=("reputation-clear",))
 
     raise CorpusError(f"Unknown baseline: {baseline}")
+
+
+def outcome_from_mapping(value: dict[str, Any]) -> EvaluationOutcome:
+    """Decode one report/corpus outcome without conflating its two namespaces."""
+    if "capture_outcome" in value:
+        return CaptureOutcome(
+            value["capture_outcome"],
+            tuple(value.get("reason_codes", ())),
+        )
+    return Decision(
+        value["primary_state"],
+        tuple(value.get("annotations", ())),
+        tuple(value.get("reason_codes", ())),
+    )
+
+
+def expected_outcome(case: dict[str, Any]) -> EvaluationOutcome:
+    return outcome_from_mapping(case["expected"])
+
+
+def outcome_identity(outcome: EvaluationOutcome) -> tuple[str, str]:
+    if isinstance(outcome, CaptureOutcome):
+        return ("capture_outcome", outcome.capture_outcome)
+    return ("primary_state", outcome.primary_state)
+
+
+def outcome_annotations(outcome: EvaluationOutcome) -> tuple[str, ...]:
+    return outcome.annotations if isinstance(outcome, Decision) else ()
+
+
+def outcomes_match(expected: EvaluationOutcome, actual: EvaluationOutcome) -> bool:
+    return (
+        outcome_identity(expected) == outcome_identity(actual)
+        and sorted(outcome_annotations(expected))
+        == sorted(outcome_annotations(actual))
+    )
+
+
+def outcome_attention_rank(outcome: EvaluationOutcome) -> int:
+    # Re-capture is a non-positive, user-visible intervention. Rank it at the
+    # neutral level for cross-baseline statistics without putting it in the
+    # trust decision's attention-level type.
+    return 1 if isinstance(outcome, CaptureOutcome) else attention_rank(outcome)
+
+
+def outcome_is_unsafe_positive(
+    expected: EvaluationOutcome,
+    actual: EvaluationOutcome,
+) -> bool:
+    if not isinstance(actual, Decision):
+        return False
+    if isinstance(expected, CaptureOutcome):
+        return attention_level(actual) == "positive"
+    return is_unsafe_positive(expected, actual)
+
+
+def outcome_is_attention_undercut(
+    expected: EvaluationOutcome,
+    actual: EvaluationOutcome,
+) -> bool:
+    if isinstance(expected, Decision) and isinstance(actual, Decision):
+        return is_attention_undercut(expected, actual)
+    return outcome_attention_rank(actual) < outcome_attention_rank(expected)
 
 
 def ablated_case(case: dict[str, Any], residual_family: str) -> dict[str, Any]:
@@ -382,13 +493,22 @@ def ratio(numerator: int, denominator: int) -> float:
     return round(numerator / denominator, 4) if denominator else 0.0
 
 
-def formal_agreement(actual: Decision, formal: FormalOutcome) -> bool:
-    """Agreement between decide() and the formal table on (state, annotations).
+def formal_agreement(
+    actual: EvaluationOutcome,
+    formal: FormalOutcome | FormalCaptureOutcome,
+) -> bool:
+    """Agreement on the disjoint capture-outcome or trust-decision result.
 
     The formal outcome carries annotations as a set; the length check keeps
     set-equality from masking a duplicated annotation in the implementation's
     tuple.
     """
+    if isinstance(actual, CaptureOutcome) or isinstance(formal, FormalCaptureOutcome):
+        return (
+            isinstance(actual, CaptureOutcome)
+            and isinstance(formal, FormalCaptureOutcome)
+            and actual.capture_outcome == formal.capture_outcome
+        )
     return (
         actual.primary_state == formal.primary_state
         and len(actual.annotations) == len(set(actual.annotations))
@@ -397,17 +517,23 @@ def formal_agreement(actual: Decision, formal: FormalOutcome) -> bool:
 
 
 def formal_table_case_report(
-    decision: Decision,
+    decision: EvaluationOutcome,
     residuals: dict[str, str],
     profile: str,
     mandatory_residuals: tuple[str, ...],
     qr_decodable: bool,
 ) -> dict[str, Any]:
+    capture = formal_capture_outcome(qr_decodable=qr_decodable)
+    if capture is not None:
+        return {
+            "rule": capture.rule,
+            "capture_outcome": capture.capture_outcome,
+            "match": formal_agreement(decision, capture),
+        }
     formal = formal_table_decision(
         residuals,
         profile=profile,
         mandatory_residuals=mandatory_residuals,
-        qr_decodable=qr_decodable,
     )
     return {
         "rule": formal.rule,
@@ -435,6 +561,14 @@ def formal_sweep_conformance() -> dict[str, Any]:
         raise ValueError(
             "formal-table profile vocabulary diverged from the decision core"
         )
+    if FORMAL_PRIMARY_STATES != PRIMARY_STATES:
+        raise ValueError(
+            "formal-table primary-state vocabulary diverged from the decision core"
+        )
+    if FORMAL_CAPTURE_OUTCOMES != CAPTURE_OUTCOMES:
+        raise ValueError(
+            "formal-table capture-outcome vocabulary diverged from the decision core"
+        )
 
     mandatory_schedule: tuple[tuple[str, ...], ...] = tuple(
         subset
@@ -448,7 +582,6 @@ def formal_sweep_conformance() -> dict[str, Any]:
         residuals: dict[str, str],
         profile: str,
         mandatory: tuple[str, ...],
-        qr_decodable: bool,
     ) -> None:
         nonlocal comparison_count
         comparison_count += 1
@@ -456,13 +589,11 @@ def formal_sweep_conformance() -> dict[str, Any]:
             residuals,
             profile=profile,
             mandatory_residuals=mandatory,
-            qr_decodable=qr_decodable,
         )
         actual = decide_residual_vector(
             residuals,
             profile=profile,
             mandatory_residuals=mandatory,
-            qr_decodable=qr_decodable,
         )
         if not formal_agreement(actual, formal):
             mismatches.append(
@@ -470,12 +601,35 @@ def formal_sweep_conformance() -> dict[str, Any]:
                     "residuals": residuals,
                     "profile": profile,
                     "mandatory_residuals": list(mandatory),
-                    "qr_decodable": qr_decodable,
+                    "result_kind": "primary_state",
                     "implementation": actual.as_dict(),
                     "formal_table": {
                         "rule": formal.rule,
                         "primary_state": formal.primary_state,
                         "annotations": sorted(formal.annotations),
+                    },
+                }
+            )
+
+    def compare_capture(profile: str, mandatory: tuple[str, ...]) -> None:
+        nonlocal comparison_count
+        comparison_count += 1
+        formal = formal_capture_outcome(qr_decodable=False)
+        if formal is None:
+            raise AssertionError("formal D0 oracle did not emit a capture outcome")
+        actual = evaluate_capture(qr_decodable=False)
+        if actual is None:
+            raise AssertionError("implementation D0 did not emit a capture outcome")
+        if not formal_agreement(actual, formal):
+            mismatches.append(
+                {
+                    "profile": profile,
+                    "mandatory_residuals": list(mandatory),
+                    "result_kind": "capture_outcome",
+                    "implementation": actual.as_dict(),
+                    "formal_table": {
+                        "rule": formal.rule,
+                        "capture_outcome": formal.capture_outcome,
                     },
                 }
             )
@@ -488,14 +642,14 @@ def formal_sweep_conformance() -> dict[str, Any]:
         residuals = dict(zip(RESIDUAL_FAMILIES, combination))
         for profile in FORMAL_PROFILES:
             for mandatory in mandatory_schedule:
-                compare(residuals, profile, mandatory, True)
+                compare(residuals, profile, mandatory)
 
-    # D0 consumes the vector before any family is read, so one representative
-    # vector per (profile, schedule) covers the undecodable branch.
-    undecodable = {family: FORMAL_TIERS[family][0] for family in RESIDUAL_FAMILIES}
+    # D0 is independent of R and P. Repeat the disjoint capture-outcome check
+    # per profile and mandatory schedule so the published comparison count and
+    # coverage claim still witness the full configuration space.
     for profile in FORMAL_PROFILES:
         for mandatory in mandatory_schedule:
-            compare(undecodable, profile, mandatory, False)
+            compare_capture(profile, mandatory)
 
     return {
         "encoding_module": "scripts/trust_residuals_formal_table.py",
@@ -515,48 +669,47 @@ def run_evaluation(
 ) -> dict[str, Any]:
     generated_at = generated_at or datetime.now(UTC).isoformat()
     case_reports: list[dict[str, Any]] = []
-    decision_inputs: list[tuple[dict[str, str], str, tuple[str, ...], bool]] = []
+    decision_inputs: list[tuple[dict[str, str], str, tuple[str, ...]]] = []
 
     for source_case in corpus["cases"]:
         case, artifact_report = materialize_case_evidence(source_case)
         residuals = compute_residuals(case)
         decision = decide(case)
-        decision_inputs.append(
-            (
-                residuals,
-                case["policy_bundle"]["profile"],
-                tuple(case["policy_bundle"].get("mandatory_residuals", ())),
-                case["evidence"]["qr_decodable"],
+        if case["evidence"]["qr_decodable"]:
+            decision_inputs.append(
+                (
+                    residuals,
+                    case["policy_bundle"]["profile"],
+                    tuple(case["policy_bundle"].get("mandatory_residuals", ())),
+                )
             )
-        )
 
-        expected = Decision(
-            case["expected"]["primary_state"],
-            tuple(case["expected"].get("annotations", [])),
-        )
+        expected = expected_outcome(case)
         expected_residuals = case["expected"]["residuals"]
         residual_match = residuals == expected_residuals
-        decision_match = (
-            decision.primary_state == expected.primary_state
-            and sorted(decision.annotations) == sorted(expected.annotations)
+        decision_match = outcomes_match(expected, decision)
+        formal_report = formal_table_case_report(
+            decision,
+            residuals,
+            case["policy_bundle"]["profile"],
+            tuple(case["policy_bundle"].get("mandatory_residuals", ())),
+            case["evidence"]["qr_decodable"],
         )
-        formal_report = formal_table_case_report(decision, *decision_inputs[-1])
 
         baseline_reports = {
             baseline: baseline_decision(case, baseline).as_dict()
             for baseline in BASELINES
         }
         for baseline_report in baseline_reports.values():
-            actual = Decision(
-                baseline_report["primary_state"],
-                tuple(baseline_report["annotations"]),
+            actual = outcome_from_mapping(baseline_report)
+            baseline_report["unsafe_positive"] = outcome_is_unsafe_positive(
+                expected, actual
             )
-            baseline_report["unsafe_positive"] = is_unsafe_positive(expected, actual)
-            baseline_report["attention_undercut"] = is_attention_undercut(
+            baseline_report["attention_undercut"] = outcome_is_attention_undercut(
                 expected, actual
             )
             baseline_report["state_mismatch"] = (
-                actual.primary_state != expected.primary_state
+                outcome_identity(actual) != outcome_identity(expected)
             )
 
         ablation_reports = {}
@@ -564,11 +717,9 @@ def run_evaluation(
             ablated = decide(ablated_case(case, family))
             ablation_reports[family] = {
                 **ablated.as_dict(),
-                "reduced_attention": attention_rank(ablated) < attention_rank(decision),
-                "changed_output": (
-                    ablated.primary_state != decision.primary_state
-                    or sorted(ablated.annotations) != sorted(decision.annotations)
-                ),
+                "reduced_attention": outcome_attention_rank(ablated)
+                < outcome_attention_rank(decision),
+                "changed_output": not outcomes_match(decision, ablated),
             }
 
         case_reports.append(
@@ -593,13 +744,7 @@ def run_evaluation(
     attention_cases = [
         case
         for case in case_reports
-        if attention_rank(
-            Decision(
-                case["expected"]["primary_state"],
-                tuple(case["expected"]["annotations"]),
-            )
-        )
-        > 0
+        if outcome_attention_rank(outcome_from_mapping(case["expected"])) > 0
     ]
     baseline_summary = {}
     for baseline in BASELINES:
@@ -664,17 +809,11 @@ def run_evaluation(
     residual_verifier_unsafe_positive_count = 0
     residual_verifier_attention_undercut_count = 0
     for case in case_reports:
-        case_expected = Decision(
-            case["expected"]["primary_state"],
-            tuple(case["expected"]["annotations"]),
-        )
-        case_actual = Decision(
-            case["residual_verifier"]["primary_state"],
-            tuple(case["residual_verifier"]["annotations"]),
-        )
-        if is_unsafe_positive(case_expected, case_actual):
+        case_expected = outcome_from_mapping(case["expected"])
+        case_actual = outcome_from_mapping(case["residual_verifier"])
+        if outcome_is_unsafe_positive(case_expected, case_actual):
             residual_verifier_unsafe_positive_count += 1
-        if is_attention_undercut(case_expected, case_actual):
+        if outcome_is_attention_undercut(case_expected, case_actual):
             residual_verifier_attention_undercut_count += 1
 
     formal_corpus_match_count = sum(
@@ -721,7 +860,7 @@ def run_evaluation(
 
 
 def measure_decision_latency(
-    decision_inputs: list[tuple[dict[str, str], str, tuple[str, ...], bool]],
+    decision_inputs: list[tuple[dict[str, str], str, tuple[str, ...]]],
     *,
     warmup_iterations: int = 20,
     timed_iterations: int = 200,
@@ -734,13 +873,12 @@ def measure_decision_latency(
     noise that a single-shot measurement would fold into the numbers.
     """
     per_case_median_ns: list[int] = []
-    for residuals, profile, mandatory_residuals, qr_decodable in decision_inputs:
+    for residuals, profile, mandatory_residuals in decision_inputs:
         for _ in range(warmup_iterations):
             decide_residual_vector(
                 residuals,
                 profile=profile,
                 mandatory_residuals=mandatory_residuals,
-                qr_decodable=qr_decodable,
             )
         samples: list[int] = []
         for _ in range(timed_iterations):
@@ -749,7 +887,6 @@ def measure_decision_latency(
                 residuals,
                 profile=profile,
                 mandatory_residuals=mandatory_residuals,
-                qr_decodable=qr_decodable,
             )
             samples.append(time.perf_counter_ns() - start_ns)
         per_case_median_ns.append(int(statistics.median(samples)))
@@ -757,7 +894,10 @@ def measure_decision_latency(
     return {
         "latency_ns": latency_summary(per_case_median_ns),
         "methodology": {
-            "timed_span": "decide(R, P) only; residual vectors precomputed",
+            "timed_span": (
+                "decoded-case decide(R, P) only; residual vectors precomputed; "
+                "capture outcomes excluded"
+            ),
             "warmup_iterations_per_case": warmup_iterations,
             "timed_iterations_per_case": timed_iterations,
             "per_case_statistic": "median of timed iterations",
@@ -972,6 +1112,8 @@ def write_markdown(report: dict[str, Any], path: Path) -> None:
 
 
 def format_decision(decision: dict[str, Any]) -> str:
+    if "capture_outcome" in decision:
+        return f"capture `{decision['capture_outcome']}`"
     annotations = decision.get("annotations", [])
     if annotations:
         return f"`{decision['primary_state']}` + " + ", ".join(

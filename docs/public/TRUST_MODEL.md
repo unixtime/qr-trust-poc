@@ -139,13 +139,17 @@ That identity may be:
 
 ### B. Destination Binding
 
-The issuer must bind one or more approved destinations.
+The issuer must bind one or more approved URL destinations.
 
 The scanner must validate:
-- exact destination
+- normalized scheme, host, port, path, and permitted query keys
 - normalization rules
 - optional subdomain rules
 - current issuer-approved state
+
+This authorization is deliberately narrower than resource integrity. It does
+not establish that DNS answers, hosting control, server responses, or
+post-navigation browser state have remained unchanged behind the same URL.
 
 ### C. Revocation And Status
 

@@ -16,6 +16,9 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Any, Iterable
 
+from backend.app.services.destination_canonicalization import (
+    canonicalize_verified_domain_map,
+)
 from backend.app.services.governance_fixture_store import GovernanceTrustProjection
 from backend.app.services.signed_schema_poc import (
     SignedQRCodeClaims,
@@ -81,10 +84,10 @@ def evaluate_blocking_states(
         return TrustRuleResult(False, "issuer_status", "issuer-revoked",
                                "Issuer record is revoked")
     if issuer.status == "expired":
-        return TrustRuleResult(False, "issuer_status", "issuer-record-expired",
+        return TrustRuleResult(False, "issuer_status", "record-expired",
                                "Issuer record is expired")
     if issuer.status != "active":
-        return TrustRuleResult(False, "issuer_status", "issuer-inactive",
+        return TrustRuleResult(False, "issuer_status", "issuer-suspended",
                                f"Issuer record is {issuer.status}, not active")
 
     if key.state == "revoked":
@@ -116,10 +119,10 @@ def evaluate_time_windows(
     failing rule or an accepting result.
     """
     if now < issuer.issued_at:
-        return TrustRuleResult(False, "issuer_status", "issuer-record-not-yet-valid",
+        return TrustRuleResult(False, "issuer_status", "record-not-yet-valid",
                                "Issuer record is not yet in force")
     if issuer.expires_at is not None and now >= issuer.expires_at:
-        return TrustRuleResult(False, "issuer_status", "issuer-record-expired",
+        return TrustRuleResult(False, "issuer_status", "record-expired",
                                "Issuer record has expired")
 
     issued_at = parse_claim_timestamp("issued_at", claims.issued_at)
@@ -132,7 +135,7 @@ def evaluate_time_windows(
 
     skew = timedelta(seconds=skew_seconds)
     if now < issued_at - skew:
-        return TrustRuleResult(False, "time_window", "not-yet-valid",
+        return TrustRuleResult(False, "time_window", "object-not-yet-valid",
                                "Signed claims are not yet valid")
     if claims.expires_at is not None:
         expires_at = parse_claim_timestamp("expires_at", claims.expires_at)
@@ -185,7 +188,12 @@ class ScannerTrustStore:
         self.projection_defects: tuple[Any, ...] = ()
 
     def put_issuer(self, record: IssuerRecord) -> None:
-        self._issuers[record.issuer_id] = record
+        self._issuers[record.issuer_id] = replace(
+            record,
+            verified_domains=canonicalize_verified_domain_map(
+                record.verified_domains
+            ),
+        )
 
     def put_key(self, entry: KeyEntry) -> None:
         """Publish a signing key, refusing to un-revoke one.

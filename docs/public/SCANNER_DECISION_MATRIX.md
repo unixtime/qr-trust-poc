@@ -13,7 +13,7 @@ Purpose:
 | No | No | Unknown | Unknown | Unverified | Show normalized destination and caution |
 | No | Yes | Unknown | Unknown | Signed, unaccepted issuer | Show caution, no trusted badge |
 | Yes | Yes | Yes | Yes | Verified issuer | Allow with positive trust signal |
-| Yes | Yes | No | Unknown | Destination changed | Strong warning or block |
+| Yes | Yes | No | Unknown | Destination changed (URL/policy mismatch) | Strong warning or block |
 | Yes | Yes | Yes | No | Verified issuer, destination risky | Caution or block depending on severity |
 | Yes | No | Unknown | Unknown | Blocked | Block or high-severity warning |
 | Yes | Revoked | Unknown | Unknown | Blocked | Block |

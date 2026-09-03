@@ -171,7 +171,7 @@ Behavior:
 
 - `certificate_revoked = true` folds onto `issuer_status = "revoked"` and
   `certificate_active = false` onto `issuer_status = "suspended"`; both fail at
-  the `issuer_status` stage (causes `issuer-revoked` and `issuer-inactive`)
+  the `issuer_status` stage (causes `issuer-revoked` and `issuer-suspended`)
 - payload acceptance depends on the current `verified_domains` and `allow_subdomains` policy, not just the original signed payload
 
 ## Key Lifecycle Contract
@@ -183,12 +183,13 @@ fires names the stage and cause:
 | Condition | `stage` | `cause` |
 | --- | --- | --- |
 | issuer `revoked` | `issuer_status` | `issuer-revoked` |
-| issuer not `active` | `issuer_status` | `issuer-inactive` |
+| issuer `suspended` | `issuer_status` | `issuer-suspended` |
 | key `revoked` | `key_status` | `key-revoked` |
-| issuer record not yet valid | `issuer_status` | `issuer-record-not-yet-valid` |
-| issuer record expired | `issuer_status` | `issuer-record-expired` |
+| key `suspended` | `key_status` | `key-suspended` |
+| issuer record not yet valid | `issuer_status` | `record-not-yet-valid` |
+| issuer record expired | `issuer_status` | `record-expired` |
 | artifact `issued_at` outside the key's `[not_before, not_after]` | `key_status` | `key-window-mismatch` |
-| artifact not yet valid | `time_window` | `not-yet-valid` |
+| artifact not yet valid | `time_window` | `object-not-yet-valid` |
 | artifact past `expires_at` | `time_window` | `object-expired` |
 | otherwise | `accepted` | — |
 
@@ -223,7 +224,7 @@ before any comparison:
 - resolve dot-segments (RFC 3986 section 5.2.4)
 
 A destination that cannot be canonicalized is rejected with cause
-`destination-invalid`: userinfo, a backslash in the authority or path,
+`normalization-failure`: userinfo, a backslash in the authority or path,
 control characters, an empty host, or a non-http(s) scheme.
 
 Current matching rules:
@@ -246,12 +247,28 @@ Current matching rules:
 
 Current PoC intentionally does not define:
 
+- DNS resolution or domain-ownership continuity
+- hosting-account or origin-server continuity
+- response-byte or page-content integrity
+- client-side redirects or post-open navigation monitoring
 - content inspection or reputation scoring
 
+A destination-policy pass authorizes normalized URL components under the
+current issuer policy. It does not attest DNS answers, hosting control, the
+bytes served at that URL, or what the browser does after opening it. The
+artifact-integrity residual concerns the captured QR/document artifact, not the
+web resource behind an authorized URL. Runtime-safety evidence is a separate
+family and may downgrade a policy-authorized destination, but even a clear
+verdict is bounded to its provider, vantage, and validity window.
+
 Redirect chains are not observed in this build. A redirecting destination
-is reported `unknown` with cause `redirect-unobserved`. A safe
+is reported `unknown` with cause `resolution-unavailable`. A safe
 redirect-observation service is specified for a later cycle; this profile
-claims no live redirect verification today.
+claims no live redirect verification today. The `final`, `hops`, and `nested`
+query values used by deterministic lab fixtures are synthetic evaluator inputs,
+not evidence from an HTTP transaction. The runtime scanner ignores them as
+redirect evidence and never promotes an enrolled resolver to `bound` from those
+assertions.
 
 ## Scan Accounting Rules
 
@@ -276,8 +293,8 @@ Current response fields from the narrowed verifier:
 - `allowed: bool`
 - `stage: str`
 - `reason: str`
-- `cause: str | None` — the structured cause behind a failing trust or
-  freshness stage (see the Key Lifecycle Contract table)
+- `cause: ResidualCause | None` — a member of the closed scanner cause
+  vocabulary behind a failing trust or freshness stage
 - `canonical_claims_sha256: str | None`
 - `matched_rule: str | None`
 
@@ -310,10 +327,49 @@ in the order `issuer_chain`, `destination_policy`, `redirect_flow`,
 A failing stage maps into that vector — `time_window` past `expires_at` becomes
 `freshness` tier `block`, cause `object-expired`; a claims version this build
 does not support becomes `issuer_chain` tier `invalid-managed-claim`, cause
-`unsupported-claims-version`; `issuer_status` and `key_status` both become
+`invalid-trust-claim` plus reason code `unsupported_claims_version`;
+`issuer_status` and `key_status` both become
 `issuer_chain` tier `revoked-issuer` with the cause from the lifecycle table
-(`key-revoked`, `issuer-inactive`, `key-window-mismatch`, …). The response also carries `model_decision`, with
+(`key-revoked`, `issuer-suspended`, `key-window-mismatch`, …). The response
+also carries `model_decision`, with
 `profile`, `primary_state`, `annotations`, `reason_codes` and `attention_level`.
+
+The emitted cause vocabulary is closed to these identifiers:
+
+- issuer chain: `invalid-signature`, `issuer-suspended`, `issuer-revoked`,
+  `record-expired`, `record-not-yet-valid`, `key-revoked`, `key-suspended`,
+  `key-window-mismatch`, `trust-state-unavailable`, `no-trust-claim`,
+  `invalid-trust-claim`
+- destination policy: `destination-not-authorized`, `normalization-failure`,
+  `policy-invalid`
+- redirect flow: `nested-shortener`, `depth-exceeded`, `resolver-mismatch`,
+  `resolution-unavailable`
+- runtime safety: `verdict-warn`, `verdict-block`, `verdict-expired`,
+  `verdict-stale`, `provider-unavailable`
+- artifact integrity: `overlay-suspected`, `conflicting-symbols`,
+  `framed-symbol-anomaly`, `container-mismatch`
+
+Unsupported-envelope details remain implementation reason codes
+(`no_signed_envelope`, `unsupported_envelope`,
+`unsupported_claims_version`) under the canonical causes
+`no-trust-claim` or `invalid-trust-claim`; they are not additional causes.
+
+`model_decision.primary_state` is the conformance field for the trust-residual
+decision procedure. It uses the lowercase kebab-case model tokens and is
+authoritative over the top-level `decision_state`, which is a product/UX label.
+It exists only after successful capture and decode. An undecodable artifact is
+the separate capture outcome `unreadable` with re-capture guidance; it is never
+a value of `model_decision.primary_state`.
+The product label may impose a stricter treatment, but it must never require
+less attention than the model result. The Python scanner rejects construction
+of a response with a missing model decision, an unmapped product state, or an
+attention undercut. Its response boundary also rejects unknown model profiles,
+primary states, annotations, residual tiers or residual causes, duplicate
+annotations, and any residual vector that does not contain exactly the six
+defined families. The
+separate TypeScript network scanner currently exposes only product states; its
+mapping is documented in `SCANNER_UX_STATES.md`, but it is outside the -00
+conformance claim until it emits the conformance field.
 
 ## Non-Goals In This Profile
 

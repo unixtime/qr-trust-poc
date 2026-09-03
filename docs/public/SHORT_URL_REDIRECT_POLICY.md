@@ -10,6 +10,16 @@ Short URLs are compatible with trusted QR only if they are treated as controlled
 
 The trust object must be the redirect flow, not just the first URL seen by the scanner.
 
+## Current implementation boundary
+
+The current PoC has no live redirect-observation service. Its production
+scanner can recognize an enrolled resolver, but reports the redirect family as
+`unknown` with cause `resolution-unavailable` and does not allow opening. The
+`final`, `hops`, and `nested` query fields used in lab fixtures are synthetic
+inputs to a deterministic policy evaluator; they are not accepted as network
+observations by `/scanner/decisions`. The controls below describe the target
+trusted-mode design, not a deployed capability.
+
 ## Why this matters
 
 Shorteners are frequently used in abuse chains because they can:

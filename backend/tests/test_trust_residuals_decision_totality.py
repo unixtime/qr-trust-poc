@@ -30,14 +30,19 @@ import itertools
 import pytest
 
 from backend.app.services.trust_residuals_decision import (
+    CAPTURE_OUTCOMES,
     INSUFFICIENCY_TIERS,
     KNOWN_PROFILES,
     POSITIVE_ELIGIBLE_RESIDUALS,
+    PRIMARY_STATES,
     RESIDUAL_FAMILIES,
+    CaptureOutcome,
+    Decision,
     UnknownProfileError,
     UnknownResidualFamilyError,
     attention_level,
     decide,
+    evaluate_capture,
 )
 
 # Every tier compute_residuals() can emit, per family.
@@ -77,7 +82,7 @@ def test_unmodeled_tier_in_any_family_hits_the_totality_default(
     vector = dict(HAPPY_VECTOR)
     vector[family] = "unmodeled-tier"
 
-    decision = decide(vector, profile=profile, qr_decodable=True)
+    decision = decide(vector, profile=profile)
 
     assert decision.primary_state == "unverified", (profile, family)
     assert decision.annotations == ("incomplete-verification-warning",)
@@ -97,7 +102,7 @@ def test_runtime_warn_with_unmodeled_tier_elsewhere_is_not_risky(
     vector = dict(HAPPY_VECTOR, runtime_safety="warn")
     vector[family] = "unmodeled-tier"
 
-    decision = decide(vector, profile=profile, qr_decodable=True)
+    decision = decide(vector, profile=profile)
 
     assert decision.primary_state == "unverified", (profile, family)
     assert decision.reason_codes == ("unmodeled-residual-combination",)
@@ -109,7 +114,7 @@ def test_runtime_warn_with_all_families_eligible_still_downgrades_to_risky(
 ) -> None:
     vector = dict(HAPPY_VECTOR, runtime_safety="warn")
 
-    decision = decide(vector, profile=profile, qr_decodable=True)
+    decision = decide(vector, profile=profile)
 
     assert decision.primary_state == "verified-issuer-destination-risky"
     assert "runtime-safety-warning" in decision.reason_codes
@@ -132,7 +137,6 @@ def test_required_family_without_decision_grade_evidence_blocks_under_strict(
         vector,
         profile="strict-online",
         mandatory_residuals=(family,),
-        qr_decodable=True,
     )
 
     assert decision.primary_state == "blocked", family
@@ -152,7 +156,6 @@ def test_required_family_without_decision_grade_evidence_caps_at_labeled_caution
         vector,
         profile=profile,
         mandatory_residuals=(family,),
-        qr_decodable=True,
     )
 
     assert decision.primary_state == "unverified", (profile, family)
@@ -172,7 +175,7 @@ def test_unrequired_family_insufficiency_keeps_the_totality_default(
     vector = dict(HAPPY_VECTOR)
     vector[family] = "unavailable"
 
-    decision = decide(vector, profile=profile, qr_decodable=True)
+    decision = decide(vector, profile=profile)
 
     assert decision.primary_state == "unverified", (profile, family)
     assert decision.reason_codes == ("unmodeled-residual-combination",)
@@ -203,7 +206,6 @@ def test_required_runtime_unavailable_never_reaches_a_positive_state(
         dict(HAPPY_VECTOR, runtime_safety="unavailable"),
         profile=profile,
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
 
     assert decision.primary_state == "unverified", profile
@@ -220,7 +222,6 @@ def test_required_runtime_unavailable_blocks_under_strict() -> None:
         dict(HAPPY_VECTOR, runtime_safety="unavailable"),
         profile="strict-online",
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
     assert decision.primary_state == "blocked"
     assert decision.reason_codes == ("runtime-safety-unavailable",)
@@ -235,7 +236,6 @@ def test_unrequired_runtime_unavailable_keeps_the_annotated_positive(
     decision = decide(
         dict(HAPPY_VECTOR, runtime_safety="unavailable"),
         profile=profile,
-        qr_decodable=True,
     )
     assert decision.primary_state == "verified-issuer", profile
     assert "limited-runtime-safety-visibility" in decision.annotations
@@ -253,7 +253,6 @@ def test_required_runtime_named_insufficiency_tiers_keep_their_dedicated_arms(
         dict(HAPPY_VECTOR, runtime_safety=tier),
         profile=profile,
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
     assert decision.primary_state == "unverified", (profile, tier)
     assert decision.annotations == ("incomplete-verification-warning",)
@@ -267,7 +266,6 @@ def test_required_runtime_warn_is_a_verdict_not_missing_evidence() -> None:
         dict(HAPPY_VECTOR, runtime_safety="warn"),
         profile="strict-online",
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
     assert decision.primary_state == "verified-issuer-destination-risky"
 
@@ -286,7 +284,6 @@ def test_required_runtime_warn_with_unmodeled_tier_elsewhere_stays_generic(
         vector,
         profile=profile,
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
 
     assert decision.primary_state == "unverified", (profile, family)
@@ -300,7 +297,6 @@ def test_required_runtime_unmodeled_tier_is_missing_evidence_under_strict() -> N
         dict(HAPPY_VECTOR, runtime_safety="unmodeled-tier"),
         profile="strict-online",
         mandatory_residuals=("runtime_safety",),
-        qr_decodable=True,
     )
     assert decision.primary_state == "blocked"
     assert decision.reason_codes == ("runtime-safety-required-evidence-missing",)
@@ -322,7 +318,6 @@ def test_positive_states_require_positive_eligibility_across_all_modeled_vectors
                 vector,
                 profile=profile,
                 mandatory_residuals=mandatory,
-                qr_decodable=True,
             )
             if decision.primary_state == "verified-issuer":
                 assert all(
@@ -351,11 +346,25 @@ def test_positive_states_require_positive_eligibility_across_all_modeled_vectors
                 )
 
 
-def test_undecodable_artifact_precedes_every_other_rule() -> None:
-    vector = dict(HAPPY_VECTOR)
-    vector["issuer_chain"] = "unmodeled-tier"
-    decision = decide(vector, profile="strict-online", qr_decodable=False)
-    assert decision.primary_state == "unreadable"
+def test_unreadable_is_a_capture_outcome_not_a_primary_state() -> None:
+    outcome = evaluate_capture(qr_decodable=False)
+
+    assert CAPTURE_OUTCOMES == {"unreadable"}
+    assert "unreadable" not in PRIMARY_STATES
+    assert isinstance(outcome, CaptureOutcome)
+    assert outcome.as_dict() == {
+        "capture_outcome": "unreadable",
+        "capture_action": "re-capture",
+        "reason_codes": ["qr-undecodable"],
+    }
+    with pytest.raises(ValueError, match="unknown primary state"):
+        Decision("unreadable")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="unknown capture outcome"):
+        CaptureOutcome("future-capture-result")  # type: ignore[arg-type]
+
+
+def test_successful_decode_has_no_capture_outcome() -> None:
+    assert evaluate_capture(qr_decodable=True) is None
 
 
 @pytest.mark.parametrize(
@@ -364,12 +373,12 @@ def test_undecodable_artifact_precedes_every_other_rule() -> None:
 )
 def test_unknown_profiles_are_rejected(profile: str) -> None:
     with pytest.raises(UnknownProfileError):
-        decide(dict(HAPPY_VECTOR), profile=profile, qr_decodable=True)
+        decide(dict(HAPPY_VECTOR), profile=profile)
 
 
 @pytest.mark.parametrize("profile", sorted(KNOWN_PROFILES))
 def test_known_profiles_are_accepted(profile: str) -> None:
-    decision = decide(dict(HAPPY_VECTOR), profile=profile, qr_decodable=True)
+    decision = decide(dict(HAPPY_VECTOR), profile=profile)
     assert decision.primary_state == "verified-issuer"
 
 
@@ -392,7 +401,6 @@ def test_misspelled_mandatory_family_names_are_rejected(
             dict(HAPPY_VECTOR),
             profile="strict-online",
             mandatory_residuals=mandatory,
-            qr_decodable=True,
         )
 
 
@@ -401,6 +409,5 @@ def test_all_known_family_names_are_accepted_as_mandatory() -> None:
         dict(HAPPY_VECTOR),
         profile="strict-online",
         mandatory_residuals=RESIDUAL_FAMILIES,
-        qr_decodable=True,
     )
     assert decision.primary_state == "verified-issuer"

@@ -14,10 +14,10 @@ from backend.app.services.payload_revalidation_poc import (
 )
 
 
-def test_normalize_payload_destination_strips_www_and_defaults_scheme() -> None:
+def test_normalize_payload_destination_preserves_www_and_defaults_scheme() -> None:
     destination = normalize_payload_destination("www.Acme.Example/menu")
 
-    assert destination.host == "acme.example"
+    assert destination.host == "www.acme.example"
     assert destination.scheme == "https"
     assert destination.path == "/menu"
 
@@ -37,6 +37,16 @@ def test_match_payload_blocks_subdomain_without_policy() -> None:
         "https://login.acme.example/sign-in",
         ["acme.example"],
         allow_subdomains=False,
+    )
+
+    assert decision.allowed is False
+    assert decision.matched_rule is None
+
+
+def test_verified_www_host_does_not_authorize_apex_host() -> None:
+    decision = match_payload_to_verified_domains(
+        "https://example.com/pay",
+        ["www.example.com"],
     )
 
     assert decision.allowed is False
@@ -117,7 +127,7 @@ def _decision_for(tmp_path, payload, **rule_overrides):
 def test_policy_blocks_sibling_path_segment(tmp_path):
     decision = _decision_for(tmp_path, "https://acme.example/payments")
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
 
 
 def test_policy_allows_nested_path(tmp_path):
@@ -129,21 +139,21 @@ def test_policy_allows_nested_path(tmp_path):
 def test_policy_rejects_http_scheme_by_default(tmp_path):
     decision = _decision_for(tmp_path, "http://acme.example/pay")
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
     assert "scheme" in decision.reason
 
 
 def test_policy_rejects_unlisted_port(tmp_path):
     decision = _decision_for(tmp_path, "https://acme.example:8443/pay")
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
     assert "port" in decision.reason
 
 
 def test_policy_rejects_dot_segment_traversal(tmp_path):
     decision = _decision_for(tmp_path, "https://acme.example/pay/%2e%2e/admin")
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
 
 
 def test_policy_accepts_cosmetic_variants(tmp_path):
@@ -166,7 +176,7 @@ def test_root_prefix_matches_everything(tmp_path):
 def test_userinfo_payload_is_destination_invalid(tmp_path):
     decision = _decision_for(tmp_path, "https://alice@acme.example/pay")
     assert decision.allowed is False
-    assert decision.cause == "destination-invalid"
+    assert decision.cause == "normalization-failure"
 
 
 def test_invalid_policy_json_rejects_scan(tmp_path):
@@ -178,6 +188,18 @@ def test_invalid_policy_json_rejects_scan(tmp_path):
     )
     assert decision.allowed is False
     assert decision.cause == "policy-invalid"
+
+
+def test_invalid_policy_path_prefix_rejects_scan_with_stable_cause(tmp_path):
+    decision = _decision_for(
+        tmp_path,
+        "https://acme.example/pay",
+        path_prefixes=["/pay%2"],
+    )
+
+    assert decision.allowed is False
+    assert decision.cause == "policy-invalid"
+    assert "invalid percent escape" in decision.reason
 
 
 def test_missing_policy_falls_back_to_host_match(tmp_path):
@@ -208,7 +230,7 @@ def test_expired_domain_proof_blocks(tmp_path):
         now=datetime(2026, 3, 1, tzinfo=UTC),
     )
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
     assert "expired" in decision.reason
 
 
@@ -250,7 +272,7 @@ def test_expired_subdomain_parent_blocks(tmp_path):
         now=datetime(2026, 3, 1, tzinfo=UTC),
     )
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
 
 
 def test_policy_allowed_resolver_url_stamps_matched_domain(tmp_path):
@@ -276,20 +298,20 @@ def test_expiry_exactly_at_now_blocks(tmp_path):
         now=datetime(2026, 3, 1, tzinfo=UTC),
     )
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
     assert "expired" in decision.reason
 
 
 def test_match_payload_normalizes_legacy_verified_domain_key() -> None:
-    # Regression: a raw "www."-prefixed key used to be indexed with its
-    # normalized form and raised KeyError instead of matching.
+    # Regression: a non-canonical key used to be indexed with its normalized
+    # form and raised KeyError instead of matching.
     decision = match_payload_to_verified_domains(
         "https://www.example.com/pay",
-        ["www.example.com"],
+        ["WWW.Example.com."],
     )
 
     assert decision.allowed is True
-    assert decision.matched_domain == "example.com"
+    assert decision.matched_domain == "www.example.com"
 
 
 def test_match_payload_normalizes_mixed_case_mapping_key() -> None:
@@ -307,13 +329,13 @@ def test_match_payload_expired_non_canonical_key_denies() -> None:
     # non-canonical key instead of the pre-fix behavior of silently missing
     # it (KeyError, or a None expiry under the alternate lookup shape).
     decision = match_payload_to_verified_domains(
-        "https://example.com/pay",
-        {"WWW.Example.com": datetime(2020, 1, 1, tzinfo=UTC)},
+        "https://www.example.com/pay",
+        {"WWW.Example.com.": datetime(2020, 1, 1, tzinfo=UTC)},
         now=datetime(2026, 1, 1, tzinfo=UTC),
     )
 
     assert decision.allowed is False
-    assert decision.cause == "destination-mismatch"
+    assert decision.cause == "destination-not-authorized"
     assert "has expired" in decision.reason
 
 
@@ -323,4 +345,15 @@ def test_normalized_verified_domains_maps_original_expiries() -> None:
         {"WWW.Example.com": expiry, "  ": None, "acme.EXAMPLE": None}
     )
 
-    assert normalized == {"example.com": expiry, "acme.example": None}
+    assert normalized == {"www.example.com": expiry, "acme.example": None}
+
+
+def test_duplicate_canonical_verified_domains_fail_closed() -> None:
+    decision = match_payload_to_verified_domains(
+        "https://example.com/pay",
+        {"Example.com.": None, "example.com": None},
+    )
+
+    assert decision.allowed is False
+    assert decision.cause == "policy-invalid"
+    assert "both normalize to 'example.com'" in decision.reason

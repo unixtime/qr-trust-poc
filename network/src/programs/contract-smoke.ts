@@ -10,6 +10,7 @@ import {
   makeScannerDecisionService,
   makeVerifierSyncService,
   makeFixtureTrustArtifactSigner,
+  NETWORK_SCANNER_CONFORMANCE_MAPPING,
 } from "../index.js"
 import { demoIssuerProjection } from "../services/verifier-cache.js"
 
@@ -106,6 +107,22 @@ const program = Effect.gen(function* () {
   })
 
   const events = yield* eventBus.recent()
+
+  yield* assertSmoke(
+    Object.keys(NETWORK_SCANNER_CONFORMANCE_MAPPING).sort().join(",") ===
+      [
+        "destination_policy_mismatch",
+        "plain_url_unrecognized",
+        "verified_issuer",
+        "verified_issuer_cache_expired",
+        "verified_issuer_cache_stale",
+        "verified_issuer_cache_unavailable",
+        "verified_issuer_destination_risky",
+        "verified_issuer_runtime_blocked",
+        "verified_issuer_runtime_unavailable",
+      ].join(","),
+    "network scanner operational-to-model map is incomplete",
+  )
 
   yield* assertSmoke(sync.projected_issuers === 1, "issuer artifact was not projected")
   yield* assertSmoke(

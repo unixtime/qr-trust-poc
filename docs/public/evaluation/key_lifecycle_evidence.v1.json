@@ -1,0 +1,104 @@
+{
+  "evidence_boundary": {
+    "environment": "controlled local Postgres-backed compose deployment",
+    "private_key_material_recorded": false,
+    "raw_record_reason": "full trust-store snapshots remain ignored; this record is an explicit public field allowlist",
+    "raw_records_public": false,
+    "restart_claim_scope": "operator-observed API restart with Postgres left running; the source record has no container identity or restart receipt"
+  },
+  "experiments": {
+    "e1_persistent_revocation": {
+      "artifact_envelope_fingerprint_sha256": "5238a53991cae39e557acecd965fce4cb0eea27507756b7fe84f263a546d4fb3",
+      "artifact_expires_at": null,
+      "certificate_id": "cert:acme-demo:e1-c0-20260902091207",
+      "checkpoints": [
+        {
+          "decision_state": "verified_issuer",
+          "name": "active",
+          "observed_at": "2026-09-02T09:12:07.697177Z",
+          "open_allowed": true,
+          "projected_key_state": "active",
+          "revoked_at": null,
+          "verifier_stage": "accepted"
+        },
+        {
+          "decision_state": "verified_issuer",
+          "name": "rotated",
+          "observed_at": "2026-09-02T09:12:07.906567Z",
+          "open_allowed": true,
+          "projected_key_state": "retired",
+          "revoked_at": null,
+          "verifier_stage": "accepted"
+        },
+        {
+          "decision_state": "blocked",
+          "name": "revoked",
+          "observed_at": "2026-09-02T09:12:07.975335Z",
+          "open_allowed": false,
+          "projected_key_state": "revoked",
+          "revoked_at": "2026-09-02T09:12:07.919254+00:00",
+          "verifier_stage": "key_status"
+        },
+        {
+          "decision_state": "blocked",
+          "name": "post-operator-observed-restart",
+          "observed_at": "2026-09-02T09:12:18.242127Z",
+          "open_allowed": false,
+          "projected_key_state": "revoked",
+          "revoked_at": "2026-09-02T09:12:07.919254+00:00",
+          "verifier_stage": "key_status"
+        }
+      ],
+      "restart_observation": {
+        "machine_verifiable_restart_identity": false,
+        "status_recovered_at": "2026-09-02T09:12:18.201381Z"
+      }
+    },
+    "e2_rotated_key_backdating": {
+      "artifact_envelope_fingerprint_sha256": "b7c05eab9d0c992557c4d71d9f333fb0467e875b77ec3ec7f5e08cf691e8f300",
+      "artifact_signing_recorded_at": "2026-09-02T09:12:50.919881Z",
+      "certificate_id": "cert:acme-demo:e2-c2-20260902091250",
+      "certificate_not_after": "2026-10-02T09:12:50.749759+00:00",
+      "certificate_not_before": "2026-08-03T09:12:50.749759+00:00",
+      "checkpoints": [
+        {
+          "decision_state": "verified_issuer",
+          "name": "post-rotation-backdated-artifact",
+          "observed_at": "2026-09-02T09:12:50.983191Z",
+          "open_allowed": true,
+          "projected_key_state": "retired",
+          "revoked_at": null,
+          "verifier_stage": "accepted"
+        },
+        {
+          "decision_state": "blocked",
+          "name": "post-revocation",
+          "observed_at": "2026-09-02T09:12:51.054895Z",
+          "open_allowed": false,
+          "projected_key_state": "revoked",
+          "revoked_at": "2026-09-02T09:12:50.995730+00:00",
+          "verifier_stage": "key_status"
+        }
+      ],
+      "claimed_issued_at": "2026-08-26T09:12:50.749759Z",
+      "independent_issuance_time_witness": false,
+      "rotation_recorded_at": "2026-09-02T09:12:50.863250Z"
+    }
+  },
+  "generated_at": "2026-09-02T09:12:51.055034Z",
+  "schema_version": "qr-trust-key-lifecycle-evidence.v1",
+  "source_runs": {
+    "e1": {
+      "file": "e1-revocation-persistence-20260902T091207Z.json",
+      "finished_at": "2026-09-02T09:12:18.242294Z",
+      "sha256": "bfdc517e857bce59a5ecce257454efa090264828fc19917e7a8452fb9d0a129d",
+      "started_at": "2026-09-02T09:12:07.255512Z"
+    },
+    "e2": {
+      "file": "e2-rotated-key-backdating-20260902T091250Z.json",
+      "finished_at": "2026-09-02T09:12:51.055034Z",
+      "sha256": "fb595c95b36f97dc67323693d993fed218a908e6bdf2a9767a3f88f35977147c",
+      "started_at": "2026-09-02T09:12:50.564996Z"
+    }
+  }
+}

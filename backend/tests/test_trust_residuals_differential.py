@@ -126,6 +126,14 @@ def _minutes_from_now(minutes: int) -> datetime:
     return datetime.now(timezone.utc) + timedelta(minutes=minutes)
 
 
+def _resolver_url(final_url: str, *, hops: int = 1, nested: bool = False) -> str:
+    suffix = "&nested=1" if nested else ""
+    return (
+        "https://qr.acme.example/r/pay"
+        f"?final={quote(final_url, safe='')}&hops={hops}{suffix}"
+    )
+
+
 def _scan_issuer_record_not_yet_valid(client: TestClient) -> dict[str, Any]:
     demo = client.post("/verifier/demo-materials", json={})
     assert demo.status_code == 200
@@ -149,14 +157,6 @@ def _scan_key_window_mismatch(client: TestClient) -> dict[str, Any]:
     key, _ = resolved
     store.put_key(replace(key, not_before=_minutes_from_now(-5)))
     return _scan_qr(client, demo.json()["qr_payload"])
-
-
-def _resolver_url(final_url: str, *, hops: int = 1, nested: bool = False) -> str:
-    suffix = "&nested=1" if nested else ""
-    return (
-        "https://qr.acme.example/r/pay"
-        f"?final={quote(final_url, safe='')}&hops={hops}{suffix}"
-    )
 
 
 def _scan_unknown_issuer(client: TestClient) -> dict[str, Any]:
@@ -231,30 +231,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
             },
         ),
         "Destination changed after issuance: payload host outside verified domains.",
-    ),
-    RuntimeScenario(
-        "C5",
-        "verified_issuer",
-        lambda client: _demo_scan(
-            client,
-            {
-                "payload": _resolver_url("https://acme.example/pay"),
-                "verified_domains": ["qr.acme.example"],
-            },
-        ),
-        "Approved resolver flow within issuer redirect policy.",
-    ),
-    RuntimeScenario(
-        "C6",
-        "blocked",
-        lambda client: _demo_scan(
-            client,
-            {
-                "payload": _resolver_url("https://evil.example/pay"),
-                "verified_domains": ["qr.acme.example"],
-            },
-        ),
-        "Resolver final-host mismatch.",
     ),
     RuntimeScenario(
         "C7",
@@ -337,18 +313,6 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         "verified-issuer + limited-runtime-safety-visibility) but both are warning-level.",
     ),
     RuntimeScenario(
-        "C12",
-        "blocked",
-        lambda client: _demo_scan(
-            client,
-            {
-                "payload": _resolver_url("https://acme.example/pay", nested=True),
-                "verified_domains": ["qr.acme.example"],
-            },
-        ),
-        "Nested shortener in the redirect flow.",
-    ),
-    RuntimeScenario(
         "C14",
         "verified_issuer",
         lambda client: _demo_scan(
@@ -391,9 +355,49 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
         ),
         "IDN/punycode lookalike host outside the verified domain set.",
     ),
+)
+
+
+REDIRECT_ACQUISITION_GAPS: tuple[RuntimeScenario, ...] = (
+    RuntimeScenario(
+        "C5",
+        "unknown",
+        lambda client: _demo_scan(
+            client,
+            {
+                "payload": _resolver_url("https://acme.example/pay"),
+                "verified_domains": ["qr.acme.example"],
+            },
+        ),
+        "A query-carried approved final target is not an HTTP observation.",
+    ),
+    RuntimeScenario(
+        "C6",
+        "unknown",
+        lambda client: _demo_scan(
+            client,
+            {
+                "payload": _resolver_url("https://evil.example/pay"),
+                "verified_domains": ["qr.acme.example"],
+            },
+        ),
+        "A query-carried unauthorized final target is not an HTTP observation.",
+    ),
+    RuntimeScenario(
+        "C12",
+        "unknown",
+        lambda client: _demo_scan(
+            client,
+            {
+                "payload": _resolver_url("https://acme.example/pay", nested=True),
+                "verified_domains": ["qr.acme.example"],
+            },
+        ),
+        "A query-carried nested marker is not observed chain evidence.",
+    ),
     RuntimeScenario(
         "C19a",
-        "blocked",
+        "unknown",
         lambda client: _demo_scan(
             client,
             {
@@ -401,11 +405,11 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
                 "verified_domains": ["qr.acme.example"],
             },
         ),
-        "Redirect variation: observed hops exceed issuer policy.",
+        "A query-carried hop count is not observed chain evidence.",
     ),
     RuntimeScenario(
         "C20",
-        "blocked",
+        "unknown",
         lambda client: _demo_scan(
             client,
             {
@@ -413,7 +417,7 @@ IN_SCOPE: tuple[RuntimeScenario, ...] = (
                 "verified_domains": ["qr.acme.example"],
             },
         ),
-        "Open redirect to an unauthorized final host (same check as C6; distinct vector).",
+        "A query-carried open-redirect target is not an HTTP observation.",
     ),
 )
 
@@ -446,7 +450,7 @@ CYCLE2_TRUST_SCENARIOS: tuple[Cycle2Scenario, ...] = (
         "the key is active now (spec Q1, checked against issued_at).",
     ),
     Cycle2Scenario(
-        "issuer-record-expired",
+        "record-expired",
         "C10a",
         lambda client: _demo_scan(
             client, {"issuer_record_expires_offset_minutes": -1}
@@ -454,7 +458,7 @@ CYCLE2_TRUST_SCENARIOS: tuple[Cycle2Scenario, ...] = (
         "An expired issuer record blocks a still-valid artifact.",
     ),
     Cycle2Scenario(
-        "issuer-record-not-yet-valid",
+        "record-not-yet-valid",
         "C10a",
         _scan_issuer_record_not_yet_valid,
         "An issuer record that is not yet in force blocks like an expired one.",
@@ -474,6 +478,28 @@ DIVERGENT: dict[str, str] = {
 
 
 OUT_OF_SCOPE: dict[str, str] = {
+    "C5": (
+        "The corpus supplies an observed, policy-compliant redirect chain, but "
+        "the runtime has no live redirect observer. Query-carried fixture "
+        "markers are not network evidence; the scanner correctly returns "
+        "unknown instead of replaying this positive case."
+    ),
+    "C6": (
+        "The corpus supplies an observed unauthorized final host. The runtime "
+        "cannot acquire that evidence until a live redirect observer exists."
+    ),
+    "C12": (
+        "The corpus supplies an observed nested shortener. The runtime cannot "
+        "acquire redirect-chain evidence from its signed payload alone."
+    ),
+    "C19a": (
+        "The corpus supplies an observed hop count above policy. The runtime "
+        "has no observer from which to obtain that count."
+    ),
+    "C20": (
+        "The corpus supplies an observed open redirect to an unauthorized host. "
+        "The runtime has no live chain-acquisition counterpart."
+    ),
     "C17": (
         "Blocking a second scan of the same code is not a paper-declared "
         "mechanism, so the runtime has no counterpart to compare against."
@@ -565,6 +591,34 @@ def test_runtime_scanner_matches_offline_engine(
 
 @pytest.mark.parametrize(
     "scenario",
+    REDIRECT_ACQUISITION_GAPS,
+    ids=[scenario.case_id for scenario in REDIRECT_ACQUISITION_GAPS],
+)
+def test_redirect_corpus_evidence_is_not_runtime_acquired_from_query_fields(
+    scenario: RuntimeScenario,
+    client: TestClient,
+    offline: dict[str, Any],
+) -> None:
+    payload = scenario.run(client)
+
+    assert payload["decision_state"] == scenario.expected_runtime_state, scenario.note
+    assert payload["open_allowed"] is False
+    assert payload["destination"]["binding"] == "redirect_unobserved"
+    assert payload["destination"]["final_url"] is None
+    assert payload["destination"]["redirect_hops"] is None
+    assert payload["residual_vector"]["redirect_flow"] == {
+        "tier": "unavailable",
+        "cause": "resolution-unavailable",
+    }
+    assert payload["model_decision"]["primary_state"] == "unverified"
+    assert offline["cases"][scenario.case_id]["evidence"]["redirect_flow"] in {
+        "pass",
+        "fail",
+    }
+
+
+@pytest.mark.parametrize(
+    "scenario",
     CYCLE2_TRUST_SCENARIOS,
     ids=[scenario.cause for scenario in CYCLE2_TRUST_SCENARIOS],
 )
@@ -587,8 +641,8 @@ def test_cycle2_trust_causes_block_with_anchored_attention(
 
 def test_cycle2_causes_are_the_closed_cycle2_vocabulary() -> None:
     assert {scenario.cause for scenario in CYCLE2_TRUST_SCENARIOS} == {
-        "issuer-record-expired",
-        "issuer-record-not-yet-valid",
+        "record-expired",
+        "record-not-yet-valid",
         "key-revoked",
         "key-window-mismatch",
     }

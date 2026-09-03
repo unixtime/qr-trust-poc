@@ -75,7 +75,7 @@
     },
     "runtime_safety": {
       "tier": "warn",
-      "cause": "runtime-risky"
+      "cause": "verdict-warn"
     },
     "freshness": {
       "tier": "pass",

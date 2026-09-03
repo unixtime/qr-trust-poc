@@ -82,10 +82,9 @@ export const scenarioGroupLabelKeys: Record<ScenarioGroup, MessageKey> = {
 }
 
 export const scenarioGroups: Record<ScenarioGroup, ScenarioKey[]> = {
-  valid: ["valid", "subdomain-allowed", "redirect-approved", "key-rotated"],
+  valid: ["valid", "subdomain-allowed", "key-rotated"],
   tampered: [
     "payload-mismatch",
-    "redirect-final-mismatch",
     "artifact-quiet-zone",
     "artifact-mismatch",
   ],
@@ -94,6 +93,8 @@ export const scenarioGroups: Record<ScenarioGroup, ScenarioKey[]> = {
     "revoked",
     "key-revoked",
     "subdomain-blocked",
+    "redirect-approved",
+    "redirect-final-mismatch",
     "redirect-too-many-hops",
     "redirect-nested-shortener",
     "unknown-issuer",

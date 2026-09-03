@@ -8,6 +8,7 @@ import pytest
 
 from backend.app.core.config import config
 from backend.app.schemas.poc import (
+    ModelDecisionResponse,
     ResidualEntry,
     ScannerDecisionAction,
     ScannerDecisionContract,
@@ -151,6 +152,13 @@ def _scanner_response(
                 "artifact_integrity",
             )
         },
+        model_decision=ModelDecisionResponse(
+            profile="bounded-online",
+            primary_state="verified-issuer",
+            annotations=[],
+            reason_codes=[],
+            attention_level="positive",
+        ),
         primary_message="Verified signed QR.",
         issuer=ScannerDecisionIssuer(
             name="ACME Demo",

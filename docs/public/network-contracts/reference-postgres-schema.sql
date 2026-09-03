@@ -503,11 +503,38 @@ create index if not exists event_outbox_artifact_idx
   on qr_trust.event_outbox (artifact_id);
 
 -- Governance version tokens: the verifier's trust projection reloads when the
--- (epoch, version) pair for 'trust_state' changes. Terminal revocation is
--- enforced by database triggers on issuer_certificates and trust_keys.
+-- (epoch, version) pair for 'trust_state' changes.
 create table if not exists qr_trust.governance_versions (
     name text primary key,
     epoch uuid not null default gen_random_uuid(),
     version bigint not null default 1,
     updated_at timestamptz not null default now()
 );
+
+-- Revocation is terminal at the database boundary for both authority keys and
+-- issuer certificates. Replacing the function and recreating the triggers keeps
+-- this standalone reference script safe to reapply during smoke drills.
+create or replace function qr_trust.enforce_terminal_key_status()
+returns trigger
+language plpgsql
+as $$
+begin
+    if old.key_status = 'revoked'
+       and new.key_status is distinct from 'revoked' then
+        raise exception 'revocation is terminal: key_status may not leave revoked';
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists issuer_certificates_terminal_status
+  on qr_trust.issuer_certificates;
+create trigger issuer_certificates_terminal_status
+  before update of key_status on qr_trust.issuer_certificates
+  for each row execute function qr_trust.enforce_terminal_key_status();
+
+drop trigger if exists trust_keys_terminal_status
+  on qr_trust.trust_keys;
+create trigger trust_keys_terminal_status
+  before update of key_status on qr_trust.trust_keys
+  for each row execute function qr_trust.enforce_terminal_key_status();

@@ -16,6 +16,13 @@ and explicit green/orange/red scanner states.
 > system, or proposed universal QR standard. Its fixtures and evaluation corpus
 > are controlled conformance artifacts, not evidence of field effectiveness.
 
+> [!NOTE]
+> Destination policy authorizes normalized URL components only: scheme, host,
+> port, path, and permitted query keys. A match does not prove that the DNS
+> answer, hosting account, response content, or post-open navigation is
+> unchanged or safe. Those require separate, current evidence; the PoC does
+> not convert a URL-policy match into content or infrastructure integrity.
+
 ## Published research
 
 The conceptual foundation is two published SSRN working papers. The first
@@ -37,6 +44,15 @@ If you use, evaluate, or extend this PoC in academic or technical work, please
 cite the papers — [Citing this work](docs/public/CITING.md) says which covers
 what and carries copy-ready formats, and machine-readable metadata is in
 [CITATION.cff](CITATION.cff).
+
+## Internet-Draft
+
+The IETF individual submission
+[Trust Residuals for Navigation QR Codes](https://datatracker.ietf.org/doc/draft-elmasri-qr-trust-residuals/)
+defines the architecture and candidate decision semantics implemented by this
+PoC. The repository carries the exact submitted
+[Markdown source](ietf/draft-elmasri-qr-trust-residuals-00.md) and
+[RFCXML v3](ietf/draft-elmasri-qr-trust-residuals-00.xml).
 
 ## What the PoC demonstrates
 

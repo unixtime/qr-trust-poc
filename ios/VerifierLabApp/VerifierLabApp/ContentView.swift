@@ -2906,6 +2906,8 @@ private func reasonCodeLabel(_ code: String) -> String {
         return "Destination changed"
     case "redirect_policy_block":
         return "Redirect blocked"
+    case "redirect_unobserved":
+        return "Redirect not observed"
     case "runtime_blocked":
         return "Runtime blocked"
     case "trust_cache_unavailable":
@@ -2931,7 +2933,7 @@ private func reasonCodeSymbol(_ code: String) -> String {
         return "key"
     case "known_bad", "runtime_risky", "runtime_blocked":
         return "exclamationmark.triangle"
-    case "redirect_chain", "redirect_policy_block":
+    case "redirect_chain", "redirect_policy_block", "redirect_unobserved":
         return "arrow.triangle.branch"
     case "https_absent":
         return "lock.slash"

@@ -149,6 +149,8 @@ scan_shipping_tree() {
     --glob '!.claude/**' \
     --glob '!backend/.venv/**' \
     --glob '!backend/.env' \
+    --glob '!ietf/**' \
+    --glob 'ietf/draft-*' \
     "$@" \
     .
 }
@@ -799,9 +801,18 @@ else
   note "no patent-position note in this tree; the Apache-2.0 LICENSE defines the patent baseline"
 fi
 
+heading "Key Lifecycle Evidence"
+
+if key_lifecycle_output="$($audit_python scripts/key_lifecycle_evidence.py --check 2>&1)"; then
+  pass "public-safe E1/E2 key-lifecycle evidence is semantically exact"
+else
+  fail "public-safe E1/E2 key-lifecycle evidence is invalid:"
+  printf "%s\n" "$key_lifecycle_output"
+fi
+
 heading "Validation Hooks"
 
-for target in smoke-compose smoke-compose-https check-route-navigation check-frontend-vite-config check-frontend-scanner-contract check-frontend-scanner-open-contract check-python-verifier-lab-stability smoke-ios ios-provider-config check-ios-provider-config ios-provider-profile-fixture check-ios-provider-profile-fixture ios-provider-profile-evidence-packet ios-provider-profile-evidence-status import-ios-provider-profile-evidence check-ios-provider-profile-evidence iphone-evidence-preflight iphone-evidence-packet iphone-evidence-status check-browser-evidence import-iphone-evidence check-iphone-evidence scanner-release-evidence-packet scanner-release-evidence-export-status scanner-release-evidence-downloads-status import-scanner-release-evidence-export import-scanner-release-evidence-downloads scanner-release-evidence-todo scanner-release-evidence-status capture-browser-evidence ensure-shared-infra-db check-shared-infra-network check-network-stack-ready check-network-worker-drill up-https-admin-shared-infra network-deployed-scanner-readiness-report network-production-evidence-private-template check-network-production-evidence-private-index release-readiness-report check-release-readiness-report release-audit-strict docs-build docs-serve lint-frontend build-frontend test-backend; do
+for target in smoke-compose smoke-compose-https check-route-navigation check-frontend-vite-config check-frontend-scanner-contract check-frontend-scanner-open-contract check-python-verifier-lab-stability smoke-ios ios-provider-config check-ios-provider-config ios-provider-profile-fixture check-ios-provider-profile-fixture ios-provider-profile-evidence-packet ios-provider-profile-evidence-status import-ios-provider-profile-evidence check-ios-provider-profile-evidence iphone-evidence-preflight iphone-evidence-packet iphone-evidence-status check-browser-evidence import-iphone-evidence check-iphone-evidence scanner-release-evidence-packet scanner-release-evidence-export-status scanner-release-evidence-downloads-status import-scanner-release-evidence-export import-scanner-release-evidence-downloads scanner-release-evidence-todo scanner-release-evidence-status capture-browser-evidence ensure-shared-infra-db check-shared-infra-network check-network-stack-ready check-network-worker-drill up-https-admin-shared-infra network-deployed-scanner-readiness-report network-production-evidence-private-template check-network-production-evidence-private-index check-key-lifecycle-evidence release-readiness-report check-release-readiness-report release-audit-strict docs-build docs-serve lint-frontend build-frontend test-backend; do
   if grep -Eq "^${target}:" Makefile; then
     pass "make $target is available"
   else

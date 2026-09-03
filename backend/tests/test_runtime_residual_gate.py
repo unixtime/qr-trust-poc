@@ -81,13 +81,20 @@ def test_runtime_verdict_states_map_to_owned_residual_tiers() -> None:
         "stale": "stale",
         "unavailable": "unavailable",
     }
+    expected_causes = {
+        "clean": None,
+        "risky": "verdict-warn",
+        "blocked": "verdict-block",
+        "expired": "verdict-expired",
+        "stale": "verdict-stale",
+        "unavailable": "provider-unavailable",
+    }
     for marker, tier in expected_tiers.items():
         verdict = evaluate_runtime_safety(f"https://acme.example/pay?runtime={marker}")
         vector = vector_for(make_result(), runtime_verdict=verdict)
         assert vector["runtime_safety"] == {
             "tier": tier,
-            # A clean verdict is evidence of safety, not a cause to display.
-            "cause": None if tier == "pass" else f"runtime-{verdict.state}",
+            "cause": expected_causes[marker],
         }, marker
 
 
@@ -98,10 +105,10 @@ def test_missing_runtime_verdict_maps_to_not_checked() -> None:
 
 def test_failed_verifier_stages_map_to_owning_families_and_delta_blocks() -> None:
     expected = {
-        "signed_schema": ("issuer_chain", "invalid-managed-claim", "signature-invalid"),
+        "signed_schema": ("issuer_chain", "invalid-managed-claim", "invalid-signature"),
         "issuer_status": ("issuer_chain", "revoked-issuer", "issuer-revoked"),
         "key_status": ("issuer_chain", "revoked-issuer", "key-revoked"),
-        "payload_revalidation": ("destination_policy", "fail", "destination-mismatch"),
+        "payload_revalidation": ("destination_policy", "fail", "destination-not-authorized"),
         "time_window": ("freshness", "block", "object-expired"),
     }
     for stage, (family, tier, cause) in expected.items():
@@ -116,7 +123,6 @@ def test_failed_verifier_stages_map_to_owning_families_and_delta_blocks() -> Non
         model = decide(
             tiers_of(vector),
             profile=verifier_endpoint._RUNTIME_DECISION_PROFILE,
-            qr_decodable=True,
         )
         assert model.primary_state == "blocked", stage
 
@@ -157,7 +163,20 @@ def test_runtime_pipeline_never_undercuts_the_bounded_reference() -> None:
         model = decide(
             tiers_of(vector),
             profile=verifier_endpoint._RUNTIME_DECISION_PROFILE,
-            qr_decodable=True,
         )
         runtime_rank = wire_attention_rank[verdict.decision_state]
         assert runtime_rank >= attention_rank(model), marker
+
+
+def test_scanner_operational_state_table_is_closed() -> None:
+    assert verifier_endpoint._SCANNER_OPERATIONAL_STATES == {
+        "verified_issuer",
+        "unverified",
+        "signed_unknown_issuer",
+        "verified_issuer_destination_risky",
+        "stale_trust_state",
+        "profile_stale",
+        "profile_revoked",
+        "unknown",
+        "blocked",
+    }

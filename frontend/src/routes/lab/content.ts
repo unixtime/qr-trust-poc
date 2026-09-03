@@ -136,11 +136,11 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
     certificateRevocationReason: null,
     expiresOffsetMinutes: 5,
     expectedOutcome: {
-      tone: "green",
-      label: "Looks safe",
+      tone: "red",
+      label: "Do not open",
       layer: "Redirect policy",
       summary:
-        "The enrolled resolver ends at a final destination approved by the issuer.",
+        "The resolver is enrolled, but this build has no live observer to confirm its final destination.",
     },
   },
   "redirect-final-mismatch": {
@@ -156,7 +156,7 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
       label: "Do not open",
       layer: "Redirect policy",
       summary:
-        "The resolver is trusted, but the final destination leaves the approved policy.",
+        "The asserted final target is fixture input, not an observed redirect result.",
     },
   },
   "redirect-too-many-hops": {
@@ -172,7 +172,7 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
       label: "Do not open",
       layer: "Redirect policy",
       summary:
-        "The final host is approved, but the chain exceeds the allowed hop count.",
+        "The asserted hop count is fixture input, not an observed redirect chain.",
     },
   },
   "redirect-nested-shortener": {
@@ -188,7 +188,7 @@ export const scenarioMeta: Record<ScenarioKey, ScenarioMeta> = {
       label: "Do not open",
       layer: "Redirect policy",
       summary:
-        "The route hides an extra shortener hop that the issuer policy forbids.",
+        "The asserted nested-hop flag is fixture input, not an observed redirect chain.",
     },
   },
   "runtime-risky": {

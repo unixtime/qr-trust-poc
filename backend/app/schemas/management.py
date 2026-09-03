@@ -414,6 +414,14 @@ class IssuerCertificateEnrollRequest(BaseModel):
     not_before: datetime
     not_after: datetime | None = None
 
+    @model_validator(mode="after")
+    def _validity_timestamps_must_be_timezone_aware(
+        self,
+    ) -> "IssuerCertificateEnrollRequest":
+        _timezone_aware_datetime(self.not_before, "not_before")
+        _timezone_aware_datetime(self.not_after, "not_after")
+        return self
+
 
 class IssuerCertificateMutationResponse(BaseModel):
     certificate_id: str

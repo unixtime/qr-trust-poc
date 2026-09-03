@@ -1,8 +1,10 @@
 """
 PoC support for verification-time payload revalidation.
 
-This module normalizes the payload destination and compares it against the
-issuer's currently verified domains using deterministic rules.
+This module normalizes the payload URL and compares its scheme, host, port,
+path, and query keys against the issuer's currently verified domains and local
+policy. It does not resolve DNS, fetch the resource, attest hosting continuity,
+hash response content, or monitor navigation after the decision.
 """
 
 from __future__ import annotations
@@ -20,6 +22,8 @@ from backend.app.services.destination_canonicalization import (
     CanonicalizationError,
     canonicalize_destination,
     canonicalize_rule_prefix,
+    canonicalize_verified_domain,
+    canonicalize_verified_domain_map,
     path_matches_prefix,
 )
 from backend.app.services.governance_fixture_store import DEFAULT_FIXTURE_DIR
@@ -32,7 +36,6 @@ class NormalizedDestination:
     scheme: str | None
     port: int | None
     path: str
-    query_keys: list[str]
 
 
 @dataclass
@@ -45,10 +48,7 @@ class MatchDecision:
 
 
 def _normalize_host(host: str) -> str:
-    normalized = host.strip().lower().rstrip(".")
-    if normalized.startswith("www."):
-        normalized = normalized[4:]
-    return normalized
+    return canonicalize_verified_domain(host)
 
 
 def normalized_verified_domains(
@@ -56,15 +56,12 @@ def normalized_verified_domains(
 ) -> dict[str, datetime | None]:
     """Build a single {normalized_host: expiry} mapping from raw verified-domain keys.
 
-    Keys are normalized with `_normalize_host` (lowercased, trailing dot and
-    leading "www." stripped) so lookups against the normalized key never miss.
+    Keys are normalized with `_normalize_host` (IDNA-encoded, lowercased, and
+    with one trailing dot stripped) so lookups against the normalized key never
+    miss. Host labels remain exact; a leading "www." is not discarded.
     Blank keys are filtered out, matching the historical `if rule.strip()` guard.
     """
-    return {
-        _normalize_host(rule): verified_domains[rule]
-        for rule in verified_domains
-        if rule.strip()
-    }
+    return canonicalize_verified_domain_map(verified_domains, ignore_blank=True)
 
 
 def normalize_payload_destination(payload: str) -> NormalizedDestination:
@@ -91,7 +88,6 @@ def normalize_payload_destination(payload: str) -> NormalizedDestination:
         scheme=parsed.scheme or None,
         port=port,
         path=parsed.path or "/",
-        query_keys=list(dict.fromkeys(key for key, _ in parse_qsl(parsed.query))),
     )
 
 
@@ -226,7 +222,7 @@ def _match_destination_policy(
             allowed=False,
             matched_rule=None,
             reason=exc.reason,
-            cause="destination-invalid",
+            cause="normalization-failure",
         )
     redirect_policy = load.policy.get("redirect_policy")
     if isinstance(redirect_policy, dict):
@@ -248,10 +244,18 @@ def _match_destination_policy(
     for rule in load.policy.get("approved_destinations") or []:
         if not isinstance(rule, dict):
             continue
-        if not _rule_allows_destination_host(rule, match_host):
-            continue
-        found_matching_rule = True
-        reason = _policy_rule_reason(canonical, rule)
+        try:
+            if not _rule_allows_destination_host(rule, match_host):
+                continue
+            found_matching_rule = True
+            reason = _policy_rule_reason(canonical, rule)
+        except CanonicalizationError as exc:
+            return MatchDecision(
+                allowed=False,
+                matched_rule=None,
+                reason=f"Destination policy is invalid: {exc.reason}",
+                cause="policy-invalid",
+            )
         if reason is None:
             return MatchDecision(
                 allowed=True,
@@ -267,7 +271,7 @@ def _match_destination_policy(
         allowed=False,
         matched_rule=None,
         reason=first_reason or "Destination is outside issuer-approved destination policy",
-        cause="destination-mismatch",
+        cause="destination-not-authorized",
     )
 
 
@@ -293,7 +297,15 @@ def match_payload_to_verified_domains(
             reason=str(exc),
         )
 
-    normalized_domains = normalized_verified_domains(verified_domains)
+    try:
+        normalized_domains = normalized_verified_domains(verified_domains)
+    except CanonicalizationError as exc:
+        return MatchDecision(
+            allowed=False,
+            matched_rule=None,
+            reason=f"Verified-domain state is invalid: {exc.reason}",
+            cause="policy-invalid",
+        )
     normalized_rules = list(normalized_domains)
 
     if not normalized_rules:
@@ -312,7 +324,7 @@ def match_payload_to_verified_domains(
                     allowed=False,
                     matched_rule=None,
                     reason=f"Domain proof for '{matched}' has expired",
-                    cause="destination-mismatch",
+                    cause="destination-not-authorized",
                 )
             policy_decision = _match_destination_policy(destination, fixture_dir=fixture_dir)
             if policy_decision is not None:
@@ -333,7 +345,7 @@ def match_payload_to_verified_domains(
                     allowed=False,
                     matched_rule=None,
                     reason=f"Domain proof for '{matched}' has expired",
-                    cause="destination-mismatch",
+                    cause="destination-not-authorized",
                 )
             policy_decision = _match_destination_policy(destination, fixture_dir=fixture_dir)
             if policy_decision is not None:

@@ -58,7 +58,7 @@ function scannerContractRiskLevel(decision: ScanDecision): ScannerRiskLevel | un
 
 function scannerFallbackRiskLevel(decision: ScanDecision): ScannerRiskLevel {
   if (decision.decision_state === "verified_issuer") return "green"
-  if (decision.decision_state === "blocked") return "red"
+  if (["blocked", "unknown"].includes(decision.decision_state)) return "red"
   return "amber"
 }
 
@@ -137,6 +137,10 @@ const reasonCopy = {
   redirect_chain: {
     labelKey: "lab.reason.redirectChain.label",
     detailKey: "lab.reason.redirectChain.detail",
+  },
+  redirect_unobserved: {
+    labelKey: "lab.reason.redirectUnobserved.label",
+    detailKey: "lab.reason.redirectUnobserved.detail",
   },
   redirect_policy_block: {
     labelKey: "lab.reason.redirectPolicyBlock.label",

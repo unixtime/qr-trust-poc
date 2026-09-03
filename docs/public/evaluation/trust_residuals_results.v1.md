@@ -1,6 +1,6 @@
 # Trust Residuals Conformance Evaluation
 
-Generated: `2026-07-31T08:30:40.225955+00:00`
+Generated: `2026-09-02T16:11:05.992006+00:00`
 
 This report is a synthetic conformance suite: every case is an
 author-constructed fixture with a specified expected outcome, so the
@@ -24,8 +24,8 @@ mandatory-family configurations.
 - Residual verifier attention undercuts: `0`
 - Formal-table conformance (corpus): `37/37`
 - Formal-table conformance (exhaustive sweep): `2212160` comparisons over `6912` residual vectors × `5` profiles × `64` mandatory-family configurations, plus the undecodable-capture rule per profile × configuration; `0` mismatches
-- Δ decision latency median/p95/max ns: `708` / `1250` / `1354`
-- Latency methodology: timed span is decide(R, P) only; residual vectors precomputed; 20 warmup + 200 timed iterations per case, each call timed individually with time.perf_counter_ns around each individual call; summary statistics taken over per-case medians (CPython 3.12.2; Darwin 25.5.0; arm64).
+- Δ decision latency median/p95/max ns: `750` / `1250` / `1292`
+- Latency methodology: timed span is decoded-case decide(R, P) only; residual vectors precomputed; capture outcomes excluded; 20 warmup + 200 timed iterations per case, each call timed individually with time.perf_counter_ns around each individual call; summary statistics taken over per-case medians (CPython 3.12.2; Darwin 25.5.0; arm64).
 
 ## Baseline Construction
 
@@ -91,7 +91,7 @@ Per-baseline case lists:
 
 | Case | Profile | Expected | Residual verifier | Semantic match |
 |---|---|---|---|---|
-| C0 | strict-online | `unreadable` | `unreadable` | True |
+| C0 | strict-online | capture `unreadable` | capture `unreadable` | True |
 | C1 | strict-online | `unverified` | `unverified` | True |
 | C2 | strict-online | `signed-unaccepted-issuer` | `signed-unaccepted-issuer` | True |
 | C3 | strict-online | `verified-issuer` | `verified-issuer` | True |

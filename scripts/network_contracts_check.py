@@ -88,6 +88,95 @@ SCHEMA_EXAMPLE_MAP = {
     ],
 }
 
+SCANNER_DECISION_OPERATIONAL_STATES = {
+    "verified_issuer",
+    "verified_issuer_destination_risky",
+    "verified_issuer_runtime_unavailable",
+    "verified_issuer_runtime_blocked",
+    "verified_issuer_cache_stale",
+    "verified_issuer_cache_expired",
+    "verified_issuer_cache_unavailable",
+    "plain_url_unrecognized",
+    "destination_policy_mismatch",
+    "check_unavailable_destination_visible",
+}
+MODEL_PROFILES = {
+    "strict-online",
+    "bounded-online",
+    "bounded-offline",
+    "production-trusted",
+    "reference-testing",
+}
+MODEL_PRIMARY_STATES = {
+    "unverified",
+    "signed-unaccepted-issuer",
+    "verified-issuer",
+    "verified-issuer-destination-risky",
+    "blocked",
+}
+MODEL_ANNOTATIONS = {
+    "artifact-warning",
+    "stale-offline-warning",
+    "limited-runtime-safety-visibility",
+    "redirect-variation-warning",
+    "invalid-trust-claim-warning",
+    "policy-profile-warning",
+    "incomplete-verification-warning",
+}
+RESIDUAL_FAMILIES = {
+    "issuer_chain",
+    "destination_policy",
+    "redirect_flow",
+    "runtime_safety",
+    "freshness",
+    "artifact_integrity",
+}
+RESIDUAL_TIERS = {
+    "pass",
+    "not-applicable",
+    "not-checked",
+    "unknown",
+    "unavailable",
+    "stale",
+    "warn",
+    "fail",
+    "unaccepted-issuer",
+    "invalid-managed-claim",
+    "revoked-issuer",
+    "block",
+}
+RESIDUAL_CAUSES = {
+    "invalid-signature",
+    "issuer-suspended",
+    "issuer-revoked",
+    "record-expired",
+    "record-not-yet-valid",
+    "key-revoked",
+    "key-suspended",
+    "key-window-mismatch",
+    "trust-state-unavailable",
+    "destination-not-authorized",
+    "normalization-failure",
+    "policy-invalid",
+    "object-not-yet-valid",
+    "object-expired",
+    "nested-shortener",
+    "depth-exceeded",
+    "resolver-mismatch",
+    "resolution-unavailable",
+    "verdict-warn",
+    "verdict-block",
+    "verdict-expired",
+    "verdict-stale",
+    "provider-unavailable",
+    "no-trust-claim",
+    "invalid-trust-claim",
+    "overlay-suspected",
+    "conflicting-symbols",
+    "framed-symbol-anomaly",
+    "container-mismatch",
+}
+
 EXPECTED_SQL_TABLES = [
     "root_programs",
     "delegated_authorities",
@@ -420,6 +509,93 @@ def validate_schema_shape(path: Path, schema: dict[str, Any]) -> None:
     required = schema.get("required")
     if not isinstance(required, list) or not required:
         raise ContractError(f"{path.name} needs a non-empty required list")
+
+
+def validate_scanner_decision_schema_closed_vocabularies(
+    path: Path,
+    schema: dict[str, Any],
+) -> None:
+    properties = schema.get("properties", {})
+    definitions = schema.get("$defs", {})
+    model = definitions.get("model_decision", {}).get("properties", {})
+    checks = {
+        "decision_state": (
+            properties.get("decision_state", {}).get("enum"),
+            SCANNER_DECISION_OPERATIONAL_STATES,
+        ),
+        "model profile": (
+            model.get("profile", {}).get("enum"),
+            MODEL_PROFILES,
+        ),
+        "model primary_state": (
+            model.get("primary_state", {}).get("enum"),
+            MODEL_PRIMARY_STATES,
+        ),
+        "model annotations": (
+            model.get("annotations", {}).get("items", {}).get("enum"),
+            MODEL_ANNOTATIONS,
+        ),
+        "residual tiers": (
+            definitions.get("residual_tier", {}).get("enum"),
+            RESIDUAL_TIERS,
+        ),
+        "residual causes": (
+            definitions.get("residual_cause", {}).get("enum"),
+            RESIDUAL_CAUSES,
+        ),
+    }
+    for label, (actual, expected) in checks.items():
+        if not isinstance(actual, list) or set(actual) != expected:
+            raise ContractError(f"{path.name} must close {label} to the known vocabulary")
+
+    required = schema.get("required", [])
+    if "model_decision" not in required:
+        raise ContractError(f"{path.name} must require model_decision")
+    if properties.get("model_decision") != {"$ref": "#/$defs/model_decision"}:
+        raise ContractError(f"{path.name} model_decision must be non-null")
+    if model.get("annotations", {}).get("uniqueItems") is not True:
+        raise ContractError(f"{path.name} model annotations must be unique")
+
+    residual_vector = properties.get("residual_vector", {})
+    if set(residual_vector.get("required", [])) != RESIDUAL_FAMILIES:
+        raise ContractError(f"{path.name} must require exactly six residual families")
+
+
+def validate_scanner_decision_semantics(
+    instance_path: Path,
+    decision: dict[str, Any],
+) -> None:
+    if not instance_path.name.startswith("scanner-decision-"):
+        return
+    if decision.get("decision_state") not in SCANNER_DECISION_OPERATIONAL_STATES:
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown decision_state")
+
+    model = decision.get("model_decision")
+    if not isinstance(model, dict):
+        raise ContractError(f"{instance_path.relative_to(ROOT)} needs model_decision")
+    if model.get("profile") not in MODEL_PROFILES:
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown model profile")
+    if model.get("primary_state") not in MODEL_PRIMARY_STATES:
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown model state")
+    annotations = model.get("annotations")
+    if not isinstance(annotations, list) or not set(annotations) <= MODEL_ANNOTATIONS:
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown model annotation")
+    if len(annotations) != len(set(annotations)):
+        raise ContractError(f"{instance_path.relative_to(ROOT)} repeats a model annotation")
+
+    residuals = decision.get("residual_vector")
+    if not isinstance(residuals, dict) or set(residuals) != RESIDUAL_FAMILIES:
+        raise ContractError(f"{instance_path.relative_to(ROOT)} needs exactly six residuals")
+    if any(
+        not isinstance(entry, dict) or entry.get("tier") not in RESIDUAL_TIERS
+        for entry in residuals.values()
+    ):
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown residual tier")
+    if any(
+        entry.get("cause") is not None and entry.get("cause") not in RESIDUAL_CAUSES
+        for entry in residuals.values()
+    ):
+        raise ContractError(f"{instance_path.relative_to(ROOT)} has unknown residual cause")
 
 
 def validate_required_fields(
@@ -2375,6 +2551,11 @@ def main() -> int:
     schemas = {path.name: load_json(path) for path in schema_paths}
     for path in schema_paths:
         validate_schema_shape(path, schemas[path.name])
+        if path.name == "scanner-decision.schema.json":
+            validate_scanner_decision_schema_closed_vocabularies(
+                path,
+                schemas[path.name],
+            )
 
     checked_instances = 0
     for schema_name, fixture_names in SCHEMA_FIXTURE_MAP.items():
@@ -2398,6 +2579,7 @@ def main() -> int:
             example_path = EXAMPLE_DIR / example_name
             instance = load_json(example_path)
             validate_required_fields(schema_path, schemas[schema_name], example_path, instance)
+            validate_scanner_decision_semantics(example_path, instance)
             validate_deployment_readiness_semantics(example_path, instance)
             validate_deployment_readiness_bundle_semantics(example_path, instance)
             validate_verifier_profile_semantics(example_path, instance)

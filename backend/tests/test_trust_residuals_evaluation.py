@@ -3,8 +3,11 @@ from __future__ import annotations
 import ast
 import importlib.util
 import sys
+from copy import deepcopy
 from pathlib import Path
 from types import ModuleType
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,6 +44,30 @@ def test_public_corpus_is_semantically_exact() -> None:
     assert report["summary"]["residual_verifier_attention_undercut_count"] == 0
 
 
+def test_corpus_outcome_shape_separates_capture_from_trust_decisions() -> None:
+    evaluation = load_evaluation_module()
+    corpus = evaluation.load_corpus(evaluation.DEFAULT_CORPUS_PATH)
+
+    both = deepcopy(corpus)
+    both["cases"][0]["expected"]["primary_state"] = "unverified"
+    with pytest.raises(evaluation.CorpusError, match="exactly one"):
+        evaluation.validate_corpus(both)
+
+    unreadable_as_state = deepcopy(corpus)
+    c0_expected = unreadable_as_state["cases"][0]["expected"]
+    c0_expected.pop("capture_outcome")
+    c0_expected["primary_state"] = "unreadable"
+    with pytest.raises(evaluation.CorpusError, match="must use expected.capture_outcome"):
+        evaluation.validate_corpus(unreadable_as_state)
+
+    decoded_as_capture = deepcopy(corpus)
+    c1_expected = decoded_as_capture["cases"][1]["expected"]
+    c1_expected.pop("primary_state")
+    c1_expected["capture_outcome"] = "unreadable"
+    with pytest.raises(evaluation.CorpusError, match="must use expected.primary_state"):
+        evaluation.validate_corpus(decoded_as_capture)
+
+
 def test_weaker_baselines_have_measured_deficits() -> None:
     evaluation = load_evaluation_module()
     corpus = evaluation.load_corpus(evaluation.DEFAULT_CORPUS_PATH)
@@ -75,9 +102,12 @@ def test_no_baseline_asserts_a_state_for_an_undecodable_artifact() -> None:
     )
 
     c0 = next(case for case in report["cases"] if case["case_id"] == "C0")
-    assert c0["expected"]["primary_state"] == "unreadable"
+    assert c0["expected"]["capture_outcome"] == "unreadable"
+    assert "primary_state" not in c0["expected"]
     for baseline, baseline_report in c0["baselines"].items():
-        assert baseline_report["primary_state"] == "unreadable", baseline
+        assert baseline_report["capture_outcome"] == "unreadable", baseline
+        assert baseline_report["capture_action"] == "re-capture", baseline
+        assert "primary_state" not in baseline_report, baseline
         assert not baseline_report["unsafe_positive"], baseline
         assert not baseline_report["attention_undercut"], baseline
 
@@ -313,8 +343,16 @@ def test_formal_table_conformance_is_exhaustive_and_exact() -> None:
     for case in report["cases"]:
         formal = case["formal_table"]
         assert formal["match"], case["case_id"]
-        assert formal["primary_state"] == case["residual_verifier"]["primary_state"]
-        assert sorted(formal["annotations"]) == sorted(
-            case["residual_verifier"]["annotations"]
-        )
+        if "capture_outcome" in formal:
+            assert formal["capture_outcome"] == case["residual_verifier"][
+                "capture_outcome"
+            ]
+            assert "primary_state" not in case["residual_verifier"]
+        else:
+            assert formal["primary_state"] == case["residual_verifier"][
+                "primary_state"
+            ]
+            assert sorted(formal["annotations"]) == sorted(
+                case["residual_verifier"]["annotations"]
+            )
         assert formal["rule"].startswith("D"), case["case_id"]

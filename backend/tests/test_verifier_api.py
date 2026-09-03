@@ -14,6 +14,7 @@ from urllib.parse import quote
 import pytest
 import qrcode
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from backend.app.api.endpoints import verifier as verifier_endpoint
 from backend.app.core.config import config
@@ -37,6 +38,7 @@ from backend.app.schemas.poc import TrustStoreResponse
 from backend.app.services import verifier_api_key_service as api_key_service_module
 from backend.app.services.scan_activity import envelope_fingerprint
 from backend.app.services.qr_artifact_poc import (
+    QRArtifactAnalysis,
     decode_envelope_from_qr_payload,
     decode_qr_payload_from_png_bytes,
     encode_envelope_as_qr_payload,
@@ -56,6 +58,70 @@ def _render_custom_qr_base64(payload: str, *, border: int) -> str:
     output = BytesIO()
     image.convert("RGB").save(output, format="PNG")
     return base64.b64encode(output.getvalue()).decode("ascii")
+
+
+def _artifact_analysis(
+    *indicators: str,
+    artifact_integrity: str = "warn",
+) -> QRArtifactAnalysis:
+    return QRArtifactAnalysis(
+        payload="https://acme.example/pay",
+        decoded_payloads=("https://acme.example/pay",),
+        payload_type="url",
+        image_width=256,
+        image_height=256,
+        decoded_symbol_count=1,
+        artifact_integrity=artifact_integrity,
+        risk_score=1 if indicators else 0,
+        tamper_indicators=indicators,
+        bounds=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("indicator", "expected"),
+    [
+        ("conflicting_qr_payloads", "conflicting-symbols"),
+        ("colored_overlay_frame", "overlay-suspected"),
+        ("multiple_qr_symbols", "framed-symbol-anomaly"),
+        ("low_quiet_zone", "framed-symbol-anomaly"),
+        ("perspective_distortion", "framed-symbol-anomaly"),
+    ],
+)
+def test_artifact_source_condition_maps_to_protocol_cause(
+    indicator: str,
+    expected: str,
+) -> None:
+    assert (
+        verifier_endpoint._artifact_residual_cause(_artifact_analysis(indicator))
+        == expected
+    )
+
+
+def test_artifact_protocol_cause_priority_prefers_conflicting_symbols() -> None:
+    analysis = _artifact_analysis(
+        "low_quiet_zone",
+        "colored_overlay_frame",
+        "conflicting_qr_payloads",
+    )
+
+    assert verifier_endpoint._artifact_residual_cause(analysis) == "conflicting-symbols"
+
+
+def test_artifact_source_condition_without_protocol_mapping_is_rejected() -> None:
+    with pytest.raises(ValueError, match="no protocol cause"):
+        verifier_endpoint._artifact_residual_cause(
+            _artifact_analysis("future_detector_signal")
+        )
+
+
+def test_clean_artifact_has_no_residual_cause() -> None:
+    assert (
+        verifier_endpoint._artifact_residual_cause(
+            _artifact_analysis(artifact_integrity="pass")
+        )
+        is None
+    )
 
 
 def test_verifier_reference_api_accepts_a_signed_demo_envelope(client: TestClient) -> None:
@@ -785,6 +851,10 @@ def test_scanner_decision_uses_image_artifact_warning(client: TestClient) -> Non
     assert payload["decision_state"] == "verified_issuer"
     assert payload["scanner_ux"]["risk_level"] == "amber"
     assert "artifact_warning" in payload["scanner_ux"]["reason_codes"]
+    assert payload["residual_vector"]["artifact_integrity"] == {
+        "tier": "warn",
+        "cause": "framed-symbol-anomaly",
+    }
     artifact_signal = next(
         signal for signal in payload["signals"] if signal["layer"] == "artifact_integrity"
     )
@@ -817,6 +887,10 @@ def test_scanner_decision_blocks_image_payload_mismatch(client: TestClient) -> N
     assert payload["open_allowed"] is False
     assert payload["verifier_stage"] == "artifact_integrity"
     assert "artifact_integrity_block" in payload["scanner_ux"]["reason_codes"]
+    assert payload["residual_vector"]["artifact_integrity"] == {
+        "tier": "block",
+        "cause": "container-mismatch",
+    }
 
 
 def test_demo_materials_low_quiet_zone_profile_yields_artifact_warning(
@@ -844,6 +918,10 @@ def test_demo_materials_low_quiet_zone_profile_yields_artifact_warning(
     assert payload["decision_state"] == "verified_issuer"
     assert payload["scanner_ux"]["risk_level"] == "amber"
     assert "artifact_warning" in payload["scanner_ux"]["reason_codes"]
+    assert payload["residual_vector"]["artifact_integrity"] == {
+        "tier": "warn",
+        "cause": "framed-symbol-anomaly",
+    }
     artifact_signal = next(
         signal for signal in payload["signals"] if signal["layer"] == "artifact_integrity"
     )
@@ -882,6 +960,10 @@ def test_demo_materials_payload_mismatch_profile_blocks_scan(
     assert payload["open_allowed"] is False
     assert payload["verifier_stage"] == "artifact_integrity"
     assert "artifact_integrity_block" in payload["scanner_ux"]["reason_codes"]
+    assert payload["residual_vector"]["artifact_integrity"] == {
+        "tier": "block",
+        "cause": "container-mismatch",
+    }
 
 
 def test_scanner_decision_rate_limit_uses_client_identity_for_unverified_api_keys(
@@ -1587,7 +1669,9 @@ def test_scanner_decision_api_blocks_direct_destination_path_mismatch(
     assert payload["contract"]["decision_color"] == "red"
 
 
-def test_scanner_decision_api_allows_approved_resolver_flow(client: TestClient) -> None:
+def test_scanner_decision_api_does_not_accept_asserted_redirect_observation(
+    client: TestClient,
+) -> None:
     final_url = "https://acme.example/pay"
     resolver_url = (
         "https://qr.acme.example/r/pay"
@@ -1606,21 +1690,28 @@ def test_scanner_decision_api_allows_approved_resolver_flow(client: TestClient) 
 
     assert result.status_code == 200
     payload = result.json()
-    assert payload["decision_state"] == "verified_issuer"
-    assert payload["open_allowed"] is True
-    assert payload["verifier_stage"] == "accepted"
-    assert payload["destination"]["display_url"] == final_url
-    assert payload["destination"]["host"] == "acme.example"
-    assert payload["destination"]["binding"] == "bound"
+    assert payload["decision_state"] == "unknown"
+    assert payload["open_allowed"] is False
+    assert payload["verifier_stage"] == "redirect_policy"
+    assert payload["destination"]["display_url"] == resolver_url
+    assert payload["destination"]["host"] == "qr.acme.example"
+    assert payload["destination"]["binding"] == "redirect_unobserved"
     assert payload["destination"]["resolver_url"] == "https://qr.acme.example/r/pay"
-    assert payload["destination"]["final_url"] == final_url
-    assert payload["destination"]["redirect_hops"] == 1
+    assert payload["destination"]["final_url"] is None
+    assert payload["destination"]["redirect_hops"] is None
     assert payload["destination"]["redirect_policy"] == "resolver_to_final:max_1_hop"
-    assert payload["signals"][1]["state"] == "bound"
-    assert "Resolver and final destination match issuer redirect policy" in payload["signals"][1]["message"]
+    assert payload["residual_vector"]["redirect_flow"] == {
+        "tier": "unavailable",
+        "cause": "resolution-unavailable",
+    }
+    assert payload["model_decision"]["primary_state"] == "unverified"
+    assert payload["signals"][1]["state"] == "redirect_unobserved"
+    assert "No live redirect observer" in payload["signals"][1]["message"]
 
 
-def test_scanner_decision_api_blocks_resolver_final_host_mismatch(client: TestClient) -> None:
+def test_scanner_decision_api_does_not_trust_asserted_final_host_mismatch(
+    client: TestClient,
+) -> None:
     final_url = "https://evil.example/pay"
     resolver_url = (
         "https://qr.acme.example/r/pay"
@@ -1639,18 +1730,20 @@ def test_scanner_decision_api_blocks_resolver_final_host_mismatch(client: TestCl
 
     assert result.status_code == 200
     payload = result.json()
-    assert payload["decision_state"] == "blocked"
+    assert payload["decision_state"] == "unknown"
     assert payload["open_allowed"] is False
     assert payload["verifier_stage"] == "redirect_policy"
-    assert payload["destination"]["binding"] == "redirect_mismatch"
-    assert payload["destination"]["display_url"] == final_url
+    assert payload["destination"]["binding"] == "redirect_unobserved"
+    assert payload["destination"]["display_url"] == resolver_url
     assert payload["destination"]["resolver_url"] == "https://qr.acme.example/r/pay"
-    assert payload["destination"]["final_url"] == final_url
-    assert payload["signals"][1]["state"] == "redirect_mismatch"
-    assert "not in the issuer-approved redirect host set" in payload["verifier_reason"]
+    assert payload["destination"]["final_url"] is None
+    assert payload["signals"][1]["state"] == "redirect_unobserved"
+    assert "not observed" in payload["verifier_reason"]
 
 
-def test_scanner_decision_api_blocks_excessive_redirect_hops(client: TestClient) -> None:
+def test_scanner_decision_api_does_not_trust_asserted_redirect_hops(
+    client: TestClient,
+) -> None:
     final_url = "https://acme.example/pay"
     resolver_url = (
         "https://qr.acme.example/r/pay"
@@ -1669,15 +1762,19 @@ def test_scanner_decision_api_blocks_excessive_redirect_hops(client: TestClient)
 
     assert result.status_code == 200
     payload = result.json()
-    assert payload["decision_state"] == "blocked"
+    assert payload["decision_state"] == "unknown"
     assert payload["open_allowed"] is False
     assert payload["verifier_stage"] == "redirect_policy"
-    assert payload["destination"]["binding"] == "redirect_mismatch"
-    assert payload["destination"]["redirect_hops"] == 3
-    assert "3 hops observed, max 1" in payload["verifier_reason"]
+    assert payload["destination"]["binding"] == "redirect_unobserved"
+    assert payload["destination"]["redirect_hops"] is None
+    assert payload["residual_vector"]["redirect_flow"]["cause"] == (
+        "resolution-unavailable"
+    )
 
 
-def test_scanner_decision_api_blocks_nested_shortener_flow(client: TestClient) -> None:
+def test_scanner_decision_api_does_not_trust_asserted_nested_shortener_flag(
+    client: TestClient,
+) -> None:
     final_url = "https://acme.example/pay"
     resolver_url = (
         "https://qr.acme.example/r/pay"
@@ -1696,12 +1793,12 @@ def test_scanner_decision_api_blocks_nested_shortener_flow(client: TestClient) -
 
     assert result.status_code == 200
     payload = result.json()
-    assert payload["decision_state"] == "blocked"
+    assert payload["decision_state"] == "unknown"
     assert payload["open_allowed"] is False
     assert payload["verifier_stage"] == "redirect_policy"
-    assert payload["destination"]["binding"] == "redirect_mismatch"
-    assert payload["destination"]["redirect_hops"] == 1
-    assert "Nested shorteners are not allowed" in payload["verifier_reason"]
+    assert payload["destination"]["binding"] == "redirect_unobserved"
+    assert payload["destination"]["redirect_hops"] is None
+    assert payload["signals"][1]["message"].startswith("No live redirect observer")
 
 
 def test_scanner_decision_api_blocks_destination_mismatch(client: TestClient) -> None:
@@ -1743,6 +1840,8 @@ def test_scanner_decision_api_handles_plain_url_as_unverified(client: TestClient
     assert payload["scanner_ux"]["primary_action"] == "Open with caution"
     assert payload["scanner_ux"]["destination_display"] == "example.com"
     assert "plain_url" in payload["scanner_ux"]["reason_codes"]
+    assert payload["model_decision"]["primary_state"] == "unverified"
+    assert payload["model_decision"]["attention_level"] == "neutral"
 
 
 def test_scanner_decision_api_displays_public_suffix_domain(
@@ -2778,6 +2877,76 @@ def test_verified_scan_exposes_a_passing_residual_vector_and_model_decision(
     assert model["attention_level"] in {"positive", "neutral", "warning", "block"}
 
 
+def test_scanner_response_schema_rejects_values_outside_closed_vocabularies(
+    client: TestClient,
+) -> None:
+    demo = client.post("/verifier/demo-materials", json={}).json()
+    valid = _scan(client, demo)
+    ScannerDecisionResponse.model_validate(valid)
+
+    def set_nested_contract_state(payload: dict[str, Any]) -> None:
+        payload["contract"]["decision_state"] = "new-state-without-an-adapter"
+
+    def remove_model_decision(payload: dict[str, Any]) -> None:
+        del payload["model_decision"]
+
+    def set_null_model_decision(payload: dict[str, Any]) -> None:
+        payload["model_decision"] = None
+
+    def add_duplicate_annotation(payload: dict[str, Any]) -> None:
+        payload["model_decision"]["annotations"] = [
+            "artifact-warning",
+            "artifact-warning",
+        ]
+
+    def remove_residual_family(payload: dict[str, Any]) -> None:
+        del payload["residual_vector"]["artifact_integrity"]
+
+    def add_residual_family(payload: dict[str, Any]) -> None:
+        payload["residual_vector"]["new_family"] = {
+            "tier": "pass",
+            "cause": None,
+        }
+
+    mutations = {
+        "operational state": lambda payload: payload.__setitem__(
+            "decision_state",
+            "new-state-without-an-adapter",
+        ),
+        "nested contract operational state": set_nested_contract_state,
+        "missing model decision": remove_model_decision,
+        "null model decision": set_null_model_decision,
+        "model profile": lambda payload: payload["model_decision"].__setitem__(
+            "profile",
+            "permissive-unknown-profile",
+        ),
+        "model primary state": lambda payload: payload["model_decision"].__setitem__(
+            "primary_state",
+            "mostly-verified",
+        ),
+        "model annotation": lambda payload: payload["model_decision"].__setitem__(
+            "annotations",
+            ["unregistered-warning"],
+        ),
+        "duplicate model annotation": add_duplicate_annotation,
+        "residual tier": lambda payload: payload["residual_vector"][
+            "issuer_chain"
+        ].__setitem__("tier", "mostly-pass"),
+        "residual cause": lambda payload: payload["residual_vector"][
+            "issuer_chain"
+        ].__setitem__("cause", "implementation-local-alias"),
+        "missing residual family": remove_residual_family,
+        "extra residual family": add_residual_family,
+    }
+
+    for label, mutate in mutations.items():
+        candidate = copy.deepcopy(valid)
+        mutate(candidate)
+        with pytest.raises(ValidationError) as exc_info:
+            ScannerDecisionResponse.model_validate(candidate)
+        assert exc_info.value.errors(), label
+
+
 def test_expired_scan_blocks_on_freshness_with_object_expired_cause(
     client: TestClient,
 ) -> None:
@@ -2825,10 +2994,10 @@ def test_plain_url_scan_is_unverified_with_no_signed_envelope_cause(
     assert body["decision_state"] == "unverified"
     assert body["envelope_id"] is None
     assert body["residual_vector"]["issuer_chain"] == {
-        "tier": "unaccepted-issuer",
-        "cause": "no-signed-envelope",
+        "tier": "unknown",
+        "cause": "no-trust-claim",
     }
-    assert body["model_decision"]["primary_state"] != "verified-issuer"
+    assert body["model_decision"]["primary_state"] == "unverified"
 
 
 def test_version_1_envelope_is_unverified_not_a_500(client: TestClient) -> None:
@@ -2846,9 +3015,10 @@ def test_version_1_envelope_is_unverified_not_a_500(client: TestClient) -> None:
     body = response.json()
     assert body["decision_state"] == "unverified"
     assert body["residual_vector"]["issuer_chain"] == {
-        "tier": "unaccepted-issuer",
-        "cause": "unsupported-claims-version",
+        "tier": "unknown",
+        "cause": "invalid-trust-claim",
     }
+    assert body["model_decision"]["primary_state"] == "unverified"
     assert "unsupported_claims_version" in body["model_decision"]["reason_codes"]
 
 
@@ -2869,7 +3039,9 @@ def test_verify_reports_key_revoked_from_the_new_key_state_field(client: TestCli
     assert body["cause"] == "key-revoked"
 
 
-def test_verify_keeps_the_legacy_inactive_certificate_cause(client: TestClient) -> None:
+def test_verify_maps_the_legacy_inactive_certificate_to_issuer_suspended(
+    client: TestClient,
+) -> None:
     _clear_verifier_rate_limiter()
     request = _demo_verify_request(client)
     # Demo materials now bakes an explicit issuer_status onto the returned
@@ -2886,8 +3058,8 @@ def test_verify_keeps_the_legacy_inactive_certificate_cause(client: TestClient) 
     body = response.json()
     assert body["allowed"] is False
     assert body["stage"] == "issuer_status"
-    # The stage name changed; the cause slug the catalogues key on did not.
-    assert body["cause"] == "issuer-inactive"
+    # The legacy boolean is an input adapter; the wire cause is the protocol token.
+    assert body["cause"] == "issuer-suspended"
 
 
 def test_verify_accepts_an_unchanged_legacy_request(client: TestClient) -> None:
@@ -3066,6 +3238,28 @@ def test_issuer_verification_state_input_coerces_a_legacy_domain_list() -> None:
     assert state.verified_domains == {"acme.example": None}
 
 
+def test_issuer_verification_state_input_canonicalizes_domain_keys() -> None:
+    from backend.app.schemas.poc import IssuerVerificationStateInput
+
+    state = IssuerVerificationStateInput(
+        verified_domains={"Acme.Example.": None}
+    )
+
+    assert state.verified_domains == {"acme.example": None}
+
+
+def test_issuer_verification_state_input_rejects_canonical_domain_collision() -> None:
+    from backend.app.schemas.poc import IssuerVerificationStateInput
+
+    with pytest.raises(ValueError, match="both normalize to 'acme.example'"):
+        IssuerVerificationStateInput(
+            verified_domains={
+                "Acme.Example.": None,
+                "acme.example": None,
+            }
+        )
+
+
 def test_demo_materials_reuse_one_key_across_issuances(client: TestClient) -> None:
     """The fix for the single-slot overwrite, asserted end to end."""
     _clear_verifier_rate_limiter()
@@ -3172,7 +3366,7 @@ def test_demo_materials_expired_issuer_record_blocks_with_the_record_cause(
     assert result.status_code == 200
     assert result.json()["allowed"] is False
     assert result.json()["stage"] == "issuer_status"
-    assert result.json()["cause"] == "issuer-record-expired"
+    assert result.json()["cause"] == "record-expired"
 
 
 def test_trust_store_lists_issuers_and_keys_with_windows(client: TestClient) -> None:

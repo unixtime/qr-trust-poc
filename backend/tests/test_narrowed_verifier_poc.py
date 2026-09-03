@@ -2,11 +2,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from backend.app.services import narrowed_verifier_poc as narrowed_verifier_module
 from backend.app.services.narrowed_verifier_poc import (
     ACCEPTED_REASON,
     NarrowedVerifierService,
     TrustContext,
 )
+from backend.app.services.payload_revalidation_poc import MatchDecision
 from backend.app.services.scanner_trust_store import IssuerRecord, KeyEntry
 from backend.app.services.signed_schema_poc import (
     SignedQRCodeClaims,
@@ -161,6 +163,59 @@ async def test_service_blocks_an_artifact_signed_after_the_key_retired():
 
 
 @pytest.mark.asyncio
+async def test_retired_key_can_self_backdate_a_new_artifact_until_revoked():
+    """No independent witness lets the verifier distinguish claimed from real time."""
+    certificate, private_key_pem = build_demo_certificate()
+    retired_at = TRUST_NOW - timedelta(hours=1)
+    actual_signing_time = TRUST_NOW
+    self_asserted_issued_at = retired_at - timedelta(days=1)
+    claims = SignedQRCodeClaims(
+        version="2",
+        certificate_ref=certificate.certificate_ref,
+        issued_at=self_asserted_issued_at.isoformat(),
+        expires_at=(TRUST_NOW + timedelta(days=1)).isoformat(),
+        payload="https://acme.example/pay",
+    )
+
+    # Envelope creation occurs after the modeled retirement event, but the
+    # signed claims contain only the signer's earlier, self-asserted time.
+    assert actual_signing_time > retired_at > self_asserted_issued_at
+    envelope = create_signed_envelope(claims, private_key_pem)
+    service = NarrowedVerifierService(now_fn=lambda: TRUST_NOW)
+    retired_key = _trust_key(
+        certificate.certificate_ref,
+        state="retired",
+        not_before=self_asserted_issued_at - timedelta(days=1),
+        not_after=retired_at,
+    )
+
+    accepted = await service.verify_presented_code(
+        envelope,
+        certificate,
+        _trust_context(certificate.certificate_ref, key=retired_key),
+    )
+    revoked = await service.verify_presented_code(
+        envelope,
+        certificate,
+        _trust_context(
+            certificate.certificate_ref,
+            key=_trust_key(
+                certificate.certificate_ref,
+                state="revoked",
+                not_before=retired_key.not_before,
+                not_after=retired_key.not_after,
+            ),
+        ),
+    )
+
+    assert accepted.allowed is True
+    assert accepted.stage == "accepted"
+    assert revoked.allowed is False
+    assert revoked.stage == "key_status"
+    assert revoked.cause == "key-revoked"
+
+
+@pytest.mark.asyncio
 async def test_service_never_expires_an_open_ended_artifact():
     certificate, private_key_pem = build_demo_certificate()
     claims = SignedQRCodeClaims(
@@ -200,6 +255,43 @@ async def test_service_still_blocks_a_destination_outside_the_verified_domains()
     assert result.allowed is False
     assert result.stage == "payload_revalidation"
     assert result.cause is None
+
+
+@pytest.mark.asyncio
+async def test_service_forwards_matched_domain_on_destination_deny(monkeypatch):
+    certificate, private_key_pem = build_demo_certificate()
+    claims = SignedQRCodeClaims(
+        version="2",
+        certificate_ref=certificate.certificate_ref,
+        issued_at="2026-03-01T11:55:00Z",
+        expires_at="2026-03-01T12:05:00Z",
+        payload="https://acme.example/pay",
+    )
+    envelope = create_signed_envelope(claims, private_key_pem)
+    service = NarrowedVerifierService(now_fn=lambda: TRUST_NOW)
+
+    monkeypatch.setattr(
+        narrowed_verifier_module,
+        "match_payload_to_verified_domains",
+        lambda *_args, **_kwargs: MatchDecision(
+            allowed=False,
+            matched_rule=None,
+            reason="matched proof is expired",
+            cause="destination-not-authorized",
+            matched_domain="acme.example",
+        ),
+    )
+
+    result = await service.verify_presented_code(
+        envelope,
+        certificate,
+        _trust_context(certificate.certificate_ref),
+    )
+
+    assert result.allowed is False
+    assert result.stage == "payload_revalidation"
+    assert result.cause == "destination-not-authorized"
+    assert result.matched_domain == "acme.example"
 
 
 @pytest.mark.asyncio

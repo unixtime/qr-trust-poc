@@ -56,20 +56,20 @@ def _claims(*, issued_at: datetime = NOW, expires_at: datetime | None = None) ->
     [
         ({}, {}, {}, None, None),
         ({"status": "revoked"}, {}, {}, "issuer_status", "issuer-revoked"),
-        ({"status": "suspended"}, {}, {}, "issuer_status", "issuer-inactive"),
+        ({"status": "suspended"}, {}, {}, "issuer_status", "issuer-suspended"),
         (
             {"expires_at": NOW - timedelta(days=1)},
             {},
             {},
             "issuer_status",
-            "issuer-record-expired",
+            "record-expired",
         ),
         (
             {"issued_at": NOW + timedelta(days=1), "expires_at": NOW + timedelta(days=40)},
             {},
             {},
             "issuer_status",
-            "issuer-record-not-yet-valid",
+            "record-not-yet-valid",
         ),
         (
             {},
@@ -90,7 +90,7 @@ def _claims(*, issued_at: datetime = NOW, expires_at: datetime | None = None) ->
             {},
             {"issued_at": NOW + timedelta(minutes=10)},
             "time_window",
-            "not-yet-valid",
+            "object-not-yet-valid",
         ),
         (
             {},
@@ -99,7 +99,7 @@ def _claims(*, issued_at: datetime = NOW, expires_at: datetime | None = None) ->
             "time_window",
             "object-expired",
         ),
-        ({"status": "expired"}, {}, {}, "issuer_status", "issuer-record-expired"),
+        ({"status": "expired"}, {}, {}, "issuer_status", "record-expired"),
         ({}, {"state": "suspended"}, {}, "key_status", "key-suspended"),
     ],
 )
@@ -184,7 +184,7 @@ def test_suspended_issuer_outranks_revoked_key():
         skew_seconds=300,
     )
 
-    assert result.cause == "issuer-inactive"
+    assert result.cause == "issuer-suspended"
 
 
 def test_issuer_record_expiry_blocks_a_still_valid_artifact():
@@ -196,7 +196,7 @@ def test_issuer_record_expiry_blocks_a_still_valid_artifact():
         skew_seconds=300,
     )
 
-    assert result.cause == "issuer-record-expired"
+    assert result.cause == "record-expired"
 
 
 @pytest.mark.parametrize(
@@ -223,6 +223,30 @@ def test_store_holds_two_keys_for_one_issuer():
 
     assert store.resolve("cert:acme-demo:2026-01") is not None
     assert store.resolve("cert:acme-demo:2026-01-r1") is not None
+
+
+def test_put_issuer_canonicalizes_verified_domain_keys():
+    store = ScannerTrustStore()
+    store.put_issuer(
+        _issuer(verified_domains={"Acme.Example.": None})
+    )
+
+    issuer = store.issuers()[0]
+    assert dict(issuer.verified_domains) == {"acme.example": None}
+
+
+def test_put_issuer_rejects_canonical_verified_domain_collision():
+    store = ScannerTrustStore()
+
+    with pytest.raises(ValueError, match="both normalize to 'acme.example'"):
+        store.put_issuer(
+            _issuer(
+                verified_domains={
+                    "Acme.Example.": None,
+                    "acme.example": None,
+                }
+            )
+        )
 
 
 def test_retire_keys_for_flips_previous_keys():

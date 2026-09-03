@@ -1,10 +1,11 @@
-"""
-Deterministic redirect policy support for the scanner decision PoC.
+"""Deterministic redirect-policy fixtures and fail-closed runtime detection.
 
 The paper treats short URLs and resolver flows as destination-binding work:
 the scanner must reason about the resolver and the final destination before
-runtime safety can be meaningful. This module projects the non-normative
-governance fixture into a small verifier-friendly policy check.
+runtime safety can be meaningful. The current runtime has no redirect observer,
+so it can recognize an enrolled resolver but cannot produce positive redirect
+evidence. The query-driven evaluator remains only as a deterministic fixture
+model; its ``final``, ``hops``, and ``nested`` values are not network facts.
 """
 
 from __future__ import annotations
@@ -102,11 +103,72 @@ def _policy_label(max_hops: int) -> str:
     return f"resolver_to_final:max_{max_hops}_hop{'s' if max_hops != 1 else ''}"
 
 
+def evaluate_unobserved_redirect_policy(
+    payload: str,
+    *,
+    fixture_dir: Path = DEFAULT_FIXTURE_DIR,
+) -> RedirectPolicyVerdict:
+    """Recognize enrolled resolvers without inventing redirect observations.
+
+    The scanner runtime calls this function until an isolated live observer is
+    implemented. Payload query parameters are deliberately ignored: a signer
+    asserting ``final`` or ``hops`` is not evidence that a network walk reached
+    that destination or traversed that number of hops.
+    """
+    policy = _load_redirect_policy(fixture_dir)
+    resolver_base_url = _url_without_query(payload)
+    if policy is None or resolver_base_url is None:
+        return RedirectPolicyVerdict(
+            state="not_applicable",
+            resolver_url=None,
+            final_url=None,
+            hop_count=None,
+            reason="No resolver policy applies to this destination.",
+            open_allowed=True,
+            effective_url=payload,
+        )
+
+    resolver_urls = {_url_without_query(item) for item in _string_list(policy.get("resolver_urls"))}
+    resolver_urls.discard(None)
+    if resolver_base_url not in resolver_urls:
+        return RedirectPolicyVerdict(
+            state="not_applicable",
+            resolver_url=None,
+            final_url=None,
+            hop_count=None,
+            reason="Destination is not an enrolled resolver URL.",
+            open_allowed=True,
+            effective_url=payload,
+        )
+
+    max_hops_raw = policy.get("max_redirect_hops")
+    max_hops = max_hops_raw if isinstance(max_hops_raw, int) else 1
+    return RedirectPolicyVerdict(
+        state="unknown",
+        resolver_url=resolver_base_url,
+        final_url=None,
+        hop_count=None,
+        reason=(
+            "No live redirect observer is available; the final destination "
+            "and redirect chain were not observed."
+        ),
+        open_allowed=False,
+        effective_url=payload,
+        policy_label=_policy_label(max_hops),
+        cause="resolution-unavailable",
+    )
+
+
 def evaluate_redirect_policy(
     payload: str,
     *,
     fixture_dir: Path = DEFAULT_FIXTURE_DIR,
 ) -> RedirectPolicyVerdict:
+    """Evaluate synthetic query-carried observations for fixture tests only.
+
+    This function models policy outcomes; it does not follow redirects. Runtime
+    scanner decisions must call :func:`evaluate_unobserved_redirect_policy`.
+    """
     policy = _load_redirect_policy(fixture_dir)
     resolver_base_url = _url_without_query(payload)
     if policy is None or resolver_base_url is None:
@@ -152,6 +214,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=final_url or payload,
             policy_label=label,
+            cause="resolution-unavailable",
         )
 
     nested_allowed = policy.get("nested_shorteners_allowed") is True
@@ -165,6 +228,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=final_url or payload,
             policy_label=label,
+            cause="nested-shortener",
         )
 
     if hop_count is not None and hop_count > max_hops:
@@ -180,6 +244,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=final_url or payload,
             policy_label=label,
+            cause="depth-exceeded",
         )
 
     if final_url is None:
@@ -192,7 +257,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=payload,
             policy_label=label,
-            cause="redirect-unobserved",
+            cause="resolution-unavailable",
         )
 
     allowed_hosts = {_host(item) for item in _string_list(policy.get("allowed_redirect_hosts"))}
@@ -211,6 +276,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=final_url,
             policy_label=label,
+            cause="resolver-mismatch",
         )
 
     if final_url not in expected_final_destinations:
@@ -226,6 +292,7 @@ def evaluate_redirect_policy(
             open_allowed=False,
             effective_url=final_url,
             policy_label=label,
+            cause="resolver-mismatch",
         )
 
     return RedirectPolicyVerdict(

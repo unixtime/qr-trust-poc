@@ -11,6 +11,11 @@ import asyncpg
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 
 from backend.app.core.config import config
+from backend.app.services.destination_canonicalization import (
+    CanonicalizationError,
+    canonicalize_rule_prefix,
+    canonicalize_verified_domain,
+)
 from backend.app.schemas.management import (
     ScanAccountingResponse,
     DelegatedAuthorityUpsertRequest,
@@ -746,7 +751,10 @@ async def upsert_trust_key(
                 existing["signer_id"],
                 existing["algorithm_id"],
                 existing["public_key_material_ref"],
+                existing["public_key_material_pem"],
                 existing["scope"],
+                existing["not_before"],
+                existing["not_after"],
             )
             requested_identity = (
                 root_program_id,
@@ -754,7 +762,10 @@ async def upsert_trust_key(
                 signer_id,
                 algorithm_id,
                 public_key_material_ref,
+                public_key_material_pem,
                 request.scope,
+                request.not_before,
+                request.not_after,
             )
             if existing_identity != requested_identity:
                 raise HTTPException(
@@ -791,6 +802,14 @@ async def upsert_trust_key(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
         ) from exc
+    except asyncpg.UniqueViolationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"trust key '{key_id}' was enrolled concurrently; retry the"
+                " request to compare its immutable identity"
+            ),
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:
@@ -808,7 +827,8 @@ async def upsert_trust_key(
 
 _ISSUER_CERTIFICATE_REPLAY_LOOKUP = (
     "select certificate_id, issuer_id, root_program_id, delegated_authority_id,"
-    " algorithm_id, public_key_ref, key_status"
+    " algorithm_id, public_key_ref, public_key_material_pem, not_before,"
+    " not_after, key_status"
     " from qr_trust.issuer_certificates where certificate_id = $1"
 )
 
@@ -821,7 +841,8 @@ _ISSUER_CERTIFICATE_STATUS_LOOKUP = (
 
 _TRUST_KEY_REPLAY_LOOKUP = (
     "select key_id, root_program_id, delegated_authority_id, signer_id,"
-    " algorithm_id, public_key_material_ref, scope, key_status"
+    " algorithm_id, public_key_material_ref, public_key_material_pem, scope,"
+    " not_before, not_after, key_status"
     " from qr_trust.trust_keys where key_id = $1"
 )
 
@@ -931,6 +952,9 @@ async def enroll_issuer_certificate(
                 str(existing["delegated_authority_id"]),
                 str(existing["algorithm_id"]),
                 str(existing["public_key_ref"]),
+                str(existing["public_key_material_pem"]),
+                existing["not_before"],
+                existing["not_after"],
             )
             requested_identity = (
                 issuer_id,
@@ -938,6 +962,9 @@ async def enroll_issuer_certificate(
                 delegated_authority_id,
                 algorithm_id,
                 public_key_ref,
+                public_key_material_pem,
+                request.not_before,
+                request.not_after,
             )
             if existing_identity != requested_identity:
                 raise HTTPException(
@@ -973,6 +1000,14 @@ async def enroll_issuer_certificate(
     except (IdempotencyConflictError, IdempotencyInProgressError) as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+        ) from exc
+    except asyncpg.UniqueViolationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"certificate '{certificate_id}' was enrolled concurrently; retry"
+                " the request to compare its immutable identity"
+            ),
         ) from exc
     except HTTPException:
         raise
@@ -2446,41 +2481,13 @@ def _optional_clean_text(value: str | None) -> str | None:
 
 
 def _normalize_domain(value: str) -> str:
-    raw_domain = value.strip().lower().rstrip(".")
-    if (
-        not raw_domain
-        or "://" in raw_domain
-        or "/" in raw_domain
-        or ":" in raw_domain
-        or any(character.isspace() for character in raw_domain)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="domain must be a hostname, not a URL",
-        )
     try:
-        ascii_domain = raw_domain.encode("idna").decode("ascii").lower()
-    except UnicodeError as exc:
+        return canonicalize_verified_domain(value)
+    except CanonicalizationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="domain must be a valid DNS hostname",
+            detail=exc.reason.replace("Verified domain", "domain"),
         ) from exc
-    labels = ascii_domain.split(".")
-    if (
-        len(ascii_domain) > 253
-        or any(not label or len(label) > 63 for label in labels)
-        or any(label.startswith("-") or label.endswith("-") for label in labels)
-        or any(
-            character != "-" and not character.isalnum()
-            for label in labels
-            for character in label
-        )
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="domain must be a valid DNS hostname",
-        )
-    return ascii_domain
 
 
 def _normalize_approved_destinations(
@@ -2541,7 +2548,13 @@ def _normalize_path_prefixes(values: list[str]) -> list[str]:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="path_prefixes must start with /",
             )
-        normalized.append(cleaned)
+        try:
+            normalized.append(canonicalize_rule_prefix(cleaned))
+        except CanonicalizationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"path_prefixes contains an invalid prefix: {exc.reason}",
+            ) from exc
     return normalized
 
 

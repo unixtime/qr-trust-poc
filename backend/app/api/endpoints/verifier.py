@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from ipaddress import ip_address
 from secrets import compare_digest
-from typing import Any, cast
+from typing import Any, cast, get_args
 from urllib.parse import ParseResult, urlparse
 from uuid import uuid4
 
@@ -33,6 +33,7 @@ from backend.app.schemas.poc import (
     NetworkOutboxOperatorStatusResponse,
     QRCodeImageDecodeRequest,
     QRCodeImageDecodeResponse,
+    ResidualCause,
     ResidualEntry,
     ScannerDecisionAction,
     ScannerDecisionContract,
@@ -49,6 +50,7 @@ from backend.app.schemas.poc import (
     ScannerDecisionResponse,
     ScannerDecisionSignal,
     ScannerDecisionUX,
+    ScannerOperationalState,
     ScannerUXExperimentFixtureResponse,
     ScannerUXEventLogEntry,
     ScannerUXEventLogListResponse,
@@ -103,7 +105,7 @@ from backend.app.services.governance_fixture_store import (
 from backend.app.services.request_rate_limiter import RequestRateLimiter
 from backend.app.services.redirect_policy_poc import (
     RedirectPolicyVerdict,
-    evaluate_redirect_policy,
+    evaluate_unobserved_redirect_policy,
 )
 from backend.app.services.runtime_safety_poc import (
     RuntimeSafetyVerdict,
@@ -1141,6 +1143,40 @@ _SCANNER_CONTRACT_DEFAULT_MESSAGES = {
     "scanner_decision": "Scanner-visible decision was produced.",
 }
 
+# `model_decision` is the protocol/conformance surface. `decision_state` is a
+# product state whose presentation may be stricter, but never less attentive,
+# than the model result attached to the same response. Keeping the operational
+# vocabulary here makes a newly emitted state fail closed until its UX posture
+# is reviewed and mapped.
+_SCANNER_OPERATIONAL_STATES = frozenset(get_args(ScannerOperationalState))
+_MODEL_ATTENTION_RANK = {
+    "positive": 0,
+    "neutral": 1,
+    "warning": 2,
+    "block": 3,
+}
+_SCANNER_UX_ATTENTION_RANK = {"green": 0, "amber": 2, "red": 3}
+
+
+def _assert_scanner_conformance_mapping(
+    response: ScannerDecisionResponse,
+    scanner_ux: ScannerDecisionUX,
+) -> None:
+    model = response.model_decision
+    if model is None:
+        raise ValueError("scanner response is missing authoritative model_decision")
+    if response.decision_state not in _SCANNER_OPERATIONAL_STATES:
+        raise ValueError(
+            f"unmapped scanner decision_state {response.decision_state!r}"
+        )
+    operational_rank = _SCANNER_UX_ATTENTION_RANK[scanner_ux.risk_level]
+    model_rank = _MODEL_ATTENTION_RANK[model.attention_level]
+    if operational_rank < model_rank:
+        raise ValueError(
+            "scanner decision_state undercuts model_decision attention: "
+            f"{response.decision_state!r} < {model.attention_level!r}"
+        )
+
 
 def _scanner_contract_color(risk_level: str) -> str:
     if risk_level == "amber":
@@ -1298,6 +1334,16 @@ def _scanner_ux_for_response(
     elif response.decision_state == "unverified":
         score += 30
         reason_codes.append("plain_url" if response.open_allowed else "unreadable_payload")
+    elif response.decision_state == "unknown":
+        # Missing decision-grade evidence is fail-closed. Keep the reason tied
+        # to the evidence family: redirect observation and durable trust-state
+        # availability are different failures even though both render red.
+        score += 60
+        reason_codes.append(
+            "redirect_unobserved"
+            if response.destination.binding == "redirect_unobserved"
+            else "trust_cache_unavailable"
+        )
     elif response.decision_state == "blocked":
         score += 60
 
@@ -1313,7 +1359,11 @@ def _scanner_ux_for_response(
         case "payload_revalidation":
             reason_codes.append("destination_mismatch")
         case "redirect_policy":
-            reason_codes.append("redirect_policy_block")
+            reason_codes.append(
+                "redirect_unobserved"
+                if response.destination.binding == "redirect_unobserved"
+                else "redirect_policy_block"
+            )
         case "runtime_safety":
             if not any(reason.startswith("runtime_") for reason in reason_codes):
                 reason_codes.append("runtime_blocked")
@@ -1429,6 +1479,7 @@ def _with_scanner_ux(
     decision_id = f"scan_{uuid4().hex}"
     response_with_id = response.model_copy(update={"request_id": request_id})
     scanner_ux = _scanner_ux_for_response(response_with_id, request=request)
+    _assert_scanner_conformance_mapping(response_with_id, scanner_ux)
     return response_with_id.model_copy(
         update={
             "scanner_ux": scanner_ux,
@@ -1446,7 +1497,7 @@ def _unverified_scanner_decision(
     *,
     reason: str,
     request_id: str | None,
-    cause: str = "no-signed-envelope",
+    cause: ResidualCause = "no-trust-claim",
     extra_reason_codes: tuple[str, ...] = (),
 ) -> ScannerDecisionResponse:
     trimmed_payload = payload.strip()
@@ -1503,6 +1554,7 @@ def _signed_unknown_issuer_decision(
     # certificate reference, so only R_I carries evidence. No cause from the
     # closed vocabulary describes an unenrolled issuer; the tier is the claim.
     vector = _unverified_residual_vector(cause=None)
+    vector["issuer_chain"] = _entry("unaccepted-issuer")
     _, decision = _apply_trust_residual_gate("signed_unknown_issuer", vector)
     entries, model = _residual_payload(vector, decision)
     return ScannerDecisionResponse(
@@ -2021,7 +2073,7 @@ def _artifact_payload_mismatch_decision(
         "redirect_flow": _entry("not-applicable"),
         "runtime_safety": _entry("not-checked"),
         "freshness": _entry("not-checked"),
-        "artifact_integrity": _entry("block"),
+        "artifact_integrity": _entry("block", "container-mismatch"),
     }
     _, mismatch_decision = _apply_trust_residual_gate("blocked", mismatch_vector)
     mismatch_entries, mismatch_model = _residual_payload(mismatch_vector, mismatch_decision)
@@ -2074,6 +2126,32 @@ def _scanner_signals_for_result(
     artifact_analysis: QRArtifactAnalysis | None = None,
 ) -> list[ScannerDecisionSignal]:
     if result.allowed:
+        if (
+            redirect_verdict
+            and redirect_verdict.is_redirect_flow
+            and redirect_verdict.state == "unknown"
+        ):
+            return _with_artifact_signal([
+                ScannerDecisionSignal(
+                    layer="issuer_legitimacy",
+                    state="recognized",
+                    message=_scanner_issuer_legitimacy_message(record),
+                ),
+                ScannerDecisionSignal(
+                    layer="destination_binding",
+                    state="redirect_unobserved",
+                    message=redirect_verdict.reason,
+                ),
+                ScannerDecisionSignal(
+                    layer="runtime_safety",
+                    state="not_opened",
+                    message=(
+                        "Runtime safety is not evaluated because the redirect "
+                        "destination was not observed."
+                    ),
+                ),
+                ScannerDecisionSignal(layer="scanner_decision", state="unknown"),
+            ], artifact_analysis)
         if redirect_verdict and redirect_verdict.is_redirect_flow and redirect_verdict.is_blocked:
             return _with_artifact_signal([
                 ScannerDecisionSignal(
@@ -2130,6 +2208,20 @@ def _scanner_signals_for_result(
             ScannerDecisionSignal(layer="runtime_safety", state="clean", message=runtime_message),
             ScannerDecisionSignal(layer="scanner_decision", state="verified_issuer"),
         ], artifact_analysis)
+    if result.cause == "trust-state-unavailable":
+        return _with_artifact_signal([
+            ScannerDecisionSignal(
+                layer="issuer_legitimacy",
+                state="unknown",
+                message=(
+                    "The verifier cannot confirm issuer and key status because "
+                    "durable trust state is unavailable."
+                ),
+            ),
+            ScannerDecisionSignal(layer="destination_binding", state="not_evaluated"),
+            ScannerDecisionSignal(layer="runtime_safety", state="not_evaluated"),
+            ScannerDecisionSignal(layer="scanner_decision", state="blocked"),
+        ], artifact_analysis)
     if result.stage == "payload_revalidation":
         return _with_artifact_signal([
             ScannerDecisionSignal(
@@ -2174,6 +2266,8 @@ _RUNTIME_DECISION_PROFILE = "bounded-online"
 # Reason code carried when a scan decodes as an artifact but declares a claims
 # version this build does not support.
 UNSUPPORTED_CLAIMS_VERSION_REASON = "unsupported_claims_version"
+UNSUPPORTED_ENVELOPE_REASON = "unsupported_envelope"
+NO_SIGNED_ENVELOPE_REASON = "no_signed_envelope"
 _UNSUPPORTED_VERSION_PREFIX = "Field 'version' must be exactly"
 
 _RUNTIME_SAFETY_RESIDUAL_TIERS = {
@@ -2185,6 +2279,20 @@ _RUNTIME_SAFETY_RESIDUAL_TIERS = {
     "stale": "stale",
     "unavailable": "unavailable",
 }
+_RUNTIME_SAFETY_RESIDUAL_CAUSES: dict[str, ResidualCause] = {
+    "risky": "verdict-warn",
+    "blocked": "verdict-block",
+    "expired": "verdict-expired",
+    "stale": "verdict-stale",
+    "unavailable": "provider-unavailable",
+}
+_ARTIFACT_INDICATOR_CAUSES: tuple[tuple[str, ResidualCause], ...] = (
+    ("conflicting_qr_payloads", "conflicting-symbols"),
+    ("colored_overlay_frame", "overlay-suspected"),
+    ("multiple_qr_symbols", "framed-symbol-anomaly"),
+    ("low_quiet_zone", "framed-symbol-anomaly"),
+    ("perspective_distortion", "framed-symbol-anomaly"),
+)
 
 # Stages where the trust store found the issuer record or signing key not in force.
 # Both land on R_I: a human does not care which half of the credential failed, but
@@ -2205,11 +2313,14 @@ _FAILED_STAGE_RESIDUALS: dict[str, tuple[str, str]] = {
 ResidualVector = dict[str, dict[str, str | None]]
 
 
-def _entry(tier: str, cause: str | None = None) -> dict[str, str | None]:
+def _entry(
+    tier: str,
+    cause: ResidualCause | None = None,
+) -> dict[str, str | None]:
     return {"tier": tier, "cause": cause}
 
 
-def _stage_cause(result: NarrowedVerifierResponse) -> str:
+def _stage_cause(result: NarrowedVerifierResponse) -> ResidualCause:
     """The displayable cause behind a failing verifier stage.
 
     Every trust and freshness failure now arrives with a structured cause from
@@ -2221,11 +2332,26 @@ def _stage_cause(result: NarrowedVerifierResponse) -> str:
         return result.cause
     if result.stage == "signed_schema":
         if result.reason.startswith(_UNSUPPORTED_VERSION_PREFIX):
-            return "unsupported-claims-version"
-        return "signature-invalid"
+            return "invalid-trust-claim"
+        return "invalid-signature"
     if result.stage == "payload_revalidation":
-        return "destination-mismatch"
-    return result.stage
+        return "destination-not-authorized"
+    raise ValueError(f"verifier stage {result.stage!r} has no protocol cause")
+
+
+def _artifact_residual_cause(
+    analysis: QRArtifactAnalysis,
+) -> ResidualCause | None:
+    if analysis.artifact_integrity == "pass":
+        return None
+    indicators = set(analysis.tamper_indicators)
+    for indicator, cause in _ARTIFACT_INDICATOR_CAUSES:
+        if indicator in indicators:
+            return cause
+    raise ValueError(
+        "artifact analysis has no protocol cause for indicators "
+        f"{sorted(indicators)!r}"
+    )
 
 
 def _residual_vector_for_result(
@@ -2250,28 +2376,43 @@ def _residual_vector_for_result(
         residuals[family] = _entry(tier, _stage_cause(result))
     if redirect_verdict is not None and redirect_verdict.is_redirect_flow:
         if redirect_verdict.state == "unknown":
-            residuals["redirect_flow"] = _entry("fail", "redirect-unobserved")
+            residuals["redirect_flow"] = _entry(
+                "unavailable",
+                "resolution-unavailable",
+            )
         elif redirect_verdict.is_blocked:
-            residuals["redirect_flow"] = _entry("fail", "redirect-policy-blocked")
+            if redirect_verdict.cause is None:
+                raise ValueError("blocked redirect verdict is missing a protocol cause")
+            residuals["redirect_flow"] = _entry("fail", redirect_verdict.cause)
         else:
             residuals["redirect_flow"] = _entry("pass")
     if runtime_verdict is not None:
         tier = _RUNTIME_SAFETY_RESIDUAL_TIERS.get(runtime_verdict.state, runtime_verdict.state)
         # A clean verdict is evidence of safety, not a cause to display.
-        residuals["runtime_safety"] = _entry(tier, None if tier == "pass" else f"runtime-{runtime_verdict.state}")
+        runtime_cause: ResidualCause | None = None
+        if tier != "pass":
+            runtime_cause = _RUNTIME_SAFETY_RESIDUAL_CAUSES.get(runtime_verdict.state)
+            if runtime_cause is None:
+                raise ValueError(
+                    f"runtime verdict {runtime_verdict.state!r} has no protocol cause"
+                )
+        residuals["runtime_safety"] = _entry(tier, runtime_cause)
     if artifact_analysis is not None:
-        residuals["artifact_integrity"] = _entry(artifact_analysis.artifact_integrity)
+        residuals["artifact_integrity"] = _entry(
+            artifact_analysis.artifact_integrity,
+            _artifact_residual_cause(artifact_analysis),
+        )
     return residuals
 
 
-def _unverified_residual_vector(cause: str | None) -> ResidualVector:
+def _unverified_residual_vector(cause: ResidualCause | None) -> ResidualVector:
     """The vector for a scan that never produced a signed envelope to evaluate.
 
     Nothing downstream of the issuer chain was checked, so only R_I carries
     evidence; the rest stay honest about not having been evaluated.
     """
     return {
-        "issuer_chain": _entry("unaccepted-issuer", cause),
+        "issuer_chain": _entry("no-issuer", cause),
         "destination_policy": _entry("not-applicable"),
         "redirect_flow": _entry("not-applicable"),
         "runtime_safety": _entry("not-checked"),
@@ -2295,7 +2436,6 @@ def _apply_trust_residual_gate(
     model_decision = decide_trust_residuals(
         tiers,
         profile=_RUNTIME_DECISION_PROFILE,
-        qr_decodable=True,
     )
     if decision_state == "verified_issuer" and model_decision.primary_state != "verified-issuer":
         return "unverified", model_decision
@@ -2304,16 +2444,21 @@ def _apply_trust_residual_gate(
 
 def _residual_payload(
     vector: ResidualVector,
-    decision: Decision | None,
+    decision: Decision,
     *,
     extra_reason_codes: tuple[str, ...] = (),
-) -> tuple[dict[str, ResidualEntry], ModelDecisionResponse | None]:
+) -> tuple[dict[str, ResidualEntry], ModelDecisionResponse]:
     """The wire form of a residual vector and the model decision it produced."""
     entries = {
-        family: ResidualEntry(tier=str(entry["tier"]), cause=entry["cause"]) for family, entry in vector.items()
+        family: ResidualEntry(
+            # `no-issuer` is Delta's internal categorical R_I value. On the
+            # residual wire it is unknown evidence qualified by the cause; it
+            # is not a seventh severity outside the protocol lattice.
+            tier="unknown" if entry["tier"] == "no-issuer" else str(entry["tier"]),
+            cause=entry["cause"],
+        )
+        for family, entry in vector.items()
     }
-    if decision is None:
-        return entries, None
     data = decision.as_dict()
     reason_codes = list(data["reason_codes"])
     for code in extra_reason_codes:
@@ -2337,7 +2482,11 @@ def _scanner_decision_from_result(
     artifact_analysis: QRArtifactAnalysis | None = None,
     envelope_id: str | None = None,
 ) -> ScannerDecisionResponse:
-    redirect_verdict = evaluate_redirect_policy(envelope.claims.payload) if result.allowed else None
+    redirect_verdict = (
+        evaluate_unobserved_redirect_policy(envelope.claims.payload)
+        if result.allowed
+        else None
+    )
     effective_destination = (
         redirect_verdict.effective_url
         if redirect_verdict is not None
@@ -2354,7 +2503,13 @@ def _scanner_decision_from_result(
     verifier_reason = result.reason
     destination_binding = _scanner_binding_for_stage(result.stage, result.allowed)
     if redirect_verdict and redirect_verdict.is_redirect_flow:
-        if redirect_verdict.is_blocked:
+        if redirect_verdict.state == "unknown":
+            decision_state = "unknown"
+            open_allowed = False
+            verifier_stage = "redirect_policy"
+            verifier_reason = redirect_verdict.reason
+            destination_binding = "redirect_unobserved"
+        elif redirect_verdict.is_blocked:
             decision_state = "blocked"
             open_allowed = False
             verifier_stage = "redirect_policy"
@@ -2469,17 +2624,18 @@ async def _run_scanner_decision(
         envelope = decode_envelope_from_qr_payload(qr_payload)
     except ValueError as exc:
         # A payload that does not decode still gets a verdict, never an error:
-        # the scanner route answers every scan. The cause distinguishes a plain
-        # URL from an envelope this build cannot read, and an envelope whose
-        # claims version this build does not support from a malformed one.
+        # the scanner route answers every scan. The cause stays in the protocol
+        # vocabulary; implementation reason codes distinguish a plain URL, an
+        # unreadable envelope, and an unsupported claims version.
         reason = str(exc)
-        cause = "no-signed-envelope"
-        extra_reason_codes: tuple[str, ...] = ()
+        cause: ResidualCause = "no-trust-claim"
+        extra_reason_codes: tuple[str, ...] = (NO_SIGNED_ENVELOPE_REASON,)
         if reason.startswith(_UNSUPPORTED_VERSION_PREFIX):
-            cause = "unsupported-claims-version"
+            cause = "invalid-trust-claim"
             extra_reason_codes = (UNSUPPORTED_CLAIMS_VERSION_REASON,)
         elif not _looks_like_url(qr_payload):
-            cause = "unsupported-envelope"
+            cause = "invalid-trust-claim"
+            extra_reason_codes = (UNSUPPORTED_ENVELOPE_REASON,)
         return _unverified_scanner_decision(
             qr_payload,
             reason=reason,

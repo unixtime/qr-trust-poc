@@ -19,6 +19,7 @@ import { useT, type MessageKey } from "@/i18n"
 import { cn } from "@/lib/utils"
 import {
   qrImageDataUrl,
+  type ResidualCause,
   type ScannerDecisionResponse,
 } from "@/lib/verifier-client"
 import {
@@ -166,31 +167,36 @@ const residualToneStyles: Record<
 // The cause vocabulary this catalogue actually carries. The backend does not
 // validate `cause` against it, so anything outside the set renders raw rather
 // than as a missing-key string.
-const knownCauses = new Set([
-  "signature-invalid",
-  "issuer-inactive",
+const knownCauses = new Set<ResidualCause>([
+  "invalid-signature",
+  "issuer-suspended",
   "issuer-revoked",
-  "issuer-record-expired",
-  "issuer-record-not-yet-valid",
+  "record-expired",
+  "record-not-yet-valid",
   "key-revoked",
-  "key-window-mismatch",
-  "destination-mismatch",
-  "not-yet-valid",
-  "object-expired",
-  "redirect-policy-blocked",
-  "runtime-risky",
-  "runtime-blocked",
-  "runtime-expired",
-  "runtime-stale",
-  "runtime-unavailable",
-  "no-signed-envelope",
-  "unsupported-envelope",
-  "unsupported-claims-version",
   "key-suspended",
+  "key-window-mismatch",
   "trust-state-unavailable",
-  "redirect-unobserved",
-  "destination-invalid",
+  "destination-not-authorized",
+  "normalization-failure",
   "policy-invalid",
+  "object-not-yet-valid",
+  "object-expired",
+  "nested-shortener",
+  "depth-exceeded",
+  "resolver-mismatch",
+  "resolution-unavailable",
+  "verdict-warn",
+  "verdict-block",
+  "verdict-expired",
+  "verdict-stale",
+  "provider-unavailable",
+  "no-trust-claim",
+  "invalid-trust-claim",
+  "overlay-suspected",
+  "conflicting-symbols",
+  "framed-symbol-anomaly",
+  "container-mismatch",
 ])
 
 // The gates ring is drawn on a 232-unit viewBox so the stroke geometry can be

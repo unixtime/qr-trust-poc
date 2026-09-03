@@ -91,7 +91,7 @@ def test_empty_destination_raises(raw):
 def test_error_carries_cause_slug():
     with pytest.raises(CanonicalizationError) as excinfo:
         canonicalize_destination("")
-    assert excinfo.value.cause == "destination-invalid"
+    assert excinfo.value.cause == "normalization-failure"
     assert excinfo.value.reason
 
 
@@ -99,6 +99,14 @@ def test_scheme_less_payload_defaults_to_https():
     dest = canonicalize_destination("acme.example/pay")
     assert dest.scheme == "https"
     assert dest.host == "acme.example"
+    assert dest.path == "/pay"
+
+
+def test_scheme_less_host_and_port_defaults_to_https():
+    dest = canonicalize_destination("acme.example:8443/pay")
+    assert dest.scheme == "https"
+    assert dest.host == "acme.example"
+    assert dest.port == 8443
     assert dest.path == "/pay"
 
 

@@ -500,60 +500,54 @@
     {
       "ablations": {
         "artifact_integrity": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
           "reduced_attention": false
         },
         "destination_policy": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
           "reduced_attention": false
         },
         "freshness": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
           "reduced_attention": false
         },
         "issuer_chain": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
           "reduced_attention": false
         },
         "redirect_flow": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
           "reduced_attention": false
         },
         "runtime_safety": {
-          "annotations": [],
-          "attention_level": "neutral",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "changed_output": false,
-          "primary_state": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
@@ -563,10 +557,9 @@
       "artifact_analysis": null,
       "baselines": {
         "decode-only": {
-          "annotations": [],
-          "attention_level": "neutral",
           "attention_undercut": false,
-          "primary_state": "unreadable",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
@@ -574,10 +567,9 @@
           "unsafe_positive": false
         },
         "https-only": {
-          "annotations": [],
-          "attention_level": "neutral",
           "attention_undercut": false,
-          "primary_state": "unreadable",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
@@ -585,10 +577,9 @@
           "unsafe_positive": false
         },
         "reputation-only": {
-          "annotations": [],
-          "attention_level": "neutral",
           "attention_undercut": false,
-          "primary_state": "unreadable",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
@@ -596,10 +587,9 @@
           "unsafe_positive": false
         },
         "signature-only": {
-          "annotations": [],
-          "attention_level": "neutral",
           "attention_undercut": false,
-          "primary_state": "unreadable",
+          "capture_action": "re-capture",
+          "capture_outcome": "unreadable",
           "reason_codes": [
             "qr-undecodable"
           ],
@@ -611,22 +601,19 @@
       "decoded_payload_sha256": "sha256:cc6a155534ef90d196bed7ad48be1fd1f533bca2932b7589caa2d0534a8a22aa",
       "description": "Physically damaged QR symbol that cannot be decoded into a payload.",
       "expected": {
-        "annotations": [],
-        "attention_level": "neutral",
-        "primary_state": "unreadable",
+        "capture_action": "re-capture",
+        "capture_outcome": "unreadable",
         "reason_codes": []
       },
       "formal_table": {
-        "annotations": [],
+        "capture_outcome": "unreadable",
         "match": true,
-        "primary_state": "unreadable",
         "rule": "D0"
       },
       "residual_match": true,
       "residual_verifier": {
-        "annotations": [],
-        "attention_level": "neutral",
-        "primary_state": "unreadable",
+        "capture_action": "re-capture",
+        "capture_outcome": "unreadable",
         "reason_codes": [
           "qr-undecodable"
         ]
@@ -6097,7 +6084,7 @@
     "schema_version": "trust-residuals-corpus.v1",
     "source_path": "docs/public/evaluation/trust_residuals_corpus.v1.json"
   },
-  "generated_at": "2026-07-31T08:30:40.225955+00:00",
+  "generated_at": "2026-09-02T16:11:05.992006+00:00",
   "schema_version": "trust-residuals-evaluation-results.v1",
   "summary": {
     "formal_table_conformance": {
@@ -6119,13 +6106,13 @@
       "runtime": "CPython 3.12.2",
       "summary_population": "per-case medians across all corpus cases",
       "timed_iterations_per_case": 200,
-      "timed_span": "decide(R, P) only; residual vectors precomputed",
+      "timed_span": "decoded-case decide(R, P) only; residual vectors precomputed; capture outcomes excluded",
       "timer": "time.perf_counter_ns around each individual call",
       "warmup_iterations_per_case": 20
     },
     "offline_runner_latency_ns": {
-      "max": 1354,
-      "median": 708,
+      "max": 1292,
+      "median": 750,
       "p95": 1250
     },
     "residual_match_count": 37,

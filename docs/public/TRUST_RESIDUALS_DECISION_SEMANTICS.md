@@ -47,7 +47,7 @@ the decision rules then determine what that residual costs.
 | `redirect_flow` | Under controlled resolution, does the redirect chain stay within allowed hosts and depth and end where the policy says? | `depth-exceeded`, `nested-shortener`, `unauthorized-intermediary` |
 | `runtime_safety` | Does a fresh, signed runtime-safety verdict report the destination clean *right now*? | `verdict-warn`, `verdict-block`, `provider-unavailable` |
 | `freshness` | Is every governance object consulted within its validity window, with monotonic sequence numbers and acceptable clock skew? | `object-expired`, `sequence-rollback`, `clock-skew-exceeded` |
-| `artifact_integrity` | Does capture-side analysis of the physical or digital artifact show tampering indicators? | `overlay-suspected`, `conflicting-symbols`, `low-quiet-zone` indicators |
+| `artifact_integrity` | Does capture-side analysis of the physical or digital artifact show tampering indicators? | `overlay-suspected`, `conflicting-symbols`, `framed-symbol-anomaly` |
 
 Severities are ordered as an evidence lattice:
 
@@ -66,15 +66,27 @@ condition is fatal to positive eligibility. Runtime safety has no
 `not-applicable` tier — every navigation has a present-time safety
 question.
 
+## Evaluation result types
+
+An evaluation returns exactly one of two disjoint result shapes:
+
+- `capture_outcome: unreadable` with `capture_action: re-capture` when no
+  reliable payload can be extracted; no trust decision exists in this branch
+- `primary_state` after a payload decoded and the residual decision procedure
+  ran
+
+The corpus uses `expected.capture_outcome` for D0 and
+`expected.primary_state` for decoded cases. It rejects a case that carries
+both fields or puts `unreadable` in `primary_state`.
+
 ## Decision states
 
-Every evaluated artifact maps to exactly one primary state. The set is
-deliberately closed: open-ended scores and ad hoc warning strings are
-what make current scanner behavior unreviewable.
+Every successfully decoded artifact maps to exactly one primary state. The
+five-state set is deliberately closed: open-ended scores and ad hoc warning
+strings are what make current scanner behavior unreviewable.
 
 | State | Attention | Meaning |
 |---|---|---|
-| `unreadable` | re-capture | No reliable payload could be extracted. A capture result, not a trust decision. |
 | `unverified` | neutral | No managed trust claim present (or a profile carve-out routes an invalid claim here with warnings). An ordinary link; nothing positive is asserted. |
 | `signed-unaccepted-issuer` | warning | The signature is cryptographically valid, but the delegation path ends outside every accepted root. The verifier asserts the signature's validity and nothing more. |
 | `verified-issuer` | positive *only when unannotated* | The full positive-eligibility predicate holds. Any annotation drops the attention level to at least neutral. |
@@ -96,7 +108,7 @@ paraphrase (the formal table script is the precise reference):
 
 | Rule | Condition | Outcome |
 |---|---|---|
-| D0 | capture yields no reliable payload | `unreadable` |
+| D0 | capture yields no reliable payload | capture outcome `unreadable`; re-capture |
 | D1 | no managed trust claim | `unverified` |
 | D2 | valid signature, no path to an accepted root | `signed-unaccepted-issuer` |
 | D3 | invalid signature, malformed chain, revoked/suspended issuer or key | `blocked` |

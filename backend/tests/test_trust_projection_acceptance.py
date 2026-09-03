@@ -250,6 +250,51 @@ def test_outage_returns_unknown_and_writes_nothing(client, monkeypatch):
     assert decision["open_allowed"] is False
     assert decision["issuer"]["status"] == "unknown"
     assert decision["verifier_stage"] == "key_status"
+    assert decision["primary_message"] == (
+        "The verifier cannot confirm issuer and key status right now. "
+        "Do not open this destination until verification is available."
+    )
+    assert decision["signals"][0]["layer"] == "issuer_legitimacy"
+    assert decision["signals"][0]["state"] == "unknown"
+    assert decision["signals"][1]["state"] == "not_evaluated"
+    assert decision["signals"][2]["state"] == "not_evaluated"
+    assert decision["signals"][3] == {
+        "layer": "scanner_decision",
+        "state": "blocked",
+        "message": None,
+    }
+    assert decision["scanner_ux"] == {
+        "risk_score": 60,
+        "risk_level": "red",
+        "risk_stripe": "red",
+        "hold_required": False,
+        "hold_ms": 0,
+        "reason_codes": ["trust_cache_unavailable"],
+        "destination_display": "acme.example",
+        "destination_fingerprint": "acme.example",
+        "primary_action": "Do not open",
+    }
+    assert decision["contract"]["decision_state"] == "unknown"
+    assert decision["contract"]["decision_color"] == "red"
+    assert decision["contract"]["risk_score"] == 60
+    assert decision["contract"]["reason_codes"] == ["trust_cache_unavailable"]
+    assert decision["contract"]["trust_path"]["issuer_legitimacy"]["status"] == "unknown"
+    assert decision["contract"]["trust_path"]["destination_binding"]["status"] == "not_evaluated"
+    assert decision["contract"]["trust_path"]["runtime_safety"]["status"] == "not_evaluated"
+    assert decision["contract"]["trust_path"]["scanner_decision"]["status"] == "blocked"
+    assert decision["contract"]["hold_to_open"] == {
+        "required": False,
+        "duration_ms": 0,
+        "reason_codes": [],
+    }
+    assert decision["actions"][0] == {
+        "id": "dismiss",
+        "label": "Do not open",
+        "style": "danger",
+    }
+    assert not {"open_destination", "continue_caution"} & {
+        action["id"] for action in decision["actions"]
+    }
 
     verify = client.post("/verifier/verify", json=payload["verify_request"])
     assert verify.status_code == 200
@@ -257,3 +302,34 @@ def test_outage_returns_unknown_and_writes_nothing(client, monkeypatch):
     assert verify.json()["cause"] == "trust-state-unavailable"
 
     assert written_keys == []
+
+
+def test_projection_gate_precedes_warm_verdict_cache_lookup(client, monkeypatch):
+    db = _shared_database()
+    _install_projection(monkeypatch, db)
+    qr_payload, _ = _demo_qr_and_verify_request(client, db)
+
+    assert _scan(client, qr_payload)["verdict_source"] == "computed"
+    assert _scan(client, qr_payload)["verdict_source"] == "cached"
+
+    async def _unavailable() -> str:
+        return "unavailable"
+
+    async def _cache_lookup_must_not_run(_key: str):
+        raise AssertionError("verdict cache was consulted before projection gate")
+
+    monkeypatch.setattr(verifier_module, "_ensure_trust_projection", _unavailable)
+    monkeypatch.setattr(
+        verifier_module._verdict_cache,
+        "get",
+        _cache_lookup_must_not_run,
+    )
+
+    decision = _scan(client, qr_payload)
+    assert decision["decision_state"] == "unknown"
+    assert decision["open_allowed"] is False
+    assert decision["verifier_stage"] == "key_status"
+    assert decision["primary_message"] == (
+        "The verifier cannot confirm issuer and key status right now. "
+        "Do not open this destination until verification is available."
+    )

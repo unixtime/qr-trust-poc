@@ -29,6 +29,68 @@ type CacheFreshnessCheckStatus = Exclude<
   "not_applicable"
 >
 
+/**
+ * Product states emitted by the TypeScript network scanner and their current
+ * bridge to the protocol model. The service does not yet emit
+ * `model_decision`, so it is outside the -00 conformance claim; this closed map
+ * prevents a new product state from being emitted without an explicit model
+ * interpretation in the meantime.
+ */
+export const NETWORK_SCANNER_CONFORMANCE_MAPPING = {
+  verified_issuer: {
+    primary_state: "verified-issuer",
+    attention_level: "positive",
+  },
+  verified_issuer_destination_risky: {
+    primary_state: "verified-issuer-destination-risky",
+    attention_level: "warning",
+  },
+  verified_issuer_runtime_unavailable: {
+    primary_state: "verified-issuer",
+    attention_level: "warning",
+  },
+  verified_issuer_runtime_blocked: {
+    primary_state: "blocked",
+    attention_level: "block",
+  },
+  verified_issuer_cache_stale: {
+    primary_state: "unverified",
+    attention_level: "warning",
+  },
+  verified_issuer_cache_expired: {
+    primary_state: "unverified",
+    attention_level: "warning",
+  },
+  verified_issuer_cache_unavailable: {
+    primary_state: "unverified",
+    attention_level: "warning",
+  },
+  plain_url_unrecognized: {
+    primary_state: "unverified",
+    attention_level: "neutral",
+  },
+  destination_policy_mismatch: {
+    primary_state: "blocked",
+    attention_level: "block",
+  },
+} as const
+
+export type NetworkScannerOperationalState =
+  keyof typeof NETWORK_SCANNER_CONFORMANCE_MAPPING
+
+const operationalState = <State extends NetworkScannerOperationalState>(
+  state: State,
+): State => state
+
+const CACHE_OPERATIONAL_STATES = {
+  stale: "verified_issuer_cache_stale",
+  expired: "verified_issuer_cache_expired",
+  unavailable: "verified_issuer_cache_unavailable",
+} as const satisfies Record<
+  Exclude<CacheFreshnessCheckStatus, "fresh">,
+  NetworkScannerOperationalState
+>
+
 export interface ScannerDecisionInput {
   readonly payload: string
   readonly issuerHintHost?: string
@@ -158,7 +220,7 @@ const makeGreenDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "green",
-  decision_state: "verified_issuer",
+  decision_state: operationalState("verified_issuer"),
   reason_codes: [
     "issuer_recognized",
     "destination_bound",
@@ -251,10 +313,11 @@ const makeOrangeRuntimeCautionDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "orange",
-  decision_state:
+  decision_state: operationalState(
     runtimeVerdict.status === "unavailable"
       ? "verified_issuer_runtime_unavailable"
       : "verified_issuer_destination_risky",
+  ),
   reason_codes: [
     "issuer_recognized",
     "destination_bound",
@@ -323,7 +386,7 @@ const makeRedRuntimeBlockedDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "red",
-  decision_state: "verified_issuer_runtime_blocked",
+  decision_state: operationalState("verified_issuer_runtime_blocked"),
   reason_codes: [
     "issuer_recognized",
     "destination_bound",
@@ -390,7 +453,7 @@ const makeOrangeCacheRefreshDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "orange",
-  decision_state: `verified_issuer_cache_${freshnessStatus}`,
+  decision_state: operationalState(CACHE_OPERATIONAL_STATES[freshnessStatus]),
   reason_codes: [
     "issuer_recognized",
     "destination_bound",
@@ -452,7 +515,7 @@ const makeOrangeUnrecognizedDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "orange",
-  decision_state: "plain_url_unrecognized",
+  decision_state: operationalState("plain_url_unrecognized"),
   reason_codes: ["plain_url_without_trust_signal", "destination_visible_unverified"],
   risk_score: 30,
   destination,
@@ -496,7 +559,7 @@ const makeRedDestinationMismatchDecision = (
   decision_id: `decision_${randomUUID()}`,
   decided_at: input.observedAt.toISOString(),
   decision_color: "red",
-  decision_state: "destination_policy_mismatch",
+  decision_state: operationalState("destination_policy_mismatch"),
   reason_codes: ["issuer_recognized", ...resolution.reason_codes],
   risk_score: 70,
   destination: {

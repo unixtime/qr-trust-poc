@@ -107,9 +107,12 @@ paper's short-URL and resolver-flow argument without following live redirects:
 - excessive resolver chain: use `hops=3`
 - nested shortener: use `nested=1`
 
-The scanner decision endpoint displays both the enrolled resolver and the final
-destination when a resolver policy applies. Runtime safety is evaluated only
-after the resolver policy keeps the final destination bound.
+These markers exercise the deterministic policy evaluator in unit tests. They
+are not observations made by the scanner decision endpoint. Until a live
+observer exists, `/scanner/decisions` ignores them as evidence, reports an
+enrolled resolver as `unknown` / `redirect_unobserved`, leaves final URL and hop
+count unset, disallows opening, and does not run runtime safety on an asserted
+final destination.
 
 ## Scanner Projection
 
