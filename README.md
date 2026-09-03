@@ -7,8 +7,8 @@ decision.
 Most QR scanners answer one question: _what data is encoded?_ This project
 tests a stricter question: _what decision can a scanner justify from the
 evidence currently available?_ The PoC combines signed-payload verification,
-issuer-state checks, destination binding, replay control, runtime observations,
-and explicit green/orange/red scanner states.
+issuer-state checks, destination binding, verdict caching, request-rate controls,
+runtime observations, and explicit green/orange/red scanner states.
 
 > [!IMPORTANT]
 > This repository is a research and engineering PoC. It is not a deployed
@@ -22,6 +22,11 @@ and explicit green/orange/red scanner states.
 > answer, hosting account, response content, or post-open navigation is
 > unchanged or safe. Those require separate, current evidence; the PoC does
 > not convert a URL-policy match into content or infrastructure integrity.
+
+> [!NOTE]
+> The verifier keeps no per-presentation state and does not enforce single-use
+> QR semantics. Repeated presentations within the applicable validity window
+> are evaluated against the current trust and destination state.
 
 ## Published research
 
@@ -81,7 +86,7 @@ flowchart LR
     SCAN --> API[FastAPI verifier]
     API --> CORE[Trust-residual decision core]
     CORE --> STATE[(Postgres issuer and policy state)]
-    CORE --> HOT[(Redis replay and hot-path state)]
+    CORE --> HOT[(Redis verdict cache and request-rate state)]
     CORE --> RUNTIME[Runtime-safety observations]
     BUS[NATS JetStream, optional] --> CACHE[Verifier-cache workers]
     CACHE --> STATE
@@ -101,7 +106,7 @@ the end-to-end data flow.
 
 | Component | Location | Purpose |
 | --- | --- | --- |
-| Decision and verifier services | [`backend/`](backend/) | FastAPI endpoints, signature and policy checks, replay protection, artifact analysis, management APIs, and tests |
+| Decision and verifier services | [`backend/`](backend/) | FastAPI endpoints, signature and policy checks, verdict caching, request-rate enforcement, artifact analysis, management APIs, and tests |
 | Research workbench | [`frontend/`](frontend/) | React interface for learning, QR generation, scan/upload experiments, and operator-visible state |
 | Native scanner | [`ios/VerifierLabApp/`](ios/VerifierLabApp/) | SwiftUI iPhone scanner for real-device decision and evidence testing |
 | Reference network | [`network/`](network/) | Effect TypeScript contracts and workers for publication, propagation, cache materialization, and runtime observations |
@@ -221,5 +226,9 @@ Questions, ideas, and feedback are welcome in
 
 ## License
 
-Licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE) for attribution
-information.
+Repository software is licensed under [Apache-2.0](LICENSE) unless a file states
+otherwise. The submitted Internet-Draft sources under `ietf/` are IETF
+Contributions subject to BCP 78 and the
+[IETF Trust Legal Provisions](https://trustee.ietf.org/documents/trust-legal-provisions/),
+including the rules for Code Components. See [NOTICE](NOTICE) for the complete
+repository-level distinction.

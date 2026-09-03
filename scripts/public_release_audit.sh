@@ -356,6 +356,54 @@ else
   pass "no stale native evidence blocker wording is present"
 fi
 
+# A release audit that accepts public pages claiming the repository does not
+# exist is worse than no lifecycle check: every technical gate can be green
+# while the human-facing release record directly contradicts the public tree.
+# Keep this scan narrow to the two lifecycle documents so historical discussion
+# elsewhere does not become a false positive.
+stale_publication_state_scan_status=0
+stale_publication_state_matches="$(
+  rg -n \
+    'private pre-publication review|no public GitHub repository|no public release is claimed|^## Remaining publication actions|^- \[ \] (create the release candidate|initialize the exported tree|push that exact candidate|review the private GitLab tree|record the reviewed commit|create an empty public GitHub repository|push the exact reviewed commit|confirm the GitHub commit|run GitHub Actions|run the manual native iOS workflow)' \
+    docs/public/RELEASE_CANDIDATE_STATUS.md \
+    docs/public/PUBLIC_RELEASE_CHECKLIST.md \
+)" || stale_publication_state_scan_status=$?
+
+if [ "$stale_publication_state_scan_status" -gt 1 ]; then
+  fail "stale publication-state scan failed (rg exit $stale_publication_state_scan_status); refusing to fail open"
+elif [ -n "$stale_publication_state_matches" ]; then
+  fail "stale or incomplete public-release lifecycle wording is present:"
+  printf "%s\n" "$stale_publication_state_matches"
+else
+  pass "public-release lifecycle wording matches the published-repository state"
+fi
+
+# Keep prominent public orientation pages aligned with the implemented scope.
+# These phrases have each survived a completed transition in the past: public
+# launch, stateless-verifier narrowing, or the durable Postgres projection.
+# A recurrence would give a human reviewer an obsolete description even when
+# the code and release identifiers are correct.
+stale_public_claims_scan_status=0
+stale_public_claims_matches="$(
+  rg -n \
+    'release-candidate status|^## Next Public Deliverables|preparation guide for a paper-companion repository surface|would be required if the project needs a public technical companion repository|replay control|replay protection|Redis replay|replay or policy failure|The current iOS harness is not yet an end-user scanner|intentionally not wired into the current Python verifier PoC|not yet connected through production Postgres migrations' \
+    README.md ROADMAP.md mkdocs.yml docs/README.md \
+    docs/public/IOS_END_USER_APP_DESIGN.md \
+    docs/public/NETWORK_ARCHITECTURE_PLAN.md \
+    docs/public/OPEN_SOURCE_DIRECTION.md \
+    docs/public/POC_PUBLIC_COMPANION_PLAN.md \
+    docs/public/PUBLIC_RELEASE_CHECKLIST.md
+)" || stale_public_claims_scan_status=$?
+
+if [ "$stale_public_claims_scan_status" -gt 1 ]; then
+  fail "public-claim consistency scan failed (rg exit $stale_public_claims_scan_status); refusing to fail open"
+elif [ -n "$stale_public_claims_matches" ]; then
+  fail "stale or unsupported claims remain in public orientation pages:"
+  printf "%s\n" "$stale_public_claims_matches"
+else
+  pass "public orientation claims match the implemented and published state"
+fi
+
 # Inside "[ -n ... ]" a failed git status would read as an empty string and
 # report a clean tree, silently suppressing the warning strict mode escalates.
 worktree_status_rc=0
@@ -435,6 +483,29 @@ if [ "$audit_role" = maintainer ]; then
   require_tracked_file "$patent_note"
   require_tracked_file "$generated_readme"
   require_tracked_file "$generated_check_script"
+fi
+
+heading "Published Metadata Coherence"
+
+citation_version_lines="$(sed -n 's/^version: "\([^"]*\)"$/\1/p' CITATION.cff)"
+citation_version_count="$(printf '%s\n' "$citation_version_lines" | sed '/^$/d' | wc -l | tr -d ' ')"
+citation_release_date_lines="$(sed -n 's/^date-released: \([0-9][0-9-]*\)$/\1/p' CITATION.cff)"
+citation_release_date_count="$(printf '%s\n' "$citation_release_date_lines" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+if [ "$citation_version_count" -ne 1 ]; then
+  fail "CITATION.cff must contain exactly one quoted software version"
+elif ! grep -Fq "$citation_version_lines" docs/public/RELEASE_CANDIDATE_STATUS.md; then
+  fail "CITATION.cff version is not identified by the published snapshot status"
+else
+  pass "citation version matches the published snapshot status"
+fi
+
+if [ "$citation_release_date_count" -ne 1 ]; then
+  fail "CITATION.cff must contain exactly one software release date"
+elif ! grep -Fq "Updated: $citation_release_date_lines" docs/public/RELEASE_CANDIDATE_STATUS.md; then
+  fail "CITATION.cff release date does not match the published snapshot status date"
+else
+  pass "citation release date matches the published snapshot status date"
 fi
 
 heading "iOS Project Integrity"

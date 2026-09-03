@@ -289,9 +289,11 @@ Current repository scaffold:
 - the scaffold also includes a local live NATS JetStream broker smoke that
   creates the three reference streams, publishes envelope-only governance and
   scanner-audit events, and keeps NATS as propagation rather than authority
-- it is not yet connected through production Postgres migrations or the live
-  FastAPI verifier routes, but the event outbox now has a deployable
-  supervised worker process boundary
+- the production Postgres migrations and live management routes write the
+  authoritative governance and outbox rows; the deployable TypeScript worker
+  consumes that outbox asynchronously, while the FastAPI verifier reads its
+  trust projection directly from Postgres rather than calling the worker in
+  the per-scan path
 
 Potential package boundary:
 

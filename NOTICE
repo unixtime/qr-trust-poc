@@ -6,4 +6,16 @@ identity and validity-window checks, and issuer-state payload revalidation.
 
 Copyright 2026 QR Verification PoC contributors
 
-Licensed under the Apache License, Version 2.0.
+Unless a file states otherwise, the repository software is licensed under the
+Apache License, Version 2.0.
+
+The files ietf/draft-elmasri-qr-trust-residuals-00.md and
+ietf/draft-elmasri-qr-trust-residuals-00.xml are source forms of an IETF
+Contribution. They are subject to BCP 78 and the IETF Trust's Legal Provisions
+Relating to IETF Documents in effect on the date of publication:
+
+https://trustee.ietf.org/documents/trust-legal-provisions/
+
+Code Components extracted from an IETF Document are subject to the Revised BSD
+License terms described by those Legal Provisions. The definitive published
+Internet-Draft is the version made available by the IETF.

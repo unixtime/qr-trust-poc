@@ -1,13 +1,14 @@
 # iOS End-User Scanner App Design
 
-Date: 2026-05-14
+Original design: 2026-05-14
+
+Implementation reconciliation: 2026-09-03
 
 Purpose:
-- design a production-oriented iPhone scanner experience, separate from the
-  current native verifier test harness
+- document the end-user-oriented iPhone scanner experience implemented by the
+  native research client
 - define how the iPhone app and laptop Web UI work together in the public PoC
-- identify the backend contract needed before this becomes a real end-user
-  scanner rather than a lab client
+- record the implemented backend contract and the remaining production gaps
 
 ## 1. Product Framing
 
@@ -37,24 +38,21 @@ The laptop Web UI remains the companion surface for:
 
 The phone is the scanner. The laptop is the issuer/operator/demo console.
 
-## 2. Important Architecture Shift
+## 2. Implemented Architecture Shift
 
-The current iOS harness is not yet an end-user scanner.
+The native client now follows the end-user scanner interaction model while
+remaining a research PoC rather than a production-distributed app.
 
-Current harness behavior:
-- the phone generates a demo session
-- the phone receives the certificate and issuer state
-- scanned QR payloads are verified against that active demo session
-
-That is correct for deterministic evidence capture, but it is not how an
-ordinary scanner should work.
-
-End-user scanner behavior:
-- the phone scans a QR payload from the world
-- the phone sends the raw QR payload to the verifier
+Current client behavior:
+- the phone scans a QR payload from the camera or an imported image
+- the phone sends the raw QR payload to the configured verifier provider
 - the verifier resolves issuer state, certificate state, destination binding,
-  runtime safety, and freshness from its own trust cache
-- the phone receives a user-facing decision state
+  runtime safety, and freshness from server-side state
+- the phone receives and explains a user-facing decision
+
+Local provider profiles and deterministic evidence export remain reviewer
+features. A production release would require an operator-controlled provider
+distribution and update channel; this repository does not claim one.
 
 Implemented backend contract:
 
@@ -335,15 +333,12 @@ the copy blames the destination rather than the brand.
 
 **State 6 — blocked** (`blocked`)
 
-![State 6 of the QR Trust scanner: a red circle above the headline "Blocked — do
-not continue", a card explaining that the issuing profile was revoked and noting
-that malformed signed state, replay or policy failure, and known-malicious
-destinations also collapse into this state, and a trust strip reading Revoked,
-Not trusted, Known malicious, Red status. No escape hatch is
-offered.](assets/images/ios-scanner-states/state-6-blocked.png){ width="300" }
-
-The only state with no escape hatch. Several distinct failures collapse here, so
-the sheet says so rather than implying a single cause.
+The only state with no escape hatch. Revoked trust state, malformed signed
+state, policy failure, and a known-malicious destination can each lead here.
+The scanner must display the actual structured cause returned for the current
+decision rather than imply that every blocked result failed every layer. The
+older board image for this state was retired because its copy named an
+unsupported per-presentation check.
 
 Coverage: the board covers this section and §5.3 only. §5.1 Scan Screen, §5.4
 History, §5.5 Learn and §5.6 Settings have no Figma frames yet — the wireframes

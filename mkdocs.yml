@@ -151,5 +151,5 @@ nav:
       - iOS enterprise readiness: public/IOS_ENTERPRISE_READINESS.md
   - Operations:
       - Public release checklist: public/PUBLIC_RELEASE_CHECKLIST.md
-      - Release-candidate status: public/RELEASE_CANDIDATE_STATUS.md
+      - Published snapshot status: public/RELEASE_CANDIDATE_STATUS.md
 

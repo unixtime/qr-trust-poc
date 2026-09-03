@@ -16,7 +16,7 @@ implementation, evidence, and operating paths for the QR Trust PoC.
 | Security or protocol engineer | [Trust layers](public/TRUST_LAYERS.md) → [security requirements](public/QR_TRUST_SECURITY_REQUIREMENTS.md) → [scanner decisions](public/SCANNER_DECISION_MATRIX.md) |
 | Application developer | [Run guide](public/RUN_GUIDE.md) → [verifier profile](public/VERIFIER_PROFILE.md) → [test vectors](public/TEST_VECTORS.md) |
 | Platform or infrastructure engineer | [Network architecture](public/NETWORK_ARCHITECTURE_PLAN.md) → [network contracts](public/network-contracts/README.md) → [evidence](public/evidence/README.md) |
-| Contributor or reviewer | [Contributing](../CONTRIBUTING.md) → [public checklist](public/PUBLIC_RELEASE_CHECKLIST.md) → [release-candidate status](public/RELEASE_CANDIDATE_STATUS.md) |
+| Contributor or reviewer | [Contributing](../CONTRIBUTING.md) → [public checklist](public/PUBLIC_RELEASE_CHECKLIST.md) → [published snapshot status](public/RELEASE_CANDIDATE_STATUS.md) |
 
 ## Project orientation
 
@@ -28,9 +28,9 @@ implementation, evidence, and operating paths for the QR Trust PoC.
   frontend, backend, network, and iOS commands.
 - [Open-source direction](public/OPEN_SOURCE_DIRECTION.md) — public scope and
   contribution direction.
-- [Public PoC companion plan](public/POC_PUBLIC_COMPANION_PLAN.md) —
-  preparation guide for a paper-companion repository surface; not a release
-  commitment.
+- [Public PoC companion baseline](public/POC_PUBLIC_COMPANION_PLAN.md) —
+  released repository boundary, historical checklist, and remaining
+  production-reference gaps.
 
 ## Trust and decision semantics
 

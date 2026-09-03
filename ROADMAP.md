@@ -1,20 +1,27 @@
 # Public Roadmap
 
-Date: 2026-04-11
+Updated: 2026-09-03
 
 Scope:
 - public-safe QR verification PoC
 - narrowed verifier implementation
 - React verifier frontend
 - native iPhone end-user scanner
-- documentation and packaging for eventual open-source use
+- documentation and packaging for continued public review and reuse
 
 ## Goal
 
-Publish a clean technical repository centered on the narrowed verifier flow,
-without patent filing materials, personal data, or submission artifacts.
+Maintain a clean public technical repository centered on the narrowed verifier
+flow, with reproducible implementation evidence and explicit boundaries around
+private filing materials, personal data, and maintainer-only artifacts.
 
 ## Current Status
+
+The public repository is live at <https://github.com/unixtime/qr-trust-poc>.
+`trust-residuals-ietf-00` identifies the reviewed implementation and source
+snapshot accompanying the posted individual Internet-Draft. That publication
+does not claim working-group adoption, IETF consensus, production readiness, or
+field effectiveness.
 
 Authoritative open items:
 - [x] complete the scanner-release evidence packet: 30 scanner-fleet artifacts plus 12 provider-profile artifacts under `docs/public/evidence/iphone/`
@@ -87,13 +94,13 @@ Completed:
 - [x] switched native iOS evidence export to one shareable evidence folder and pointed its generated README at the combined scanner-release importer so release evidence can be regenerated without manual filename mapping
 - [x] added public GitHub collaboration files for security reports, support, contributions, issues, and pull requests
 - [x] added GitHub Actions CI for release audit, backend tests, frontend lint/build, compose workbench smoke, route-navigation smoke, and manual native iOS smoke
-- [x] added Dependabot configuration and release-candidate status documentation
+- [x] added Dependabot configuration and published snapshot status documentation
 - [x] add scanner UX friction layer with risk stripe, reason codes, and hold-to-open gating for amber/red outcomes
 - [x] added an ignored local iOS verifier-provider profile generator plus a tracked checker so physical-device builds do not depend on stale Xcode run-scheme variables
 - [x] hardened native iPhone evidence import/status checks with PNG signature validation and structured accessibility trace validation
-- [x] surfaced reusable, one-time, and time-limited QR use semantics in the native iOS result screen so printed/shared codes are not confused with replay-protected session codes
+- [x] removed the earlier reusable/one-time/time-limited labels from the native iOS result screen when the scope-honesty pass confirmed that the verifier keeps no per-presentation state
 - [x] clarified native iOS provider and privacy copy so users understand what is checked, what is sent to the verifier, and why production profiles should be signed rather than pasted endpoints
-- [x] added a first-run and revisitable native iOS QR-use guide explaining reusable public, one-time, and time-limited QR semantics without weakening the four-layer trust model
+- [x] replaced the earlier QR-use guide with validity-window and current-state guidance aligned with the verifier's actual semantics
 - [x] added a reviewer-facing iOS provider profile import path so local verifier endpoints can be refreshed without source edits or raw endpoint entry
 - [x] prepared native iOS localization by moving generated scanner and provider status copy to `String(localized:)` and documenting the String Catalog handoff
 - [x] added a signed iOS provider profile import contract with a constrained local-reviewer exception for localhost, `.local`, and private LAN verifier endpoints
@@ -131,12 +138,12 @@ Next:
 - [x] add optional HTTPS support for the React frontend so iPhone Safari can treat the workbench as a secure context
 - [x] scaffold a native iPhone scanner app for cases where browser camera feedback is insufficient
 - [x] add iPhone-specific smoke coverage beyond the compile/build check
-- [x] add browser screenshots for accepted, replay, and payload-mismatch outcomes
+- [x] add browser screenshots for accepted, repeated-presentation, and payload-mismatch outcomes
 - [x] add a repeatable public-release audit target
 - [x] add a validator for native-device evidence artifacts
 - [x] add public GitHub collaboration templates and policies
 - [x] add public CI workflows
-- [x] add dependency update automation and release-candidate status
+- [x] add dependency update automation and published snapshot status
 - [x] track the unified native iOS scanner-release evidence packet for green, orange, and red scanner outcomes plus provider-profile import/settings/rejection states
 - [x] add an iOS provider-profile config check to catch stale local HTTPS verifier endpoints before physical-device testing
 - [x] wire `scanner_ux` into the native iPhone scanner result card, decision path, and open-action friction

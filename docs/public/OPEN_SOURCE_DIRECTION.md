@@ -2,8 +2,8 @@
 
 ## Repository Scope
 
-This repository is intended to hold the public-safe reference implementation
-for QR verification hardening, not the private patent or filing packet.
+This repository is the public-safe reference implementation for QR verification
+hardening. Private legal and filing materials are outside its scope.
 
 Public repository scope:
 - narrowed verifier PoC
@@ -46,13 +46,15 @@ The current implementation centers on this verifier chain:
 Every presentation of one envelope is evaluated the same way; the verifier
 keeps no per-presentation state.
 
-## Next Public Deliverables
+## Published Baseline
+
+The published repository includes:
 
 - a sanitized verifier profile document
 - test vectors for valid, repeated, revoked, expired, and mismatched payloads
 - a minimal API contract for the narrowed verifier endpoint
-- cleanup of any remaining patent-oriented naming in code comments or docs
-- a public release gate using `PUBLIC_RELEASE_CHECKLIST.md`
+- implementation-focused public naming
+- a repeatable public release gate using `PUBLIC_RELEASE_CHECKLIST.md`
 
 Current public docs:
 
@@ -64,7 +66,7 @@ Current public docs:
 - `../../network/`
 - `PUBLIC_RELEASE_CHECKLIST.md`
 
-Next architecture direction:
+Architecture boundary:
 
 - `NETWORK_ARCHITECTURE_PLAN.md` defines the production-reference network path
   beyond the PoC: root programs, delegated authorities, issuer enrollment,
@@ -73,12 +75,12 @@ Next architecture direction:
 - `network-contracts/` starts the contracts-first implementation boundary for
   root, authority, issuer, destination policy, revocation, verifier cache,
   scanner decision, and network event envelopes.
-- `network/` is the first code scaffold for that boundary: an Effect
-  TypeScript package with scanner-decision schemas, service ports, in-memory
-  adapters, and a contract smoke path. It is intentionally not wired into the
-  current Python verifier PoC yet.
+- `network/` implements the reference control and worker layer in Effect
+  TypeScript. The FastAPI verifier does not call those TypeScript services in
+  its per-scan path; it loads its working trust projection directly from
+  authoritative Postgres rows and fails closed when that projection is stale.
 
-Current public API direction:
+Current public API:
 
 - canonical reference path: `/verifier/*`
 - primary browser client path: React workbench over local HTTPS on `:8443` (`:5173` is only the plain-compose dev default)

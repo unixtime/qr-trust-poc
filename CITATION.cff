@@ -10,7 +10,8 @@ abstract: "A public-safe reference implementation and teaching companion for QR 
 license: "Apache-2.0"
 url: "https://github.com/unixtime/qr-trust-poc"
 repository-code: "https://github.com/unixtime/qr-trust-poc"
-date-released: 2026-08-02
+version: "trust-residuals-ietf-00"
+date-released: 2026-09-03
 keywords:
   - "QR code security"
   - "trust model"

@@ -1,36 +1,38 @@
-# Public PoC Companion Plan
+# Public PoC Companion Baseline and Gap Record
 
 Purpose:
-- define the minimum technical stack and repository surface for a public companion repo that explains the QR trust paper at an implementation level
-- separate a credible paper companion PoC from a much larger production platform effort
+- record the minimum technical stack and repository surface used for the public companion to the QR trust research
+- separate the published companion PoC from a much larger production platform effort
 
-This document is not a release commitment. It is a preparation guide for the work that would be required if the project needs a public technical companion repository.
+This is a reconciliation record, not the current roadmap or evidence ledger.
+The public repository already exists; checked items record its baseline and
+unchecked items identify production-reference work outside the PoC.
 
 Current status:
 - the public companion repository now exists in this checkout
 - the core verifier PoC, React lab, native iPhone scanner, browser evidence,
   release-audit gates, GitHub collaboration files, CI, and reference-network
   contract package are implemented
-- this document is now a reconciliation guide: checked items reflect work that
-  has landed, and unchecked items are the remaining public-release or
-  production-reference gaps
+- checked items reflect work that has landed, and unchecked items are the
+  remaining production-reference gaps
 
 ## 1. What The Public Repo Must Prove
 
-A public companion repo does not need to solve the full governance problem from the paper. It only needs to prove four things clearly:
+The public companion does not claim to solve the full production-governance
+problem. Its evidence is scoped to four things:
 
 1. the paper's trust model can be represented in code and data
 2. the verifier can emit the paper's user-visible decision states
 3. the sample artifacts and outcomes are reproducible by outsiders
 4. the system can be run locally without private files, unpublished infrastructure, or hidden operator context
 
-If those four conditions are met, the repo is doing the right job.
+Those four conditions define the companion-PoC boundary.
 
 ## 2. Minimum Technical Scope
 
-The first public release should stay narrow.
+The first public release established a deliberately narrow baseline.
 
-Include:
+The baseline includes:
 - issuer manifest or issuer record ingestion
 - QR artifact generation or fixture loading
 - destination binding checks
@@ -38,9 +40,9 @@ Include:
 - scanner decision-state output
 - deterministic sample cases for the main outcomes
 
-Do not include in the first public release:
-- full multi-operator enrollment workflows
-- production trust-root governance
+The baseline does not claim:
+- production operation of the included multi-operator management workflows
+- production trust-root custody or governance ceremonies
 - real-time commercial threat-intel dependencies
 - mobile production applications as a required path
 - enterprise dashboards or admin portals
@@ -48,7 +50,7 @@ Do not include in the first public release:
 
 ## 3. Recommended Technical Stack
 
-The current repository already points to the right stack. A public companion repo should likely keep it.
+The published companion uses this stack.
 
 Backend:
 - Python `3.12+`
@@ -71,7 +73,7 @@ Docs:
 Fixtures:
 - JSON or YAML sample data stored in-repo
 
-Optional advanced path:
+Native client:
 - native iPhone scanner harness for live-device demonstrations
 
 Why this stack is appropriate:
@@ -82,9 +84,9 @@ Why this stack is appropriate:
 
 ## 4. Minimum Public Repo Surface
 
-These are the files and directories a credible public companion repo should have at release time.
+These are the root files and directory families in the published companion.
 
-Required root files:
+Root files:
 - `README.md`
 - `LICENSE`
 - `NOTICE`
@@ -94,7 +96,7 @@ Required root files:
 - `.env.example`
 - `compose.yml`
 
-Required top-level directories:
+Top-level directories:
 - `backend/`
 - `frontend/`
 - `docs/`
@@ -102,10 +104,10 @@ Required top-level directories:
 - `scripts/`
 - `tests/`
 
-Optional advanced directories:
+Native-client directory:
 - `ios/`
 
-Recommended target shape:
+Original target shape (retained as historical planning context):
 
 ```text
 backend/
@@ -141,7 +143,9 @@ NOTICE
 
 ## 5. Release Checklist For The Technical Companion
 
-Before calling the repo a public technical companion to the paper, the release should satisfy all of the following.
+The first public release satisfied the following controls. Each later snapshot
+must repeat the applicable release gates rather than treating these historical
+checks as current evidence.
 
 Repository contract:
 - [x] README explains what the PoC implements and what it does not claim
@@ -195,9 +199,10 @@ Production-reference work still separate from the PoC:
 - [ ] restore automation and backup proof for operator-owned deployments
 - [ ] packaged deployment ownership and evidence references for production readiness
 
-## 6. Example Dataset Plan
+## 6. Example Dataset Baseline
 
-If the repo is meant to explain the paper, the example data is as important as the code.
+The example data is part of the implementation evidence, not decorative sample
+content.
 
 Minimum example categories:
 - root trust program
@@ -251,9 +256,10 @@ Each example should have:
 - expected machine-readable result
 - a test that asserts the result
 
-## 7. Documentation Expectations
+## 7. Documentation Baseline
 
-The public repo should explain the paper technically, not repeat the paper verbatim.
+The public repo explains the research technically without reproducing the
+papers.
 
 Minimum documentation set:
 
@@ -264,32 +270,34 @@ Minimum documentation set:
 - architecture sketch
 - relation to the paper
 
-`docs/architecture.md`
+`docs/public/PROJECT_OVERVIEW.md` and `docs/public/NETWORK_ARCHITECTURE_PLAN.md`
 - service boundaries
 - verifier flow
 - trust-layer mapping
 
-`docs/data-model.md`
+`docs/public/network-contracts/README.md`
 - issuer records
 - destination policies
 - QR artifact inputs
 - runtime safety inputs
 
-`docs/examples.md`
+`docs/public/TEST_VECTORS.md`
 - list of provided scenarios
 - expected outcomes
 - how each one maps to the paper
 
-`docs/threat-model.md`
+`docs/public/TRUST_MODEL_FAILURE_MODES.md` and `SECURITY.md`
 - what threats are represented
 - what threats are explicitly out of scope
 
-Most important README sentence:
-- this repository implements a narrow reference PoC for the paper's framework; it is not a production trust service, standards proposal, or completed governance deployment
+Most important README boundary:
+- this repository implements a narrow reference PoC for the research and the
+  posted individual Internet-Draft; it is not a production trust service,
+  working-group adoption, IETF consensus, or a completed governance deployment
 
 ## 8. Public Versus Private Boundary
 
-If this becomes a public repo, the line between public demonstration and private work needs to stay hard.
+The line between the public demonstration and private work remains hard.
 
 Safe to keep public:
 - verifier logic
@@ -309,9 +317,9 @@ Should stay private unless deliberately released:
 - legal strategy or patent-prosecution material
 - private evaluation notes tied to non-public deployments
 
-## 9. Likely Work Breakdown
+## 9. Historical Work Estimate
 
-If a public technical companion repo is created, the work is likely to cluster as follows:
+The original planning estimate allocated the public-companion work as follows:
 
 - `25%` code narrowing and cleanup
 - `35%` sample fixtures and expected outcomes

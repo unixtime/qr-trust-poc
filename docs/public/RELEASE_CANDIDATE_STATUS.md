@@ -1,20 +1,29 @@
-# Release-candidate status
+# Published snapshot status
 
-Updated: 2026-07-30
+Updated: 2026-09-03
 
-The QR Trust PoC is in private pre-publication review. A fresh-history export
-has been exercised against a private remote, but no public GitHub repository has
-been created and no public release is claimed.
+The QR Trust PoC is public at
+<https://github.com/unixtime/qr-trust-poc>. The reviewed implementation and
+submitted Internet-Draft source snapshot is tagged
+[`trust-residuals-ietf-00`](https://github.com/unixtime/qr-trust-poc/tree/trust-residuals-ietf-00)
+at public commit `d990f0281b841798807ab8a314a85a139aab4790`.
 
-!!! warning
-    Any documentation or code change after a candidate export changes the Git
-    tree. The reviewed private candidate and the first public GitHub commit must
-    have the same commit and tree hashes, or the private review is not proof of
-    the public content.
+The tag was exported from private source commit
+`0c5234dc288e305d7c8259def372989236e1ccc4`. Review-mirror pipeline `4109` and
+[GitHub Actions run 33767415830](https://github.com/unixtime/qr-trust-poc/actions/runs/33767415830)
+passed before the tag was treated as the public reference snapshot. The tag is
+lightweight and unsigned; project policy preserves its target, while the full
+commit identifier above provides the reproducible identity.
 
-## Current gate
+The IETF Datatracker has posted
+[`draft-elmasri-qr-trust-residuals-00`](https://datatracker.ietf.org/doc/draft-elmasri-qr-trust-residuals/)
+as an individual submission. The matching Markdown and RFCXML v3 sources are
+included in the tagged repository. Publication does not imply working-group
+adoption, IETF consensus, or standards-track status.
 
-Before replacing the private candidate or publishing:
+## Gate for a future public snapshot
+
+Before exporting or publishing any replacement snapshot:
 
 ```bash
 make docs-build
@@ -23,8 +32,9 @@ make release-audit
 make release-audit-strict
 ```
 
-The publication export must also report `RESULT: clean.` and initialize a
-single-commit fresh history from the committed index.
+The publication export must also report `RESULT: clean.` and materialize from
+the committed index. It is reviewed on the private mirror before an identical
+fast-forward reaches GitHub. Existing public tags are never moved or reused.
 
 ## Completed controls
 
@@ -45,20 +55,20 @@ single-commit fresh history from the committed index.
   validation.
 - `CITATION.cff` names the current published paper as the preferred citation.
 
-## Remaining publication actions
+## Completed publication record
 
-1. Review the replacement private candidate as if it were already public.
-2. Confirm its default branch contains one fresh-history commit and the expected
-   tracked file set.
-3. Create an empty GitHub repository without a generated README, license, or
-   `.gitignore`.
-4. Push the exact reviewed commit and verify the GitHub commit and tree hashes.
-5. Add the real public repository URL and actual release date to software
-   metadata in a separately reviewed follow-up if they were not known before the
-   first push.
+1. The public repository was created without generated starter files.
+2. The allowlist-based exporter produced a fresh-history public tree without
+   the private repository history or excluded maintainer material.
+3. The exported tree passed the private review-mirror pipeline.
+4. The identical public commit was pushed to GitHub and passed GitHub Actions.
+5. `CITATION.cff` carries the public repository URL and ORCID metadata.
+6. The submitted `-00` source and implementation snapshot were tagged only
+   after the Datatracker posting and source-digest verification completed.
 
 ## Claim boundary
 
-Passing these gates supports a public-source and reproducibility claim. It does
-not establish production readiness, standards status, deployment-scale
-capacity, field detection accuracy, or user comprehension.
+Passing these gates supports a public-source and reproducibility claim for the
+identified snapshot. It does not establish production readiness, standards
+status, deployment-scale capacity, field detection accuracy, or user
+comprehension.

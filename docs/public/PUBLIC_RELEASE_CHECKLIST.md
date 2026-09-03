@@ -1,7 +1,9 @@
 # Public Release Checklist
 
-Use this checklist before pushing the repository to any public hosting or
-treating it as an open-source release candidate.
+This checklist records the completed first public release and defines the gates
+that must be repeated before any later public snapshot. A checked historical
+item is not evidence for a future release; record each new snapshot and its
+identities in `RELEASE_CANDIDATE_STATUS.md`.
 
 Automated audit:
 
@@ -154,10 +156,10 @@ Current files:
 - [x] GitHub Actions CI for release audit, documentation rendering, backend tests, frontend lint/build, compose workbench smoke, and route-query browser smoke
 - [x] manual GitHub Actions workflow for native iOS smoke build
 - [x] Dependabot dependency update configuration
-- [x] release-candidate status document
+- [x] published snapshot status document
 - [x] tracked scanner-fleet evidence artifacts
 - [x] tracked provider-profile evidence artifacts
-- [x] `CITATION.cff` if the public repository should be cited directly as software
+- [x] `CITATION.cff` identifies the published software snapshot
 
 Existing docs and validation hooks:
 - `mkdocs.yml`
@@ -195,8 +197,8 @@ Existing docs and validation hooks:
 - `.github/workflows/native-ios.yml`
 - `docs/public/RELEASE_CANDIDATE_STATUS.md`
 
-Remaining documentation decisions:
-- update `CITATION.cff` if a public URL, release tag, or DOI is assigned
+Ongoing documentation duties:
+- update `CITATION.cff` when the cited software snapshot changes or a new paper DOI is registered
 - keep the tracked scanner-release evidence packet aligned before each strict public cut
 - keep generated evidence artifacts aligned with the reference packet filenames in `docs/public/network-contracts/examples/`
 
@@ -211,16 +213,22 @@ Remaining documentation decisions:
 
 ## 7. Release Mechanics
 
-- [ ] create the release candidate only through the allowlist-based exporter
-- [ ] initialize the exported tree as a fresh, single-commit repository
-- [ ] push that exact candidate to a private GitLab review repository
-- [ ] review the private GitLab tree, rendered docs, default branch, and CI result
-- [ ] record the reviewed commit and tree hashes
-- [ ] create an empty public GitHub repository without generated starter files
-- [ ] push the exact reviewed commit to GitHub without rebuilding or editing it
-- [ ] confirm the GitHub commit and tree hashes match the private GitLab candidate
-- [ ] run GitHub Actions and review Dependabot output after the identical push
-- [ ] run the manual native iOS workflow when macOS CI minutes are acceptable
+- [x] create the release candidate only through the allowlist-based exporter
+- [x] initialize the original public export as a fresh-history repository
+- [x] push the exact candidate to the private GitLab review repository
+- [x] review the private GitLab tree, rendered docs, default branch, and CI result
+- [x] record the private source and public commit identities
+- [x] create the public GitHub repository without generated starter files
+- [x] push the exact reviewed public commit to GitHub without rebuilding or editing it
+- [x] confirm the GitHub tag and branch resolve to the reviewed public commit
+- [x] run GitHub Actions and dependency audits after the identical push
+- [x] validate the native iOS source and unsigned Simulator build before the tagged snapshot
+
+The reviewed `trust-residuals-ietf-00` snapshot is public commit
+`d990f0281b841798807ab8a314a85a139aab4790`, exported from private source commit
+`0c5234dc288e305d7c8259def372989236e1ccc4`. Review-mirror pipeline `4109` and
+GitHub Actions run `33767415830` passed. These values are historical evidence,
+not permission to skip the gates for a later snapshot.
 
 Do not stage the private workspace with a broad pathspec or `git add -A` as a
 release mechanism. The exporter is the publication boundary; it creates the
